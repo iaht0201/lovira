@@ -57,6 +57,9 @@ async function fetchApi<T>(endpoint: string, body: Record<string, unknown>): Pro
     if (rawText.includes('GEMINI_API_KEY') || rawText.includes('chưa được cấu hình')) {
       throw new Error('Lovira chưa được cấu hình dịch vụ AI (GEMINI_API_KEY). Vui lòng kiểm tra Bảng điều khiển AI Studio hoặc nhập Key trong phần Cài đặt.');
     }
+    if (response.status === 504 || rawText.includes('FUNCTION_INVOCATION_TIMEOUT') || rawText.includes('504')) {
+      throw new Error('Yêu cầu xử lý AI phản hồi quá thời gian cho phép (Mã 504 Timeout). Vui lòng thử lại với đoạn văn bản ngắn hơn hoặc nhập API Key cá nhân trong Cài đặt.');
+    }
     if (response.status === 404) {
       throw new Error('Đường dẫn dịch vụ AI hiện chưa sẵn sàng (404 Not Found). Vui lòng tải lại trang.');
     }

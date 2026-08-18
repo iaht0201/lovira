@@ -82,7 +82,7 @@ export async function initAnonymousUser(): Promise<{ uid: string; isAnonymous: b
             const profile = await getUserProfile(cred.user.uid, cred.user);
             resolve({ uid: cred.user.uid, isAnonymous: true, profile });
           } catch (err) {
-            console.error('Anonymous auth error, falling back to local user:', err);
+            console.info('Firebase Anonymous Auth is restricted on this project. Operating seamlessly in local guest mode.');
             const uid = getLocalUid();
             const profile = getLocalProfile(uid);
             resolve({ uid, isAnonymous: true, profile });

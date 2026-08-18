@@ -199,13 +199,11 @@ function safeParseJson<T>(text: string | undefined): T | null {
   }
 }
 
-// Fallback models list for availability retries only
+// Fallback models list - active high-speed Gemini models
 const FALLBACK_GEMINI_MODELS = [
   'gemini-3.7-flash',
   'gemini-flash-latest',
-  'gemini-2.5-flash',
   'gemini-3.1-flash-lite',
-  'gemini-3.1-pro-preview',
 ];
 
 async function generateWithModelFallback(
@@ -215,12 +213,22 @@ async function generateWithModelFallback(
   let lastErrorNorm: NormalizedGeminiError | null = null;
   let primaryNonNotFoundError: NormalizedGeminiError | null = null;
 
-  for (const modelName of FALLBACK_GEMINI_MODELS) {
-    let attempts = 0;
-    const maxAttemptsForModel = 2;
+  // Add overall 20-second timeout to prevent server invocation timeout (504 HTML page)
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    setTimeout(() => {
+      reject({
+        status: 504,
+        code: 'GATEWAY_TIMEOUT',
+        message: 'Dịch vụ AI xử lý quá thời gian cho phép (Timeout 20 giây). Vui lòng thử lại với dữ liệu ngắn hơn.',
+        category: 'transient',
+        isRetryable: true,
+        originalMessage: 'Backend processing timeout reached (20s).',
+      } as NormalizedGeminiError);
+    }, 20000);
+  });
 
-    while (attempts < maxAttemptsForModel) {
-      attempts++;
+  const generatePromise = (async () => {
+    for (const modelName of FALLBACK_GEMINI_MODELS) {
       try {
         const result = await ai.models.generateContent({
           ...params,
@@ -241,22 +249,15 @@ async function generateWithModelFallback(
           throw norm;
         }
 
-        // Retry transient/rate-limit error on the same model with exponential backoff
-        if (norm.isRetryable && attempts < maxAttemptsForModel) {
-          const delayMs = attempts * 500;
-          console.warn(`[Lovira API] Model ${modelName} transient error (${norm.category}). Retry ${attempts}/${maxAttemptsForModel} in ${delayMs}ms...`);
-          await new Promise((resolve) => setTimeout(resolve, delayMs));
-          continue;
-        }
-
-        // Model not found or exhausted retries for this model -> fallback to next model
+        // Fast fallback to next model immediately without long cumulative delay
         console.warn(`[Lovira API] Model ${modelName} unavailable (${norm.category}, status ${norm.status}). Falling back to next model...`);
-        break;
       }
     }
-  }
 
-  throw primaryNonNotFoundError || lastErrorNorm || normalizeGeminiError(new Error('Tất cả các mô hình AI đều không thể phản hồi.'));
+    throw primaryNonNotFoundError || lastErrorNorm || normalizeGeminiError(new Error('Tất cả các mô hình AI đều không thể phản hồi.'));
+  })();
+
+  return Promise.race([generatePromise, timeoutPromise]);
 }
 
 function handleApiError(res: Response, endpointName: string, err: unknown) {
