@@ -1,13 +1,27 @@
 import { VisionResult, EasyReadResult, ConversationSummary, DocumentAnalysis } from '../types';
+import { auth } from '../lib/firebase';
 
 async function fetchApi<T>(endpoint: string, body: Record<string, unknown>): Promise<T> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+
+  if (auth?.currentUser) {
+    try {
+      const token = await auth.currentUser.getIdToken();
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+    } catch {
+      // continue without token
+    }
+  }
+
   let response: Response;
   try {
     response = await fetch(endpoint, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers,
       body: JSON.stringify(body),
     });
   } catch (err) {

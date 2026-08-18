@@ -53,8 +53,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       {/* Title Header */}
       <div className="bg-white dark:bg-neutral-900 p-6 rounded-2xl border border-neutral-200 dark:border-neutral-800 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="text-[10px] font-bold tracking-[0.2em] uppercase text-neutral-400">Lovira / Settings</div>
-          <h1 className="text-2xl font-light text-[#1A1A1A] dark:text-white flex items-center gap-2.5 mt-1">
+          <h1 className="text-2xl font-light text-[#1A1A1A] dark:text-white flex items-center gap-2.5">
             <span>Cài đặt & Trợ năng</span>
           </h1>
           <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1 font-light">
@@ -264,21 +263,21 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       </section>
 
       {/* 4. Account Profile & Firebase Info */}
-      <section className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
-        <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2 pb-3 border-b border-slate-100 dark:border-slate-800">
-          <UserCheck className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+      <section className="bg-white dark:bg-neutral-900 p-6 rounded-2xl border border-neutral-200 dark:border-neutral-800 shadow-xs space-y-4">
+        <h2 className="text-base font-light text-[#1A1A1A] dark:text-white flex items-center gap-2 pb-3 border-b border-neutral-100 dark:border-neutral-800">
+          <UserCheck className="w-4 h-4 text-neutral-500" />
           <span>Tài khoản & Lưu trữ đám mây</span>
         </h2>
 
-        <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-xs space-y-2">
-          <p className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2">
-            <Info className="w-4 h-4 text-indigo-500" />
+        <div className="p-4 rounded-xl bg-neutral-50 dark:bg-neutral-800/60 border border-neutral-200 dark:border-neutral-700 text-xs space-y-2">
+          <p className="font-semibold text-[#1A1A1A] dark:text-neutral-200 flex items-center gap-2">
+            <Info className="w-4 h-4 text-neutral-500" />
             <span>
               Trạng thái: {userProfile?.isAnonymous ? 'Phiên đăng nhập ẩn danh (Khách)' : 'Đã kết nối'}
             </span>
           </p>
-          <p className="text-slate-500 dark:text-slate-400">
-            Lịch sử và cài đặt của bạn được lưu tự động theo ID thiết bị: <code className="font-mono text-[10px] bg-slate-200 dark:bg-slate-700 px-1.5 py-0.5 rounded">{userProfile?.uid || 'Khách'}</code>
+          <p className="text-neutral-500 dark:text-neutral-400 font-light">
+            Lịch sử và cài đặt của bạn được lưu tự động theo ID thiết bị: <code className="font-mono text-[10px] bg-neutral-200 dark:bg-neutral-700 px-1.5 py-0.5 rounded">{userProfile?.uid || 'Khách'}</code>
           </p>
         </div>
       </section>

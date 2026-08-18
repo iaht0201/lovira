@@ -82,7 +82,9 @@ export default function App() {
     <div
       className={`${isDark ? 'dark' : ''} ${
         settings.highContrast ? 'high-contrast' : ''
-      } ${settings.reducedMotion ? 'reduce-motion' : ''}`}
+      } ${settings.reducedMotion ? 'reduce-motion' : ''} ${
+        settings.largeControls ? 'large-controls' : ''
+      }`}
     >
       <div className={`min-h-screen bg-[#F5F5F5] dark:bg-[#0d0e12] text-[#1A1A1A] dark:text-neutral-100 transition-colors font-sans ${fontScaleClass}`}>
         <SkipLink />
@@ -104,7 +106,7 @@ export default function App() {
               onNavigate={navigateTo}
             />
 
-            <main id="main-content" tabIndex={-1} className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto outline-none">
+            <main id="main-content" tabIndex={-1} className="flex-1 p-4 sm:p-6 lg:p-8 pb-28 sm:pb-8 max-w-7xl w-full mx-auto outline-none">
               <ErrorBoundary key={currentRoute}>
                 {currentRoute === '/' && (
                   <DashboardView

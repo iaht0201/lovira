@@ -97,9 +97,8 @@ export const EasyReadView: React.FC<EasyReadViewProps> = ({
       {/* Title Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white dark:bg-neutral-900 p-6 rounded-2xl border border-neutral-200 dark:border-neutral-800 shadow-xs">
         <div>
-          <div className="text-[10px] font-bold tracking-[0.2em] uppercase text-neutral-400">Lovira / Easy Read</div>
-          <h1 className="text-2xl font-light text-[#1A1A1A] dark:text-white flex items-center gap-2.5 mt-1">
-            <span>Làm nội dung dễ hiểu (Easy Read)</span>
+          <h1 className="text-2xl font-light text-[#1A1A1A] dark:text-white flex items-center gap-2.5">
+            <span>Làm nội dung dễ hiểu</span>
           </h1>
           <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1 font-light">
             Chuyển các văn bản hành chính, thông báo phức tạp thành dạng dễ đọc, câu ngắn, rõ nghĩa.
@@ -218,6 +217,18 @@ export const EasyReadView: React.FC<EasyReadViewProps> = ({
             activeMobileTab === 'input' ? 'hidden md:block' : 'block'
           }`}
         >
+          {!result && !loading && (
+            <div className="bg-white dark:bg-neutral-900 p-8 rounded-2xl border border-neutral-200 dark:border-neutral-800 shadow-xs text-center space-y-3">
+              <div className="w-10 h-10 rounded-full bg-neutral-100 dark:bg-neutral-800 text-neutral-500 mx-auto flex items-center justify-center">
+                <FileText className="w-5 h-5" />
+              </div>
+              <h3 className="text-sm font-semibold text-[#1A1A1A] dark:text-white">Chưa có kết quả Easy Read</h3>
+              <p className="text-xs text-neutral-400 font-light max-w-xs mx-auto">
+                Dán văn bản gốc hoặc chọn mẫu bên trái, sau đó nhấn "Làm dễ hiểu ngay".
+              </p>
+            </div>
+          )}
+
           {loading && (
             <LoadingSpinner
               message="Lovira đang làm nội dung dễ hiểu hơn…"

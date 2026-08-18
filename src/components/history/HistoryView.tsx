@@ -84,9 +84,8 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ userProfile }) => {
       {/* Title Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white dark:bg-neutral-900 p-6 rounded-2xl border border-neutral-200 dark:border-neutral-800 shadow-xs">
         <div>
-          <div className="text-[10px] font-bold tracking-[0.2em] uppercase text-neutral-400">Lovira / History</div>
-          <h1 className="text-2xl font-light text-[#1A1A1A] dark:text-white flex items-center gap-2.5 mt-1">
-            <span>Lịch sử hoạt động (History)</span>
+          <h1 className="text-2xl font-light text-[#1A1A1A] dark:text-white flex items-center gap-2.5">
+            <span>Lịch sử hoạt động</span>
           </h1>
           <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1 font-light">
             Xem lại các phân tích hình ảnh, tóm tắt cuộc trò chuyện và nội dung Easy Read bạn đã lưu.

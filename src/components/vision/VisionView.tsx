@@ -56,8 +56,15 @@ export const VisionView: React.FC<VisionViewProps> = ({
   };
 
   const processFile = (file: File) => {
-    if (!file.type.startsWith('image/')) {
-      setError('Vui lòng chọn tệp hình ảnh hợp lệ (PNG, JPG, WEBP).');
+    const validTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg'];
+    if (!validTypes.includes(file.type)) {
+      setError('Vui lòng chọn tệp hình ảnh hợp lệ (JPG, PNG, WEBP).');
+      return;
+    }
+
+    const MAX_SIZE_BYTES = 10 * 1024 * 1024; // 10MB
+    if (file.size > MAX_SIZE_BYTES) {
+      setError('Dung lượng ảnh vượt quá giới hạn 10MB. Vui lòng chọn ảnh nhỏ hơn.');
       return;
     }
 
@@ -165,9 +172,8 @@ export const VisionView: React.FC<VisionViewProps> = ({
       {/* Title Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white dark:bg-neutral-900 p-6 rounded-2xl border border-neutral-200 dark:border-neutral-800 shadow-xs">
         <div>
-          <div className="text-[10px] font-bold tracking-[0.2em] uppercase text-neutral-400">Lovira / Vision</div>
-          <h1 className="text-2xl font-light text-[#1A1A1A] dark:text-white flex items-center gap-2.5 mt-1">
-            <span>Nhìn giúp tôi (Vision Assistant)</span>
+          <h1 className="text-2xl font-light text-[#1A1A1A] dark:text-white flex items-center gap-2.5">
+            <span>Nhìn giúp tôi</span>
           </h1>
           <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1 font-light">
             Chụp hoặc tải ảnh để Lovira nhận diện khung cảnh, trích xuất chữ viết và lưu ý chướng ngại vật.

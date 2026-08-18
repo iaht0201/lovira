@@ -204,9 +204,8 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
       {/* Title Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white dark:bg-neutral-900 p-6 rounded-2xl border border-neutral-200 dark:border-neutral-800 shadow-xs">
         <div>
-          <div className="text-[10px] font-bold tracking-[0.2em] uppercase text-neutral-400">Lovira / Speech & Conversation</div>
-          <h1 className="text-2xl font-light text-[#1A1A1A] dark:text-white flex items-center gap-2.5 mt-1">
-            <span>Nghe & ghi lại (Conversation Assistant)</span>
+          <h1 className="text-2xl font-light text-[#1A1A1A] dark:text-white flex items-center gap-2.5">
+            <span>Nghe & ghi lại</span>
           </h1>
           <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1 font-light">
             Chuyển lời nói trực tiếp thành văn bản hiển thị và nhận tóm tắt ý chính bằng AI.
@@ -356,6 +355,18 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
 
         {/* Right: AI Summary Column */}
         <div className="space-y-6">
+          {!summary && !loading && (
+            <div className="bg-white dark:bg-neutral-900 p-8 rounded-2xl border border-neutral-200 dark:border-neutral-800 shadow-xs text-center space-y-3">
+              <div className="w-10 h-10 rounded-full bg-neutral-100 dark:bg-neutral-800 text-neutral-500 mx-auto flex items-center justify-center">
+                <Mic className="w-5 h-5" />
+              </div>
+              <h3 className="text-sm font-semibold text-[#1A1A1A] dark:text-white">Chưa có kết quả tóm tắt</h3>
+              <p className="text-xs text-neutral-400 font-light max-w-xs mx-auto">
+                Bật micro để ghi âm cuộc nói chuyện hoặc nhập văn bản bên trái, sau đó nhấn "Tóm tắt bằng AI".
+              </p>
+            </div>
+          )}
+
           {loading && (
             <LoadingSpinner
               message="Lovira đang tóm tắt cuộc trò chuyện…"

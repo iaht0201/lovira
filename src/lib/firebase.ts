@@ -26,6 +26,8 @@ import {
 import { AccessibilitySettings, UserProfile, ActivityHistory, ActivityType } from '../types';
 import { DEFAULT_ACCESSIBILITY_SETTINGS } from '../constants';
 
+import rawConfig from '../../firebase-applet-config.json';
+
 let app: FirebaseApp | null = null;
 let auth: Auth | null = null;
 let db: Firestore | null = null;
@@ -33,25 +35,17 @@ let db: Firestore | null = null;
 let firebaseInitialized = false;
 
 try {
-  // Dynamically import or check firebase config
-  const metaObj = import.meta as unknown as { glob: (pattern: string, options?: { eager?: boolean }) => Record<string, unknown> };
-  const configModules = metaObj.glob ? metaObj.glob('/firebase-applet-config.json', { eager: true }) : {};
-  const configPath = Object.keys(configModules)[0];
-  
-  if (configPath) {
-    const rawConfig = (configModules[configPath] as any)?.default || configModules[configPath];
-    const config = rawConfig as Record<string, any>;
-    if (config && config.apiKey) {
-      if (!getApps().length) {
-        app = initializeApp(config as any);
-      } else {
-        app = getApps()[0];
-      }
-      auth = getAuth(app);
-      db = getFirestore(app, config.firestoreDatabaseId);
-      firebaseInitialized = true;
-      console.log('Firebase initialized successfully with project config.');
+  const config = rawConfig as Record<string, any>;
+  if (config && config.apiKey) {
+    if (!getApps().length) {
+      app = initializeApp(config as any);
+    } else {
+      app = getApps()[0];
     }
+    auth = getAuth(app);
+    db = getFirestore(app, config.firestoreDatabaseId);
+    firebaseInitialized = true;
+    console.log('Firebase initialized successfully with project config.');
   }
 } catch (e) {
   console.warn('Firebase config loading notice:', e);

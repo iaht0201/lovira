@@ -32,6 +32,28 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 }) => {
   const [showOnboarding, setShowOnboarding] = useState(true);
   const [recentActivities, setRecentActivities] = useState<ActivityHistory[]>([]);
+  const [systemStatus, setSystemStatus] = useState<'checking' | 'ok' | 'error'>('checking');
+
+  const checkHealth = async () => {
+    setSystemStatus('checking');
+    try {
+      const res = await fetch('/api/health');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.status === 'ok') {
+          setSystemStatus('ok');
+          return;
+        }
+      }
+      setSystemStatus('error');
+    } catch {
+      setSystemStatus('error');
+    }
+  };
+
+  useEffect(() => {
+    checkHealth();
+  }, []);
 
   useEffect(() => {
     if (userProfile?.uid) {
@@ -100,11 +122,37 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           Lovira có thể hỗ trợ bạn nhìn, nghe, hiểu văn bản hành chính hay tóm tắt tài liệu hôm nay?
         </p>
 
-        <div className="flex items-center gap-4 pt-4 border-t border-neutral-100 dark:border-neutral-800">
-          <div className="px-3 py-1 bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-full text-[10px] font-bold text-emerald-600 dark:text-emerald-400 tracking-wider">
-            SẴN SÀNG HỖ TRỢ
+        <div className="flex flex-wrap items-center justify-between gap-4 pt-4 border-t border-neutral-100 dark:border-neutral-800">
+          <div className="flex items-center gap-3">
+            {systemStatus === 'checking' ? (
+              <div className="px-3 py-1 bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-full text-[10px] font-bold text-neutral-500 tracking-wider">
+                ĐANG KIỂM TRA MÁY CHỦ…
+              </div>
+            ) : systemStatus === 'ok' ? (
+              <div className="px-3 py-1 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 rounded-full text-[10px] font-bold text-emerald-600 dark:text-emerald-400 tracking-wider flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                <span>SẴN SÀNG HỖ TRỢ</span>
+              </div>
+            ) : (
+              <div className="px-3 py-1 bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800 rounded-full text-[10px] font-bold text-amber-700 dark:text-amber-400 tracking-wider flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                <span>DỊCH VỤ TẠM BẬN</span>
+              </div>
+            )}
+            <div className="text-xs text-neutral-400 font-medium">4 công cụ trợ năng AI đa năng</div>
           </div>
-          <div className="text-xs text-neutral-400 font-medium">4 công cụ trợ năng AI đa năng</div>
+
+          {systemStatus === 'error' && (
+            <div className="text-xs text-amber-700 dark:text-amber-300 font-medium flex items-center gap-2">
+              <span>Lovira đang gặp sự cố khi xử lý bằng AI. Nội dung của bạn vẫn được giữ lại.</span>
+              <button
+                onClick={checkHealth}
+                className="px-2.5 py-1 rounded-full bg-amber-100 dark:bg-amber-900/60 text-amber-800 dark:text-amber-200 font-bold uppercase text-[10px] tracking-wider hover:bg-amber-200"
+              >
+                Thử lại
+              </button>
+            </div>
+          )}
         </div>
       </div>
 

@@ -165,9 +165,8 @@ export const DocumentView: React.FC<DocumentViewProps> = ({
       {/* Title Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white dark:bg-neutral-900 p-6 rounded-2xl border border-neutral-200 dark:border-neutral-800 shadow-xs">
         <div>
-          <div className="text-[10px] font-bold tracking-[0.2em] uppercase text-neutral-400">Lovira / Documents</div>
-          <h1 className="text-2xl font-light text-[#1A1A1A] dark:text-white flex items-center gap-2.5 mt-1">
-            <span>Hiểu tài liệu (Document Assistant)</span>
+          <h1 className="text-2xl font-light text-[#1A1A1A] dark:text-white flex items-center gap-2.5">
+            <span>Hiểu tài liệu</span>
           </h1>
           <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1 font-light">
             Tải PDF, DOCX hoặc TXT để Lovira tóm tắt, trích xuất yêu cầu hồ sơ và trả lời câu hỏi tài liệu.

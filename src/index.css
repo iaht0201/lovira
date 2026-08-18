@@ -5,13 +5,13 @@
     font-size: 100%;
   }
   .font-scale-125 {
-    font-size: 112.5%;
-  }
-  .font-scale-150 {
     font-size: 125%;
   }
+  .font-scale-150 {
+    font-size: 150%;
+  }
   .font-scale-175 {
-    font-size: 137.5%;
+    font-size: 175%;
   }
 }
 
@@ -23,7 +23,7 @@
 body {
   background-color: #F5F5F5;
   color: #1A1A1A;
-  font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -35,19 +35,45 @@ body {
 
 .high-contrast {
   --tw-border-opacity: 1 !important;
-  border-color: rgba(251, 191, 36, 0.9) !important;
+  border-color: rgba(234, 179, 8, 1) !important;
 }
 
 .high-contrast button,
 .high-contrast input,
-.high-contrast select {
+.high-contrast select,
+.high-contrast textarea {
   border-width: 2px !important;
+}
+
+.large-controls button,
+.large-controls a.btn,
+.large-controls input:not([type="checkbox"]):not([type="radio"]),
+.large-controls select,
+.large-controls textarea {
+  min-height: 48px !important;
+  padding-top: 0.625rem !important;
+  padding-bottom: 0.625rem !important;
+}
+
+.large-controls input[type="checkbox"],
+.large-controls input[type="radio"] {
+  width: 22px !important;
+  height: 22px !important;
 }
 
 .reduce-motion * {
   animation-duration: 0.001ms !important;
   animation-iteration-count: 1 !important;
   transition-duration: 0.001ms !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 /* Accessible clean focus ring defaults */
@@ -63,4 +89,5 @@ body {
 html {
   scroll-behavior: smooth;
 }
+
 
