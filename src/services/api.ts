@@ -1,7 +1,20 @@
 import { VisionResult, EasyReadResult, ConversationSummary, DocumentAnalysis } from '../types';
 import { auth } from '../lib/firebase';
 
+function getCustomApiKey(providedKey?: string): string | undefined {
+  if (providedKey && providedKey.trim()) return providedKey.trim();
+  try {
+    const saved = localStorage.getItem('lovira_custom_gemini_key');
+    return saved && saved.trim() ? saved.trim() : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 async function fetchApi<T>(endpoint: string, body: Record<string, unknown>): Promise<T> {
+  const customApiKey = getCustomApiKey(body.customApiKey as string | undefined);
+  const payload = customApiKey ? { ...body, customApiKey } : body;
+
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   };
@@ -22,7 +35,7 @@ async function fetchApi<T>(endpoint: string, body: Record<string, unknown>): Pro
     response = await fetch(endpoint, {
       method: 'POST',
       headers,
-      body: JSON.stringify(body),
+      body: JSON.stringify(payload),
     });
   } catch (err) {
     console.error(`[Lovira Network Error] Endpoint: ${endpoint}`, err);
@@ -36,21 +49,24 @@ async function fetchApi<T>(endpoint: string, body: Record<string, unknown>): Pro
     try {
       json = await response.json();
     } catch {
-      throw new Error('Lovira nhận được phản hồi chưa đúng định dạng. Vui lòng thử lại.');
+      throw new Error('Lovira nhận được phản hồi chưa đúng định dạng JSON. Vui lòng thử lại.');
     }
   } else {
     const rawText = await response.text();
     console.error(`[Lovira Non-JSON Response] Endpoint: ${endpoint}, Status: ${response.status}`, rawText.slice(0, 300));
     if (rawText.includes('GEMINI_API_KEY') || rawText.includes('chưa được cấu hình')) {
-      throw new Error('Lovira chưa được cấu hình dịch vụ AI.');
+      throw new Error('Lovira chưa được cấu hình dịch vụ AI (GEMINI_API_KEY). Vui lòng kiểm tra Bảng điều khiển AI Studio hoặc nhập Key trong phần Cài đặt.');
     }
-    throw new Error('Máy chủ Lovira gặp sự cố. Vui lòng thử lại.');
+    if (response.status === 404) {
+      throw new Error('Đường dẫn dịch vụ AI hiện chưa sẵn sàng (404 Not Found). Vui lòng tải lại trang.');
+    }
+    throw new Error(`Máy chủ Lovira phản hồi mã trạng thái ${response.status}. Vui lòng thử lại trong giây lát.`);
   }
 
   if (!response.ok || !json.success) {
     const rawErr = json.error || '';
     if (rawErr.includes('GEMINI_API_KEY') || rawErr.includes('chưa được cấu hình')) {
-      throw new Error('Lovira chưa được cấu hình dịch vụ AI.');
+      throw new Error('Lovira chưa được cấu hình dịch vụ AI (GEMINI_API_KEY). Vui lòng nhập API Key trong Cài đặt.');
     }
     if (
       rawErr.includes('429') ||
@@ -58,7 +74,7 @@ async function fetchApi<T>(endpoint: string, body: Record<string, unknown>): Pro
       rawErr.includes('quota') ||
       rawErr.includes('bận')
     ) {
-      throw new Error('Dịch vụ AI đang bận. Vui lòng thử lại sau.');
+      throw new Error('Hệ thống AI đang quá tải lượt gọi (Rate Limit / Quota). Vui lòng thử lại sau vài giây hoặc nhập API Key cá nhân.');
     }
     if (rawErr.includes('chưa đúng định dạng') || rawErr.includes('format')) {
       throw new Error('Lovira nhận được phản hồi chưa đúng định dạng. Vui lòng thử lại.');
@@ -66,7 +82,7 @@ async function fetchApi<T>(endpoint: string, body: Record<string, unknown>): Pro
     if (rawErr) {
       throw new Error(rawErr);
     }
-    throw new Error('Máy chủ Lovira gặp sự cố. Vui lòng thử lại.');
+    throw new Error('Máy chủ Lovira gặp sự cố xử lý. Vui lòng thử lại.');
   }
 
   return json.data as T;

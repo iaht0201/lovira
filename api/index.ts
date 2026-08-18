@@ -201,9 +201,11 @@ function safeParseJson<T>(text: string | undefined): T | null {
 
 // Fallback models list for availability retries only
 const FALLBACK_GEMINI_MODELS = [
+  'gemini-3.7-flash',
+  'gemini-flash-latest',
   'gemini-2.5-flash',
-  'gemini-2.5-flash-lite',
-  'gemini-2.5-pro',
+  'gemini-3.1-flash-lite',
+  'gemini-3.1-pro-preview',
 ];
 
 async function generateWithModelFallback(
@@ -211,6 +213,7 @@ async function generateWithModelFallback(
   params: Omit<Parameters<GoogleGenAI['models']['generateContent']>[0], 'model'>
 ) {
   let lastErrorNorm: NormalizedGeminiError | null = null;
+  let primaryNonNotFoundError: NormalizedGeminiError | null = null;
 
   for (const modelName of FALLBACK_GEMINI_MODELS) {
     let attempts = 0;
@@ -227,6 +230,10 @@ async function generateWithModelFallback(
       } catch (err: unknown) {
         const norm = normalizeGeminiError(err);
         lastErrorNorm = norm;
+
+        if (norm.category !== 'model_not_found' && !primaryNonNotFoundError) {
+          primaryNonNotFoundError = norm;
+        }
 
         // Non-retryable errors throw immediately
         if (norm.category === 'auth' || norm.category === 'invalid_argument' || norm.category === 'quota') {
@@ -249,7 +256,7 @@ async function generateWithModelFallback(
     }
   }
 
-  throw lastErrorNorm || normalizeGeminiError(new Error('Tất cả các mô hình AI đều không thể phản hồi.'));
+  throw primaryNonNotFoundError || lastErrorNorm || normalizeGeminiError(new Error('Tất cả các mô hình AI đều không thể phản hồi.'));
 }
 
 function handleApiError(res: Response, endpointName: string, err: unknown) {
