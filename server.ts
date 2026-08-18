@@ -1,8 +1,7 @@
-import express, { Request, Response } from 'express';
+import express, { Request, Response, NextFunction } from 'express';
 import path from 'path';
 import dotenv from 'dotenv';
 import { GoogleGenAI, Type } from '@google/genai';
-import { createServer as createViteServer } from 'vite';
 
 dotenv.config();
 
@@ -69,7 +68,7 @@ app.get('/api/health', (_req: Request, res: Response) => {
 // 1. Vision Analysis Endpoint
 app.post('/api/gemini/vision', async (req: Request, res: Response) => {
   try {
-    const { imageBase64, mimeType, mode = 'scene', customApiKey } = req.body;
+    const { imageBase64, mimeType, mode = 'scene', customApiKey } = req.body || {};
 
     if (!imageBase64) {
       res.status(400).json({ error: 'Hình ảnh là bắt buộc.' });
@@ -164,7 +163,7 @@ Trả về định dạng JSON với các trường:
 // 2. Easy Read Simplification Endpoint
 app.post('/api/gemini/easy-read', async (req: Request, res: Response) => {
   try {
-    const { text, level = 'easy', customApiKey } = req.body;
+    const { text, level = 'easy', customApiKey } = req.body || {};
 
     if (!text || typeof text !== 'string' || !text.trim()) {
       res.status(400).json({ error: 'Văn bản cần làm dễ hiểu không được để trống.' });
@@ -242,7 +241,7 @@ Trả về JSON chứa:
 // 3. Conversation Summary Endpoint
 app.post('/api/gemini/conversation-summary', async (req: Request, res: Response) => {
   try {
-    const { transcript, customApiKey } = req.body;
+    const { transcript, customApiKey } = req.body || {};
 
     if (!transcript || !transcript.trim()) {
       res.status(400).json({ error: 'Nội dung cuộc trò chuyện không được để trống.' });
@@ -296,7 +295,7 @@ Trả về JSON gồm:
 // 4. Document Analysis Endpoint
 app.post('/api/gemini/document-analysis', async (req: Request, res: Response) => {
   try {
-    const { documentText, fileName, customApiKey } = req.body;
+    const { documentText, fileName, customApiKey } = req.body || {};
 
     if (!documentText || !documentText.trim()) {
       res.status(400).json({ error: 'Nội dung tài liệu không được để trống.' });
@@ -356,7 +355,7 @@ Trả về JSON gồm:
 // 5. Document Q&A Endpoint
 app.post('/api/gemini/document-qa', async (req: Request, res: Response) => {
   try {
-    const { documentText, question, conversationHistory = [], customApiKey } = req.body;
+    const { documentText, question, conversationHistory = [], customApiKey } = req.body || {};
 
     if (!documentText || !question) {
       res.status(400).json({ error: 'Nội dung tài liệu và câu hỏi là bắt buộc.' });
@@ -399,15 +398,23 @@ Trả lời bằng tiếng Việt thân thiện, rõ ràng:`;
   }
 });
 
+// Global Express error handler
+app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
+  console.error('Unhandled server error:', err);
+  const message = err instanceof Error ? err.message : 'Máy chủ gặp sự cố xử lý yêu cầu.';
+  res.status(500).json({ success: false, error: message });
+});
+
 // Vite Integration for dev & production
 async function startServer() {
-  if (process.env.NODE_ENV !== 'production') {
+  if (process.env.NODE_ENV !== 'production' && process.env.VERCEL !== '1') {
+    const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',
     });
     app.use(vite.middlewares);
-  } else {
+  } else if (process.env.VERCEL !== '1') {
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
     app.get('*', (_req: Request, res: Response) => {
@@ -415,9 +422,11 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`🚀 Lovira Server running on http://0.0.0.0:${PORT}`);
-  });
+  if (process.env.VERCEL !== '1') {
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log(`🚀 Lovira Server running on http://0.0.0.0:${PORT}`);
+    });
+  }
 }
 
 if (process.env.VERCEL !== '1') {
