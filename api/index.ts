@@ -15,11 +15,164 @@ function hasGeminiConfig(): boolean {
   return Boolean(process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY.trim().length > 0);
 }
 
+export interface NormalizedGeminiError {
+  status: number;
+  code: string;
+  message: string;
+  category: 'auth' | 'invalid_argument' | 'model_not_found' | 'quota' | 'rate_limit' | 'transient' | 'unknown';
+  isRetryable: boolean;
+  originalMessage: string;
+}
+
+function sanitizeText(text: string): string {
+  if (!text) return '';
+  let sanitized = text.replace(/AIzaSy[A-Za-z0-9_-]{33}/g, '[REDACTED_API_KEY]');
+  if (process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY.trim().length > 0) {
+    sanitized = sanitized.replaceAll(process.env.GEMINI_API_KEY, '[REDACTED_API_KEY]');
+  }
+  return sanitized;
+}
+
+export function normalizeGeminiError(err: unknown): NormalizedGeminiError {
+  if (!err) {
+    return {
+      status: 500,
+      code: 'UNKNOWN_ERROR',
+      message: 'Máy chủ gặp sự cố không xác định.',
+      category: 'unknown',
+      isRetryable: false,
+      originalMessage: '',
+    };
+  }
+
+  // Handle already normalized error objects
+  if (
+    typeof err === 'object' &&
+    err !== null &&
+    'status' in err &&
+    'category' in err &&
+    'message' in err &&
+    typeof (err as Record<string, unknown>).status === 'number'
+  ) {
+    return err as NormalizedGeminiError;
+  }
+
+  const errorObj = typeof err === 'object' && err !== null ? (err as Record<string, unknown>) : {};
+  const rawMessage = sanitizeText(err instanceof Error ? err.message : String(err));
+  const msgLower = rawMessage.toLowerCase();
+
+  let status = 500;
+  if (typeof errorObj.status === 'number' && errorObj.status >= 100 && errorObj.status < 600) {
+    status = errorObj.status;
+  } else if (typeof errorObj.statusCode === 'number' && errorObj.statusCode >= 100 && errorObj.statusCode < 600) {
+    status = errorObj.statusCode;
+  } else if (typeof (errorObj.error as Record<string, unknown>)?.code === 'number') {
+    status = (errorObj.error as Record<string, unknown>).code as number;
+  } else {
+    const match = rawMessage.match(/\b(400|401|403|404|408|429|500|502|503|504)\b/);
+    if (match) {
+      status = parseInt(match[1], 10);
+    }
+  }
+
+  let code = 'GEMINI_ERROR';
+  if (typeof errorObj.code === 'string' && errorObj.code) {
+    code = errorObj.code;
+  } else if (typeof (errorObj.error as Record<string, unknown>)?.status === 'string') {
+    code = (errorObj.error as Record<string, unknown>).status as string;
+  }
+
+  let category: NormalizedGeminiError['category'] = 'unknown';
+  let isRetryable = false;
+  let userMessage = 'Máy chủ Lovira gặp sự cố khi xử lý dịch vụ AI. Vui lòng thử lại sau.';
+
+  if (
+    status === 401 ||
+    status === 403 ||
+    msgLower.includes('gemini_api_key') ||
+    msgLower.includes('api key') ||
+    msgLower.includes('unauthenticated') ||
+    msgLower.includes('permission_denied') ||
+    msgLower.includes('invalid_api_key') ||
+    msgLower.includes('chưa được cấu hình')
+  ) {
+    category = 'auth';
+    status = status === 403 ? 403 : 401;
+    code = 'AUTH_ERROR';
+    userMessage = 'Lovira chưa được cấu hình khóa dịch vụ AI (GEMINI_API_KEY) hợp lệ.';
+    isRetryable = false;
+  } else if (status === 400 || msgLower.includes('invalid_argument') || msgLower.includes('bad request')) {
+    category = 'invalid_argument';
+    status = 400;
+    code = 'INVALID_ARGUMENT';
+    userMessage = 'Yêu cầu không hợp lệ hoặc dữ liệu gửi tới AI không đúng định dạng.';
+    isRetryable = false;
+  } else if (
+    status === 404 ||
+    msgLower.includes('not_found') ||
+    msgLower.includes('not found') ||
+    (msgLower.includes('model') && msgLower.includes('is not supported'))
+  ) {
+    category = 'model_not_found';
+    status = 404;
+    code = 'MODEL_NOT_FOUND';
+    userMessage = 'Mô hình AI được yêu cầu hiện không khả dụng.';
+    isRetryable = false;
+  } else if (status === 429 || msgLower.includes('resource_exhausted') || msgLower.includes('429')) {
+    if (msgLower.includes('quota') || msgLower.includes('limit exceeded') || msgLower.includes('exceeded your current quota')) {
+      category = 'quota';
+      status = 429;
+      code = 'QUOTA_EXCEEDED';
+      userMessage = 'Hạn ngạch sử dụng dịch vụ AI đã hết trong ngày. Vui lòng thử lại sau hoặc cập nhật API Key.';
+      isRetryable = false;
+    } else {
+      category = 'rate_limit';
+      status = 429;
+      code = 'RATE_LIMIT_EXCEEDED';
+      userMessage = 'Hệ thống AI đang nhận quá nhiều yêu cầu. Vui lòng đợi vài giây và thử lại.';
+      isRetryable = true;
+    }
+  } else if (
+    status >= 500 ||
+    msgLower.includes('unavailable') ||
+    msgLower.includes('deadline_exceeded') ||
+    msgLower.includes('overloaded') ||
+    msgLower.includes('econnreset') ||
+    msgLower.includes('fetch failed')
+  ) {
+    category = 'transient';
+    status = status >= 500 ? status : 503;
+    code = 'TRANSIENT_SERVICE_ERROR';
+    userMessage = 'Dịch vụ AI tạm thời gián đoạn. Vui lòng thử lại trong giây lát.';
+    isRetryable = true;
+  } else {
+    category = 'unknown';
+    isRetryable = status >= 500;
+    userMessage = rawMessage.length > 0 && rawMessage.length < 200 ? rawMessage : 'Máy chủ gặp sự cố xử lý dịch vụ AI.';
+  }
+
+  return {
+    status,
+    code,
+    message: userMessage,
+    category,
+    isRetryable,
+    originalMessage: rawMessage,
+  };
+}
+
 // Safe Lazy Gemini Client Initialization
 function getGenAIClient(customApiKey?: string): GoogleGenAI {
   const apiKey = customApiKey && customApiKey.trim().length > 0 ? customApiKey.trim() : process.env.GEMINI_API_KEY;
   if (!apiKey || apiKey.trim().length === 0) {
-    throw new Error('GEMINI_API_KEY chưa được cấu hình trên máy chủ.');
+    throw {
+      status: 401,
+      code: 'GEMINI_KEY_MISSING',
+      message: 'Lovira chưa được cấu hình khóa dịch vụ AI (GEMINI_API_KEY) hợp lệ.',
+      category: 'auth',
+      isRetryable: false,
+      originalMessage: 'GEMINI_API_KEY is missing or empty.',
+    } as NormalizedGeminiError;
   }
   return new GoogleGenAI({
     apiKey,
@@ -57,34 +210,57 @@ async function generateWithModelFallback(
   ai: GoogleGenAI,
   params: Omit<Parameters<GoogleGenAI['models']['generateContent']>[0], 'model'>
 ) {
-  let lastError: unknown;
+  let lastErrorNorm: NormalizedGeminiError | null = null;
+
   for (const modelName of FALLBACK_GEMINI_MODELS) {
-    try {
-      return await ai.models.generateContent({
-        ...params,
-        model: modelName,
-      });
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      // Do not retry on non-retryable errors (auth, missing keys, invalid requests)
-      const isNonRetryable =
-        msg.includes('GEMINI_API_KEY') ||
-        msg.includes('API key') ||
-        msg.includes('API_KEY_INVALID') ||
-        msg.includes('INVALID_ARGUMENT') ||
-        msg.includes('400') ||
-        msg.includes('401') ||
-        msg.includes('403');
+    let attempts = 0;
+    const maxAttemptsForModel = 2;
 
-      if (isNonRetryable) {
-        throw err;
+    while (attempts < maxAttemptsForModel) {
+      attempts++;
+      try {
+        const result = await ai.models.generateContent({
+          ...params,
+          model: modelName,
+        });
+        return result;
+      } catch (err: unknown) {
+        const norm = normalizeGeminiError(err);
+        lastErrorNorm = norm;
+
+        // Non-retryable errors throw immediately
+        if (norm.category === 'auth' || norm.category === 'invalid_argument' || norm.category === 'quota') {
+          console.error(`[Lovira API] Non-retryable error on model ${modelName} (${norm.category}): ${norm.message}`);
+          throw norm;
+        }
+
+        // Retry transient/rate-limit error on the same model with exponential backoff
+        if (norm.isRetryable && attempts < maxAttemptsForModel) {
+          const delayMs = attempts * 500;
+          console.warn(`[Lovira API] Model ${modelName} transient error (${norm.category}). Retry ${attempts}/${maxAttemptsForModel} in ${delayMs}ms...`);
+          await new Promise((resolve) => setTimeout(resolve, delayMs));
+          continue;
+        }
+
+        // Model not found or exhausted retries for this model -> fallback to next model
+        console.warn(`[Lovira API] Model ${modelName} unavailable (${norm.category}, status ${norm.status}). Falling back to next model...`);
+        break;
       }
-
-      console.warn(`[Lovira API] Model ${modelName} availability issue, retrying...`, msg);
-      lastError = err;
     }
   }
-  throw lastError;
+
+  throw lastErrorNorm || normalizeGeminiError(new Error('Tất cả các mô hình AI đều không thể phản hồi.'));
+}
+
+function handleApiError(res: Response, endpointName: string, err: unknown) {
+  const norm = normalizeGeminiError(err);
+  console.error(`[Lovira API] ${endpointName} error: [Category: ${norm.category}] [Status: ${norm.status}]`, norm.originalMessage.slice(0, 200));
+  return res.status(norm.status).json({
+    success: false,
+    error: norm.message,
+    category: norm.category,
+    code: norm.code,
+  });
 }
 
 const LOVIRA_SYSTEM_INSTRUCTION = `Bạn là Lovira (Love goes Viral) - Trợ lý Trợ năng AI nhân văn hàng đầu cho người Việt Nam. 
@@ -114,7 +290,7 @@ app.post('/api/gemini/vision', async (req: Request, res: Response) => {
     const { imageBase64, mimeType, mode = 'scene', customApiKey } = req.body || {};
 
     if (!imageBase64 || typeof imageBase64 !== 'string') {
-      return res.status(400).json({ success: false, error: 'Hình ảnh là bắt buộc.' });
+      return res.status(400).json({ success: false, error: 'Hình ảnh là bắt buộc.', category: 'invalid_argument', code: 'MISSING_IMAGE' });
     }
 
     const ai = getGenAIClient(customApiKey);
@@ -204,10 +380,7 @@ Trả về định dạng JSON với các trường:
     console.log('[Lovira API] vision request completed');
     return res.json({ success: true, data });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Đã xảy ra lỗi khi phân tích hình ảnh.';
-    console.error('[Lovira API] Vision error:', message);
-    const statusCode = message.includes('chưa được cấu hình') ? 401 : 500;
-    return res.status(statusCode).json({ success: false, error: message });
+    return handleApiError(res, 'vision', err);
   }
 });
 
@@ -219,11 +392,11 @@ app.post('/api/gemini/easy-read', async (req: Request, res: Response) => {
     const { text, level = 'easy', customApiKey } = req.body || {};
 
     if (!text || typeof text !== 'string' || !text.trim()) {
-      return res.status(400).json({ success: false, error: 'Văn bản cần làm dễ hiểu không được để trống.' });
+      return res.status(400).json({ success: false, error: 'Văn bản cần làm dễ hiểu không được để trống.', category: 'invalid_argument', code: 'MISSING_TEXT' });
     }
 
     if (text.length > 50000) {
-      return res.status(400).json({ success: false, error: 'Văn bản quá dài (tối đa 50,000 ký tự).' });
+      return res.status(400).json({ success: false, error: 'Văn bản quá dài (tối đa 50,000 ký tự).', category: 'invalid_argument', code: 'TEXT_TOO_LONG' });
     }
 
     const ai = getGenAIClient(customApiKey);
@@ -299,10 +472,12 @@ Trả về JSON chứa:
     const parsed = safeParseJson<EasyReadParsed>(response.text);
 
     if (!parsed || (!parsed.summary && !parsed.simplifiedText)) {
-      console.error('[Lovira API] Easy Read parsing failed, raw text:', response.text?.slice(0, 200));
+      console.error('[Lovira API] Easy Read parsing failed, raw text preview:', response.text?.slice(0, 150));
       return res.status(502).json({
         success: false,
         error: 'Lovira nhận được phản hồi AI chưa đúng định dạng. Vui lòng thử lại.',
+        category: 'transient',
+        code: 'BAD_JSON_OUTPUT',
       });
     }
 
@@ -320,10 +495,7 @@ Trả về JSON chứa:
     console.log('[Lovira API] easy-read request completed');
     return res.json({ success: true, data });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Đã xảy ra lỗi khi làm dễ hiểu văn bản.';
-    console.error('[Lovira API] Easy Read error:', message);
-    const statusCode = message.includes('chưa được cấu hình') ? 401 : 500;
-    return res.status(statusCode).json({ success: false, error: message });
+    return handleApiError(res, 'easy-read', err);
   }
 });
 
@@ -335,11 +507,11 @@ app.post('/api/gemini/conversation-summary', async (req: Request, res: Response)
     const { transcript, customApiKey } = req.body || {};
 
     if (!transcript || typeof transcript !== 'string' || !transcript.trim()) {
-      return res.status(400).json({ success: false, error: 'Nội dung cuộc trò chuyện không được để trống.' });
+      return res.status(400).json({ success: false, error: 'Nội dung cuộc trò chuyện không được để trống.', category: 'invalid_argument', code: 'MISSING_TRANSCRIPT' });
     }
 
     if (transcript.length > 50000) {
-      return res.status(400).json({ success: false, error: 'Nội dung ghi chép quá dài (tối đa 50,000 ký tự).' });
+      return res.status(400).json({ success: false, error: 'Nội dung ghi chép quá dài (tối đa 50,000 ký tự).', category: 'invalid_argument', code: 'TRANSCRIPT_TOO_LONG' });
     }
 
     const ai = getGenAIClient(customApiKey);
@@ -398,10 +570,7 @@ Trả về JSON gồm:
     console.log('[Lovira API] conversation-summary completed');
     return res.json({ success: true, data });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Đã xảy ra lỗi khi tóm tắt cuộc trò chuyện.';
-    console.error('[Lovira API] Conversation summary error:', message);
-    const statusCode = message.includes('chưa được cấu hình') ? 401 : 500;
-    return res.status(statusCode).json({ success: false, error: message });
+    return handleApiError(res, 'conversation-summary', err);
   }
 });
 
@@ -413,7 +582,7 @@ app.post('/api/gemini/document-analysis', async (req: Request, res: Response) =>
     const { documentText, fileName, customApiKey } = req.body || {};
 
     if (!documentText || typeof documentText !== 'string' || !documentText.trim()) {
-      return res.status(400).json({ success: false, error: 'Nội dung tài liệu không được để trống.' });
+      return res.status(400).json({ success: false, error: 'Nội dung tài liệu không được để trống.', category: 'invalid_argument', code: 'MISSING_DOCUMENT' });
     }
 
     const ai = getGenAIClient(customApiKey);
@@ -484,10 +653,7 @@ Trả về JSON gồm:
     console.log('[Lovira API] document-analysis completed');
     return res.json({ success: true, data });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Đã xảy ra lỗi khi phân tích tài liệu.';
-    console.error('[Lovira API] Document analysis error:', message);
-    const statusCode = message.includes('chưa được cấu hình') ? 401 : 500;
-    return res.status(statusCode).json({ success: false, error: message });
+    return handleApiError(res, 'document-analysis', err);
   }
 });
 
@@ -499,7 +665,7 @@ app.post('/api/gemini/document-qa', async (req: Request, res: Response) => {
     const { documentText, question, conversationHistory = [], customApiKey } = req.body || {};
 
     if (!documentText || typeof documentText !== 'string' || !documentText.trim() || !question || typeof question !== 'string' || !question.trim()) {
-      return res.status(400).json({ success: false, error: 'Nội dung tài liệu và câu hỏi là bắt buộc.' });
+      return res.status(400).json({ success: false, error: 'Nội dung tài liệu và câu hỏi là bắt buộc.', category: 'invalid_argument', code: 'MISSING_PARAMS' });
     }
 
     const ai = getGenAIClient(customApiKey);
@@ -532,21 +698,19 @@ Trả lời bằng tiếng Việt thân thiện, rõ ràng:`;
       },
     });
 
+    const answer = response.text || 'Tôi không tìm thấy thông tin phù hợp trong tài liệu.';
     console.log('[Lovira API] document-qa completed');
-    return res.json({ success: true, data: { answer: response.text || 'Tôi không tìm thấy thông tin phù hợp trong tài liệu.' } });
+    return res.json({ success: true, data: { answer }, answer });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Đã xảy ra lỗi khi trả lời câu hỏi tài liệu.';
-    console.error('[Lovira API] Document QA error:', message);
-    const statusCode = message.includes('chưa được cấu hình') ? 401 : 500;
-    return res.status(statusCode).json({ success: false, error: message });
+    return handleApiError(res, 'document-qa', err);
   }
 });
 
 // Global Express error handler
 app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
-  console.error('[Lovira API] Unhandled Express error:', err);
-  const message = err instanceof Error ? err.message : 'Máy chủ gặp sự cố xử lý yêu cầu.';
-  res.status(500).json({ success: false, error: message });
+  const norm = normalizeGeminiError(err);
+  console.error('[Lovira API] Unhandled Express error:', norm.originalMessage.slice(0, 200));
+  res.status(norm.status).json({ success: false, error: norm.message, category: norm.category, code: norm.code });
 });
 
 export default app;
