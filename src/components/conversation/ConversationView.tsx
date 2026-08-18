@@ -11,6 +11,7 @@ import {
   Check,
   AlertCircle,
   FileText,
+  Bookmark,
 } from 'lucide-react';
 import {
   isSpeechRecognitionSupported,
@@ -83,7 +84,6 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
         }
       },
       () => {
-        // Automatically restart if still meant to be listening and not paused
         if (isListening && !isPaused && recognitionRef.current) {
           try {
             recognitionRef.current.start();
@@ -200,266 +200,215 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
   };
 
   return (
-    <div className="space-y-8 pb-12">
-      {/* Title Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white dark:bg-neutral-900 p-6 rounded-2xl border border-neutral-200 dark:border-neutral-800 shadow-xs">
-        <div>
-          <h1 className="text-2xl font-light text-[#1A1A1A] dark:text-white flex items-center gap-2.5">
-            <span>Nghe & ghi lại</span>
-          </h1>
-          <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1 font-light">
-            Chuyển lời nói trực tiếp thành văn bản hiển thị và nhận tóm tắt ý chính bằng AI.
-          </p>
-        </div>
-
-        {/* Live Mic Status Indicator */}
-        <div className="flex items-center gap-3">
-          {isListening ? (
-            <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-neutral-100 text-[#1A1A1A] dark:bg-neutral-800 dark:text-neutral-200 border border-neutral-200 dark:border-neutral-700 text-[10px] font-bold uppercase tracking-wider">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
-              <span>{isPaused ? 'Đã tạm dừng' : 'Micro đang hoạt động'}</span>
-            </div>
-          ) : (
-            <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-neutral-100 text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400 text-[10px] font-bold uppercase tracking-wider border border-neutral-200 dark:border-neutral-700">
-              <MicOff className="w-3 h-3" />
-              <span>Chưa bật micro</span>
-            </div>
-          )}
-        </div>
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-2xl font-bold text-text-primary">Nghe & ghi lại</h2>
+        <p className="text-sm text-text-secondary mt-1">Theo dõi lời nói bằng văn bản trực tiếp và tạo bản tóm tắt có cấu trúc rõ ràng.</p>
       </div>
 
-      {/* Unsupported Notice */}
       {!isSupported && (
-        <div className="p-4 rounded-xl bg-neutral-50 dark:bg-neutral-800/80 border border-neutral-200 dark:border-neutral-700 text-[#1A1A1A] dark:text-white flex items-start gap-3">
-          <AlertCircle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
-          <div className="text-xs space-y-1">
-            <p className="font-bold uppercase tracking-wider">Trình duyệt này chưa hỗ trợ nhận diện giọng nói trực tiếp.</p>
-            <p className="font-light">Bạn vẫn có thể nhập hoặc dán nội dung cuộc trò chuyện bên dưới để Lovira tóm tắt bằng AI.</p>
+        <div className="p-4 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 text-amber-900 dark:text-amber-200 flex items-start gap-3">
+          <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+          <div className="text-xs leading-relaxed">
+            <p className="font-bold">Trình duyệt chưa hỗ trợ nhận diện giọng nói trực tiếp.</p>
+            <p className="mt-0.5">Bạn vẫn có thể nhập hoặc dán nội dung cuộc trò chuyện bên dưới để Lovira tóm tắt bằng AI.</p>
           </div>
         </div>
       )}
 
-      {/* Control Buttons Toolbar */}
-      <div className="flex flex-wrap items-center gap-3 bg-white dark:bg-neutral-900 p-4 rounded-2xl border border-neutral-200 dark:border-neutral-800 shadow-xs">
-        {isSupported && (
-          <>
-            {!isListening ? (
-              <button
-                type="button"
-                onClick={startListening}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[#1A1A1A] text-white dark:bg-white dark:text-[#1A1A1A] font-bold text-xs uppercase tracking-wider hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-colors shadow-xs"
-              >
-                <Mic className="w-3.5 h-3.5" />
-                <span>Bắt đầu nghe</span>
-              </button>
-            ) : isPaused ? (
-              <button
-                type="button"
-                onClick={resumeListening}
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-600 text-white font-bold text-sm hover:bg-emerald-700 transition-colors shadow-md"
-              >
-                <Play className="w-4 h-4" />
-                <span>Tiếp tục</span>
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={pauseListening}
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-amber-600 text-white font-bold text-sm hover:bg-amber-700 transition-colors shadow-md"
-              >
-                <Pause className="w-4 h-4" />
-                <span>Tạm dừng</span>
-              </button>
-            )}
-
-            {isListening && (
-              <button
-                type="button"
-                onClick={stopListening}
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-bold text-sm hover:bg-slate-300 dark:hover:bg-slate-700 transition-colors"
-              >
-                <Square className="w-4 h-4" />
-                <span>Kết thúc</span>
-              </button>
-            )}
-          </>
-        )}
-
-        <button
-          type="button"
-          onClick={handleClear}
-          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-red-600 dark:text-red-400 font-semibold text-sm hover:bg-red-50 dark:hover:bg-red-950/50 transition-colors"
-        >
-          <Trash2 className="w-4 h-4" />
-          <span>Xóa</span>
-        </button>
-
-        <div className="ml-auto">
-          <button
-            type="button"
-            onClick={handleSummarize}
-            disabled={loading || !getFullContent()}
-            className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-indigo-600 text-white font-bold text-sm hover:bg-indigo-700 transition-colors shadow-md shadow-indigo-600/20 disabled:opacity-50"
-          >
-            <Sparkles className="w-4 h-4" />
-            <span>Tóm tắt bằng AI</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Main Transcript & Manual Input Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Left: Transcript Box */}
-        <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
-          <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
-            <h2 className="text-base font-bold text-slate-900 dark:text-white">
-              Văn bản cuộc trò chuyện
-            </h2>
-            {transcript && <ReadAloudButton text={transcript} speechRate={settings.speechRate} size="sm" />}
-          </div>
-
-          <div
-            ref={transcriptContainerRef}
-            className="min-h-[240px] max-h-[360px] overflow-y-auto p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 text-base leading-relaxed text-slate-900 dark:text-slate-100 space-y-2 font-sans"
-          >
-            {transcript ? (
-              <p className="whitespace-pre-wrap">{transcript}</p>
-            ) : (
-              <p className="text-slate-400 dark:text-slate-500 italic text-sm">
-                Nội dung trò chuyện nhận diện qua micro sẽ xuất hiện tại đây…
-              </p>
-            )}
-
-            {interimText && (
-              <p className="text-indigo-600 dark:text-indigo-400 font-semibold italic text-sm animate-pulse">
-                {interimText}…
-              </p>
-            )}
-          </div>
-
-          {/* Mandatory Text Fallback Box */}
-          <div className="space-y-2 pt-2">
-            <label htmlFor="manual-transcript" className="block text-xs font-bold text-slate-700 dark:text-slate-300">
-              Nhập hoặc dán bổ sung nội dung cuộc trò chuyện:
-            </label>
-            <textarea
-              id="manual-transcript"
-              rows={4}
-              value={manualInput}
-              onChange={(e) => setManualInput(e.target.value)}
-              placeholder="Nhập hoặc dán bản ghi cuộc trò chuyện tại đây…"
-              className="w-full p-3.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            ></textarea>
-          </div>
-        </div>
-
-        {/* Right: AI Summary Column */}
-        <div className="space-y-6">
-          {!summary && !loading && (
-            <div className="bg-white dark:bg-neutral-900 p-8 rounded-2xl border border-neutral-200 dark:border-neutral-800 shadow-xs text-center space-y-3">
-              <div className="w-10 h-10 rounded-full bg-neutral-100 dark:bg-neutral-800 text-neutral-500 mx-auto flex items-center justify-center">
-                <Mic className="w-5 h-5" />
-              </div>
-              <h3 className="text-sm font-semibold text-[#1A1A1A] dark:text-white">Chưa có kết quả tóm tắt</h3>
-              <p className="text-xs text-neutral-400 font-light max-w-xs mx-auto">
-                Bật micro để ghi âm cuộc nói chuyện hoặc nhập văn bản bên trái, sau đó nhấn "Tóm tắt bằng AI".
-              </p>
-            </div>
-          )}
-
-          {loading && (
-            <LoadingSpinner
-              message="Lovira đang tóm tắt cuộc trò chuyện…"
-              subMessage="Đang tổng hợp các ý chính, quyết định và việc cần làm."
-            />
-          )}
-
-          {error && (
-            <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-200 text-xs">
-              {error}
-            </div>
-          )}
-
-          {summary && !loading && (
-            <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-6">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
-                <span className="text-xs font-bold px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
-                  Tóm tắt cuộc trò chuyện
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        {/* Left: Live Transcription Panel (6 Cols) */}
+        <div className="lg:col-span-6 bg-surface border border-slate-200 dark:border-slate-800 rounded-2xl p-6 flex flex-col justify-between min-h-[500px]">
+          <div className="space-y-4">
+            {/* Header Status */}
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+              <div className="flex items-center gap-2">
+                <span className={`w-2.5 h-2.5 rounded-full ${isListening && !isPaused ? 'bg-teal animate-pulse' : 'bg-slate-300 dark:bg-slate-700'}`}></span>
+                <span className="font-bold text-sm text-text-primary">
+                  {isListening ? (isPaused ? 'Đã tạm dừng' : 'Đang lắng nghe trực tiếp') : 'Sẵn sàng ghi âm'}
                 </span>
+              </div>
+              {isListening && !isPaused && (
+                <div className="flex items-center gap-1">
+                  <span className="w-1 h-3 bg-teal rounded-full animate-bounce"></span>
+                  <span className="w-1 h-4 bg-teal rounded-full animate-bounce [animation-delay:0.1s]"></span>
+                  <span className="w-1 h-2 bg-teal rounded-full animate-bounce [animation-delay:0.2s]"></span>
+                </div>
+              )}
+            </div>
 
+            {/* Live Transcript Box */}
+            <div
+              ref={transcriptContainerRef}
+              className="p-4 rounded-xl bg-surface-subtle min-h-[220px] max-h-[300px] overflow-y-auto space-y-2 text-sm text-text-primary leading-relaxed"
+            >
+              {transcript ? (
+                <p className="whitespace-pre-wrap">{transcript}</p>
+              ) : (
+                <p className="text-text-secondary italic text-xs">
+                  Văn bản ghi âm qua micro sẽ tự động xuất hiện tại đây...
+                </p>
+              )}
+              {interimText && (
+                <p className="text-teal font-semibold italic text-xs animate-pulse">
+                  {interimText}...
+                </p>
+              )}
+            </div>
+
+            {/* Manual Input Area */}
+            <div className="space-y-1.5 pt-2">
+              <label htmlFor="manual-transcript" className="block text-xs font-semibold text-text-secondary">
+                Hoặc dán bổ sung văn bản cuộc trò chuyện:
+              </label>
+              <textarea
+                id="manual-transcript"
+                rows={3}
+                value={manualInput}
+                onChange={(e) => setManualInput(e.target.value)}
+                placeholder="Nhập hoặc dán nội dung..."
+                className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-surface text-xs text-text-primary focus:border-primary"
+              ></textarea>
+            </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              {!isListening ? (
+                <button
+                  type="button"
+                  onClick={startListening}
+                  className="px-4 py-2.5 rounded-xl bg-teal text-white text-xs font-semibold hover:bg-teal-hover flex items-center gap-1.5"
+                >
+                  <Mic className="w-4 h-4 shrink-0" /> Bắt đầu nghe
+                </button>
+              ) : isPaused ? (
+                <button
+                  type="button"
+                  onClick={resumeListening}
+                  className="px-4 py-2.5 rounded-xl bg-teal text-white text-xs font-semibold hover:bg-teal-hover flex items-center gap-1.5"
+                >
+                  <Play className="w-4 h-4 shrink-0" /> Tiếp tục
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={pauseListening}
+                  className="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 text-xs font-semibold text-text-primary hover:bg-surface-subtle flex items-center gap-1.5"
+                >
+                  <Pause className="w-4 h-4 shrink-0" /> Tạm dừng
+                </button>
+              )}
+
+              {isListening && (
+                <button
+                  type="button"
+                  onClick={stopListening}
+                  className="px-4 py-2.5 rounded-xl bg-rose-600 text-white text-xs font-semibold hover:bg-rose-700 flex items-center gap-1.5"
+                >
+                  <Square className="w-4 h-4 shrink-0" /> Kết thúc
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={handleClear}
+                className="px-3 py-2.5 rounded-xl text-xs font-semibold text-text-secondary hover:text-rose-600 flex items-center gap-1"
+              >
+                <Trash2 className="w-4 h-4 shrink-0" /> Xóa
+              </button>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleSummarize}
+              disabled={loading || !getFullContent()}
+              className="px-4 py-2.5 rounded-xl bg-primary text-white text-xs font-semibold hover:bg-primary-hover disabled:opacity-50 flex items-center gap-1.5"
+            >
+              <Sparkles className="w-4 h-4 shrink-0" /> Tạo bản tóm tắt
+            </button>
+          </div>
+        </div>
+
+        {/* Right: Summary Panel (6 Cols) */}
+        <div className="lg:col-span-6 bg-surface border border-slate-200 dark:border-slate-800 rounded-2xl p-6 flex flex-col justify-between min-h-[500px]">
+          {loading ? (
+            <LoadingSpinner message="Lovira đang tổng hợp tóm tắt cuộc trò chuyện..." />
+          ) : error ? (
+            <div className="p-4 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 text-rose-800 dark:text-rose-200 text-xs space-y-2">
+              <p className="font-bold">{error}</p>
+            </div>
+          ) : summary ? (
+            <div className="space-y-6">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+                <h3 className="font-bold text-base text-text-primary">Bản tóm tắt cuộc trò chuyện</h3>
                 <div className="flex items-center gap-2">
                   <ReadAloudButton
                     text={`${summary.summary}. ${summary.keyPoints.join('. ')}`}
                     speechRate={settings.speechRate}
                     size="sm"
                   />
-
                   <button
                     onClick={handleCopySummary}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-semibold hover:bg-slate-200 dark:hover:bg-slate-700"
+                    className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 text-xs font-semibold text-text-primary hover:bg-surface-subtle flex items-center gap-1"
                   >
                     {copied ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
-                    <span>{copied ? 'Đã chép' : 'Sao chép'}</span>
+                    <span>{copied ? 'Đã sao chép' : 'Sao chép'}</span>
                   </button>
                 </div>
               </div>
 
-              {/* Main Summary */}
-              <div className="p-4 rounded-2xl bg-emerald-50/70 dark:bg-emerald-950/40 border border-emerald-100 dark:border-emerald-900/60 space-y-1">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-emerald-800 dark:text-emerald-300">
-                  Tóm tắt tổng quan
-                </h3>
-                <p className="text-base font-semibold text-slate-900 dark:text-slate-100 leading-relaxed">
-                  {summary.summary}
-                </p>
+              <div className="space-y-4">
+                <div>
+                  <h4 className="text-xs font-bold text-text-secondary uppercase tracking-wider mb-2">Ý chính</h4>
+                  <p className="text-sm text-text-primary leading-relaxed bg-surface-subtle p-3.5 rounded-xl">
+                    {summary.summary}
+                  </p>
+                </div>
+
+                {summary.keyPoints && summary.keyPoints.length > 0 && (
+                  <div>
+                    <h4 className="text-xs font-bold text-text-secondary uppercase tracking-wider mb-2">Các điểm thảo luận</h4>
+                    <ul className="text-sm text-text-primary space-y-1.5 list-disc list-inside">
+                      {summary.keyPoints.map((kp, i) => (
+                        <li key={i}>{kp}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {summary.actionItems && summary.actionItems.length > 0 && (
+                  <div>
+                    <h4 className="text-xs font-bold text-coral uppercase tracking-wider mb-2">Việc cần làm</h4>
+                    <ul className="text-sm text-coral space-y-1.5 list-disc list-inside font-medium">
+                      {summary.actionItems.map((act, i) => (
+                        <li key={i}>{act}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </div>
-
-              {/* Key Points */}
-              {summary.keyPoints && summary.keyPoints.length > 0 && (
-                <div className="space-y-2">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                    Ý chính trao đổi
-                  </h3>
-                  <ul className="space-y-1.5 text-sm text-slate-800 dark:text-slate-200">
-                    {summary.keyPoints.map((kp, i) => (
-                      <li key={i} className="flex items-start gap-2">
-                        <span className="w-2 h-2 rounded-full bg-emerald-500 mt-2 shrink-0"></span>
-                        <span>{kp}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {/* Action Items */}
-              {summary.actionItems && summary.actionItems.length > 0 && (
-                <div className="space-y-2">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                    Việc cần làm tiếp theo
-                  </h3>
-                  <ul className="space-y-1.5 text-sm text-slate-800 dark:text-slate-200">
-                    {summary.actionItems.map((act, i) => (
-                      <li key={i} className="flex items-start gap-2">
-                        <span className="w-2 h-2 rounded-full bg-indigo-500 mt-2 shrink-0"></span>
-                        <span>{act}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {/* Easy Read Navigation Action */}
-              <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex justify-end">
-                <button
-                  onClick={() => onNavigate('/easy-read')}
-                  className="inline-flex items-center gap-2 text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-700"
-                >
-                  <FileText className="w-4 h-4" />
-                  <span>Chuyển sang Easy Read</span>
-                </button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+                <h3 className="font-bold text-base text-text-primary">Bản tóm tắt cuộc trò chuyện</h3>
+              </div>
+              <div className="p-8 text-center text-text-secondary text-sm">
+                Bật micro ghi âm hoặc dán văn bản bên trái, sau đó nhấn "Tạo bản tóm tắt" để xem kết quả tại đây.
               </div>
             </div>
           )}
+
+          <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex justify-end">
+            <button
+              onClick={() => onNavigate('/easy-read')}
+              className="px-4 py-2 rounded-xl bg-coral-soft text-coral text-xs font-bold hover:bg-coral/20 flex items-center gap-1.5"
+            >
+              <FileText className="w-4 h-4 shrink-0" /> Chuyển sang nội dung dễ hiểu
+            </button>
+          </div>
         </div>
       </div>
     </div>

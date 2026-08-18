@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import {
-  BookOpen,
   Upload,
   FileText,
   Sparkles,
@@ -10,9 +9,7 @@ import {
   Check,
   Calendar,
   PhoneCall,
-  ShieldAlert,
   HelpCircle,
-  Clock,
   FileCheck,
 } from 'lucide-react';
 import { ReadAloudButton } from '../common/ReadAloudButton';
@@ -40,7 +37,6 @@ export const DocumentView: React.FC<DocumentViewProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [analysis, setAnalysis] = useState<DocumentAnalysis | null>(null);
 
-  // Document Q&A state
   const [question, setQuestion] = useState('');
   const [qaHistory, setQaHistory] = useState<Array<{ role: 'user' | 'assistant'; content: string }>>([]);
   const [qaLoading, setQaLoading] = useState(false);
@@ -161,73 +157,56 @@ export const DocumentView: React.FC<DocumentViewProps> = ({
   };
 
   return (
-    <div className="space-y-8 pb-12">
-      {/* Title Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white dark:bg-neutral-900 p-6 rounded-2xl border border-neutral-200 dark:border-neutral-800 shadow-xs">
+    <div className="space-y-6">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-light text-[#1A1A1A] dark:text-white flex items-center gap-2.5">
-            <span>Hiểu tài liệu</span>
-          </h1>
-          <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1 font-light">
-            Tải PDF, DOCX hoặc TXT để Lovira tóm tắt, trích xuất yêu cầu hồ sơ và trả lời câu hỏi tài liệu.
-          </p>
+          <h2 className="text-2xl font-bold text-text-primary">Hiểu tài liệu</h2>
+          <p className="text-sm text-text-secondary mt-1">Tải PDF, DOCX hoặc TXT để Lovira tóm tắt, trích xuất yêu cầu hồ sơ và trả lời câu hỏi tài liệu.</p>
         </div>
 
-        <label className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[#1A1A1A] text-white dark:bg-white dark:text-[#1A1A1A] font-bold text-xs uppercase tracking-wider hover:bg-neutral-800 dark:hover:bg-neutral-200 cursor-pointer transition-colors shadow-xs focus-within:ring-2 focus-within:ring-[#1A1A1A] shrink-0">
-          <Upload className="w-3.5 h-3.5" />
-          <span>Chọn tài liệu</span>
+        <label className="px-4 py-2.5 rounded-xl bg-primary text-white text-xs font-semibold hover:bg-primary-hover shadow-xs cursor-pointer flex items-center gap-1.5 shrink-0">
+          <Upload className="w-4 h-4 shrink-0" /> Tải tài liệu lên
           <input
             type="file"
             accept=".pdf,.docx,.txt,image/*"
             onChange={handleFileUpload}
-            className="sr-only"
+            className="hidden"
           />
         </label>
       </div>
 
-      {/* Main Content Layout */}
       {!extractedDoc ? (
-        /* Empty Upload Dropzone */
         <div className="space-y-6">
-          <div className="border border-dashed border-neutral-300 dark:border-neutral-800 rounded-2xl p-12 text-center bg-white dark:bg-neutral-900 hover:border-neutral-400 transition-colors space-y-4 shadow-xs">
-            <div className="w-12 h-12 rounded-full bg-neutral-100 dark:bg-neutral-800 text-[#1A1A1A] dark:text-white mx-auto flex items-center justify-center">
-              <Upload className="w-5 h-5" />
+          <div className="bg-surface border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-2xl p-8 text-center flex flex-col items-center justify-center min-h-[260px] space-y-4">
+            <div className="w-12 h-12 rounded-2xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 flex items-center justify-center shrink-0">
+              <Upload className="w-6 h-6 shrink-0" />
             </div>
-
             <div>
-              <h2 className="text-base font-light text-[#1A1A1A] dark:text-white">
-                Tải lên tài liệu PDF, DOCX hoặc TXT
-              </h2>
-              <p className="text-xs text-neutral-400 mt-1 max-w-sm mx-auto font-light">
-                Lovira sẽ tự động đọc từng trang, giải thích nghĩa đơn giản và giúp bạn hỏi đáp thông tin.
-              </p>
+              <p className="font-bold text-sm text-text-primary">Tải lên tài liệu PDF, DOCX hoặc TXT</p>
+              <p className="text-xs text-text-secondary mt-1">Lovira sẽ trích xuất văn bản, giản lược ý chính và trả lời thắc mắc.</p>
             </div>
-
-            <label className="inline-flex items-center gap-2 px-5 py-2 rounded-full bg-[#1A1A1A] text-white dark:bg-white dark:text-[#1A1A1A] font-bold text-xs uppercase tracking-wider hover:bg-neutral-800 cursor-pointer transition-colors shadow-xs">
-              <Upload className="w-3.5 h-3.5" />
-              <span>Duyệt tệp từ thiết bị</span>
+            <label className="px-4 py-2.5 rounded-xl bg-primary text-white text-xs font-semibold hover:bg-primary-hover shadow-xs cursor-pointer">
+              Chọn tệp từ máy
               <input
                 type="file"
                 accept=".pdf,.docx,.txt,image/*"
                 onChange={handleFileUpload}
-                className="sr-only"
+                className="hidden"
               />
             </label>
           </div>
 
-          {/* Demo Files Section */}
-          <div className="bg-white dark:bg-neutral-900 p-6 rounded-2xl border border-neutral-200 dark:border-neutral-800 shadow-xs space-y-3">
-            <div className="text-[10px] font-bold tracking-[0.2em] uppercase text-neutral-400 flex items-center gap-2">
-              <FileCheck className="w-3.5 h-3.5" />
-              <span>Hoặc thử mẫu tài liệu thực tế Việt Nam:</span>
-            </div>
+          <div className="bg-surface border border-slate-200 dark:border-slate-800 p-6 rounded-2xl space-y-3">
+            <span className="text-xs font-semibold text-text-secondary flex items-center gap-1.5">
+              <FileCheck className="w-4 h-4 text-primary" /> Mẫu tài liệu thực tế có sẵn:
+            </span>
             <div className="flex flex-wrap gap-2">
               {DEMO_DOCUMENTS.map((demo, i) => (
                 <button
                   key={i}
                   type="button"
                   onClick={() => handleLoadDemo(demo)}
-                  className="px-3 py-1.5 rounded-full bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-700 text-[#1A1A1A] dark:text-neutral-200 text-xs font-medium border border-neutral-200 dark:border-neutral-700 transition-colors"
+                  className="px-3 py-1.5 rounded-lg bg-surface-subtle hover:bg-slate-200 dark:hover:bg-slate-800 text-xs text-text-primary font-medium border border-slate-200 dark:border-slate-800"
                 >
                   📄 {demo.name}
                 </button>
@@ -236,165 +215,126 @@ export const DocumentView: React.FC<DocumentViewProps> = ({
           </div>
         </div>
       ) : (
-        /* Document Analysis Workspace */
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-          {/* Left Column: Extracted Text & Stats */}
-          <div className="lg:col-span-5 bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+          {/* Extracted Text Column */}
+          <div className="lg:col-span-5 bg-surface border border-slate-200 dark:border-slate-800 p-6 rounded-2xl space-y-4 min-h-[500px]">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
               <div className="min-w-0">
-                <span className="text-[10px] font-bold uppercase px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-surface-subtle text-text-secondary">
                   {extractedDoc.fileType.toUpperCase()}
                 </span>
-                <h2 className="text-sm font-bold text-slate-900 dark:text-white truncate mt-1">
+                <p className="text-sm font-bold text-text-primary truncate mt-1">
                   {extractedDoc.fileName}
-                </h2>
+                </p>
               </div>
-
-              <label className="text-xs text-indigo-600 dark:text-indigo-400 font-bold hover:underline cursor-pointer shrink-0">
+              <label className="text-xs font-semibold text-primary hover:underline cursor-pointer shrink-0">
                 Đổi tệp
                 <input
                   type="file"
                   accept=".pdf,.docx,.txt,image/*"
                   onChange={handleFileUpload}
-                  className="sr-only"
+                  className="hidden"
                 />
               </label>
             </div>
 
             {extractedDoc.warning && (
-              <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-200 text-xs flex items-start gap-2">
+              <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 text-amber-900 dark:text-amber-200 text-xs flex items-start gap-2">
                 <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                 <span>{extractedDoc.warning}</span>
               </div>
             )}
 
-            <div className="space-y-1">
-              <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
-                Văn bản đã trích xuất từ tài liệu:
-              </span>
-              <div className="max-h-[360px] overflow-y-auto p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 text-xs leading-relaxed text-slate-800 dark:text-slate-200 whitespace-pre-wrap font-mono">
-                {extractedDoc.text || 'Chưa trích xuất được nội dung chữ.'}
+            <div className="space-y-1.5">
+              <span className="text-xs font-semibold text-text-secondary">Văn bản trích xuất được:</span>
+              <div className="max-h-[380px] overflow-y-auto p-4 rounded-xl bg-surface-subtle text-xs text-text-primary leading-relaxed whitespace-pre-wrap font-mono">
+                {extractedDoc.text || 'Chưa trích xuất được văn bản.'}
               </div>
             </div>
           </div>
 
-          {/* Right Column: AI Analysis & Q&A */}
-          <div className="lg:col-span-7 space-y-6">
-            {(extracting || loading) && (
-              <LoadingSpinner
-                message={extracting ? progressMsg || 'Đang đọc tài liệu…' : 'Lovira đang phân tích tài liệu…'}
-                subMessage="Đang trích xuất thời hạn, khoản phí, giấy tờ cần chuẩn bị và tổng hợp ý chính."
-              />
-            )}
-
-            {error && (
-              <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-200 text-xs">
-                {error}
+          {/* AI Analysis Column */}
+          <div className="lg:col-span-7 bg-surface border border-slate-200 dark:border-slate-800 p-6 rounded-2xl min-h-[500px] flex flex-col justify-between">
+            {(extracting || loading) ? (
+              <LoadingSpinner message={extracting ? progressMsg || 'Đang đọc tài liệu...' : 'Lovira đang phân tích nội dung...'} />
+            ) : error ? (
+              <div className="p-4 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 text-rose-800 dark:text-rose-200 text-xs">
+                <p className="font-bold">{error}</p>
               </div>
-            )}
-
-            {analysis && !loading && !extracting && (
-              <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-6">
-                {/* Header & Actions */}
-                <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-slate-100 dark:border-slate-800">
-                  <span className="text-xs font-bold px-3 py-1 rounded-full bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300">
-                    Phân tích tài liệu Lovira
-                  </span>
-
+            ) : analysis ? (
+              <div className="space-y-6">
+                <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+                  <h3 className="font-bold text-base text-text-primary">Kết quả phân tích</h3>
                   <div className="flex items-center gap-2">
                     <ReadAloudButton
-                      text={`${analysis.title || ''}. ${analysis.summary}. ${analysis.requirements.join('. ')}`}
+                      text={`${analysis.title || ''}. ${analysis.summary}`}
                       speechRate={settings.speechRate}
                       size="sm"
                     />
-
                     <button
                       onClick={handleCopyAnalysis}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-semibold hover:bg-slate-200 dark:hover:bg-slate-700"
+                      className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 text-xs font-semibold text-text-primary hover:bg-surface-subtle flex items-center gap-1"
                     >
                       {copied ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
-                      <span>{copied ? 'Đã chép' : 'Sao chép'}</span>
+                      <span>{copied ? 'Đã sao chép' : 'Sao chép'}</span>
                     </button>
                   </div>
                 </div>
 
-                {/* Title & Summary */}
-                <div className="p-4 rounded-2xl bg-rose-50/80 dark:bg-rose-950/40 border border-rose-200/80 dark:border-rose-800/60 space-y-1">
-                  <h2 className="text-xs font-bold uppercase tracking-wider text-rose-800 dark:text-rose-300">
-                    {analysis.title || 'Tóm tắt tổng quan'}
-                  </h2>
-                  <p className="text-base font-bold text-slate-900 dark:text-slate-100 leading-relaxed">
-                    {analysis.summary}
-                  </p>
+                <div className="space-y-4">
+                  <div>
+                    <h4 className="text-xs font-bold text-text-secondary uppercase tracking-wider mb-1">
+                      {analysis.title || 'Tóm tắt tổng quan'}
+                    </h4>
+                    <p className="text-sm text-text-primary leading-relaxed bg-surface-subtle p-3.5 rounded-xl">
+                      {analysis.summary}
+                    </p>
+                  </div>
+
+                  {analysis.requirements && analysis.requirements.length > 0 && (
+                    <div>
+                      <h4 className="text-xs font-bold text-text-secondary uppercase tracking-wider mb-1 flex items-center gap-1">
+                        <FileText className="w-3.5 h-3.5 text-primary" /> Hồ sơ & Giấy tờ cần chuẩn bị
+                      </h4>
+                      <ul className="text-sm text-text-primary space-y-1 list-disc list-inside">
+                        {analysis.requirements.map((req, i) => (
+                          <li key={i}>{req}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {analysis.importantDates && analysis.importantDates.length > 0 && (
+                    <div>
+                      <h4 className="text-xs font-bold text-coral uppercase tracking-wider mb-1 flex items-center gap-1">
+                        <Calendar className="w-3.5 h-3.5 text-coral" /> Hạn chót & Thời gian
+                      </h4>
+                      <ul className="text-sm text-coral space-y-1 list-disc list-inside font-medium">
+                        {analysis.importantDates.map((d, i) => (
+                          <li key={i}>{d}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                 </div>
 
-                {/* Requirements / Papers Needed */}
-                {analysis.requirements && analysis.requirements.length > 0 && (
-                  <div className="p-4 rounded-2xl bg-indigo-50/60 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-900/60 space-y-2">
-                    <h3 className="text-xs font-bold uppercase tracking-wider text-indigo-800 dark:text-indigo-300 flex items-center gap-1.5">
-                      <FileText className="w-4 h-4" />
-                      <span>Hồ sơ & Giấy tờ cần chuẩn bị</span>
-                    </h3>
-                    <ul className="space-y-1.5 text-sm text-slate-800 dark:text-slate-200 font-semibold">
-                      {analysis.requirements.map((req, i) => (
-                        <li key={i} className="flex items-start gap-2">
-                          <span className="w-2 h-2 rounded-full bg-indigo-600 mt-2 shrink-0"></span>
-                          <span>{req}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-
-                {/* Important Dates */}
-                {analysis.importantDates && analysis.importantDates.length > 0 && (
-                  <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-800 space-y-2">
-                    <h3 className="text-xs font-bold uppercase tracking-wider text-amber-800 dark:text-amber-300 flex items-center gap-1.5">
-                      <Calendar className="w-4 h-4" />
-                      <span>Thời hạn & Mốc thời gian</span>
-                    </h3>
-                    <ul className="list-disc list-inside text-xs text-slate-800 dark:text-slate-200 space-y-1 font-semibold">
-                      {analysis.importantDates.map((d, i) => (
-                        <li key={i}>{d}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-
-                {/* Contacts & Warnings */}
-                {analysis.contacts && analysis.contacts.length > 0 && (
-                  <div className="p-4 rounded-2xl bg-slate-100 dark:bg-slate-800 space-y-2">
-                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                      <PhoneCall className="w-4 h-4 text-emerald-600" />
-                      <span>Thông tin liên hệ / Hotline</span>
-                    </h3>
-                    <ul className="list-disc list-inside text-xs text-slate-800 dark:text-slate-200 space-y-1">
-                      {analysis.contacts.map((c, i) => (
-                        <li key={i}>{c}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-
-                {/* Interactive Q&A Session */}
-                <div className="pt-4 border-t border-slate-100 dark:border-slate-800 space-y-4">
-                  <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                    <HelpCircle className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-                    <span>Hỏi đáp trực tiếp về tài liệu này</span>
-                  </h3>
+                {/* Q&A section */}
+                <div className="pt-4 border-t border-slate-100 dark:border-slate-800 space-y-3">
+                  <h4 className="text-xs font-bold text-text-secondary uppercase tracking-wider flex items-center gap-1">
+                    <HelpCircle className="w-4 h-4 text-primary" /> Hỏi đáp về tài liệu
+                  </h4>
 
                   {qaHistory.length > 0 && (
-                    <div className="space-y-3 max-h-60 overflow-y-auto pr-1">
+                    <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
                       {qaHistory.map((msg, idx) => (
                         <div
                           key={idx}
-                          className={`p-3.5 rounded-2xl text-xs space-y-1 ${
+                          className={`p-2.5 rounded-xl text-xs ${
                             msg.role === 'user'
-                              ? 'bg-indigo-600 text-white ml-8 font-semibold'
-                              : 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 mr-8'
+                              ? 'bg-primary text-white ml-6 font-semibold'
+                              : 'bg-surface-subtle text-text-primary mr-6'
                           }`}
                         >
-                          <p className="font-bold opacity-80">{msg.role === 'user' ? 'Bạn' : 'Lovira'}:</p>
                           <p className="leading-relaxed">{msg.content}</p>
                         </div>
                       ))}
@@ -406,20 +346,20 @@ export const DocumentView: React.FC<DocumentViewProps> = ({
                       type="text"
                       value={question}
                       onChange={(e) => setQuestion(e.target.value)}
-                      placeholder="Hỏi về phí, thời hạn, địa điểm hoặc quy trình..."
-                      className="flex-1 px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-rose-500"
+                      placeholder="Đặt câu hỏi về tài liệu..."
+                      className="flex-1 px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-surface text-xs text-text-primary focus:border-primary"
                     />
                     <button
                       type="submit"
                       disabled={qaLoading || !question.trim()}
-                      className="px-4 py-2.5 rounded-xl bg-rose-600 text-white font-bold text-xs hover:bg-rose-700 transition-colors disabled:opacity-50"
+                      className="px-4 py-2 rounded-xl bg-primary text-white font-semibold text-xs hover:bg-primary-hover disabled:opacity-50"
                     >
                       <Send className="w-4 h-4" />
                     </button>
                   </form>
                 </div>
               </div>
-            )}
+            ) : null}
           </div>
         </div>
       )}

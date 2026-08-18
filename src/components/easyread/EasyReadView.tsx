@@ -5,8 +5,6 @@ import {
   Copy,
   Check,
   Trash2,
-  BookOpen,
-  AlertTriangle,
   HelpCircle,
   Clock,
   ListOrdered,
@@ -93,20 +91,15 @@ export const EasyReadView: React.FC<EasyReadViewProps> = ({
   };
 
   return (
-    <div className="space-y-8 pb-12">
-      {/* Title Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white dark:bg-neutral-900 p-6 rounded-2xl border border-neutral-200 dark:border-neutral-800 shadow-xs">
+    <div className="space-y-6">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-light text-[#1A1A1A] dark:text-white flex items-center gap-2.5">
-            <span>Làm nội dung dễ hiểu</span>
-          </h1>
-          <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1 font-light">
-            Chuyển các văn bản hành chính, thông báo phức tạp thành dạng dễ đọc, câu ngắn, rõ nghĩa.
-          </p>
+          <h2 className="text-2xl font-bold text-text-primary">Làm nội dung dễ hiểu</h2>
+          <p className="text-sm text-text-secondary mt-1">Chuyển các văn bản hành chính, thông báo phức tạp thành dạng dễ đọc, câu ngắn, rõ nghĩa.</p>
         </div>
 
-        {/* Level Controls */}
-        <div className="flex p-1 rounded-full bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700">
+        {/* Level Selector */}
+        <div className="flex bg-surface border border-slate-200 dark:border-slate-800 p-1 rounded-xl">
           {[
             { id: 'standard', label: 'Tiêu chuẩn' },
             { id: 'easy', label: 'Dễ hiểu' },
@@ -115,10 +108,10 @@ export const EasyReadView: React.FC<EasyReadViewProps> = ({
             <button
               key={l.id}
               onClick={() => setLevel(l.id as any)}
-              className={`px-3.5 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider transition-all focus:outline-none focus:ring-2 focus:ring-[#1A1A1A] ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
                 level === l.id
-                  ? 'bg-[#1A1A1A] text-white dark:bg-white dark:text-[#1A1A1A] shadow-xs'
-                  : 'text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white'
+                  ? 'bg-primary-soft text-primary font-bold'
+                  : 'text-text-secondary hover:text-text-primary font-semibold'
               }`}
             >
               {l.label}
@@ -127,242 +120,145 @@ export const EasyReadView: React.FC<EasyReadViewProps> = ({
         </div>
       </div>
 
-      {/* Mobile Tabs Toggle */}
-      <div className="flex md:hidden rounded-full bg-neutral-100 dark:bg-neutral-800 p-1 border border-neutral-200 dark:border-neutral-700">
-        <button
-          onClick={() => setActiveMobileTab('input')}
-          className={`flex-1 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider transition-all ${
-            activeMobileTab === 'input'
-              ? 'bg-white dark:bg-neutral-900 text-[#1A1A1A] dark:text-white shadow-xs'
-              : 'text-neutral-400'
-          }`}
-        >
-          Bản gốc
-        </button>
-        <button
-          onClick={() => setActiveMobileTab('result')}
-          disabled={!result}
-          className={`flex-1 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider transition-all ${
-            activeMobileTab === 'result'
-              ? 'bg-white dark:bg-neutral-900 text-[#1A1A1A] dark:text-white shadow-xs'
-              : 'text-neutral-400 opacity-50'
-          }`}
-        >
-          Kết quả Easy Read
-        </button>
-      </div>
-
       {/* Main Grid Workspace */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
         {/* Left Column: Input */}
-        <div
-          className={`space-y-4 bg-white dark:bg-neutral-900 p-6 rounded-2xl border border-neutral-200 dark:border-neutral-800 shadow-xs ${
-            activeMobileTab === 'result' ? 'hidden md:block' : 'block'
-          }`}
-        >
-          <div className="flex items-center justify-between pb-3 border-b border-neutral-100 dark:border-neutral-800">
-            <h2 className="text-base font-light text-[#1A1A1A] dark:text-white">Văn bản gốc</h2>
-
-            <button
-              onClick={handleClear}
-              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-neutral-100 dark:bg-neutral-800 text-rose-600 dark:text-rose-400 text-xs font-bold uppercase tracking-wider hover:bg-rose-50 dark:hover:bg-rose-950/50"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-              <span>Xóa</span>
-            </button>
-          </div>
-
-          <textarea
-            rows={10}
-            value={inputText}
-            onChange={(e) => setInputText(e.target.value)}
-            placeholder="Dán văn bản phức tạp, hợp đồng, thông báo hành chính hoặc bài hướng dẫn vào đây…"
-            className="w-full p-4 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800/50 text-[#1A1A1A] dark:text-white text-sm sm:text-base leading-relaxed focus:outline-none focus:ring-2 focus:ring-[#1A1A1A]"
-          ></textarea>
-
-          {/* Sample Presets */}
-          <div className="space-y-2 pt-2">
-            <div className="text-[10px] font-bold tracking-[0.2em] uppercase text-neutral-400">
-              Hoặc chọn mẫu văn bản thực tế tại Việt Nam:
+        <div className="space-y-4 bg-surface border border-slate-200 dark:border-slate-800 p-6 rounded-2xl flex flex-col justify-between min-h-[500px]">
+          <div className="space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+              <h3 className="font-bold text-base text-text-primary">Văn bản gốc</h3>
+              <button
+                onClick={handleClear}
+                className="text-xs font-semibold text-text-secondary hover:text-rose-600 flex items-center gap-1"
+              >
+                <Trash2 className="w-3.5 h-3.5" /> Xóa
+              </button>
             </div>
-            <div className="flex flex-wrap gap-2">
-              {SAMPLE_EASY_READ_TEXTS.map((sample, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => handleLoadSample(sample)}
-                  className="px-3 py-1.5 rounded-full bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-700 text-[#1A1A1A] dark:text-neutral-200 text-xs font-medium text-left truncate max-w-full border border-neutral-200 dark:border-neutral-700"
-                >
-                  {sample.title}
-                </button>
-              ))}
+
+            <textarea
+              rows={9}
+              value={inputText}
+              onChange={(e) => setInputText(e.target.value)}
+              placeholder="Dán văn bản phức tạp, hợp đồng, thông báo hành chính hoặc bài hướng dẫn vào đây..."
+              className="w-full p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-surface text-sm text-text-primary focus:border-primary leading-relaxed"
+            ></textarea>
+
+            {/* Samples */}
+            <div className="space-y-2">
+              <span className="text-xs font-semibold text-text-secondary block">
+                Mẫu văn bản có sẵn:
+              </span>
+              <div className="flex flex-wrap gap-2">
+                {SAMPLE_EASY_READ_TEXTS.map((sample, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => handleLoadSample(sample)}
+                    className="px-3 py-1.5 rounded-lg bg-surface-subtle hover:bg-slate-200 dark:hover:bg-slate-800 text-xs text-text-primary font-medium text-left truncate border border-slate-200 dark:border-slate-800"
+                  >
+                    {sample.title}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
 
-          <div className="pt-4 border-t border-neutral-100 dark:border-neutral-800">
+          <div className="pt-4 border-t border-slate-100 dark:border-slate-800">
             <button
               type="button"
               onClick={handleSimplify}
               disabled={loading || !inputText.trim()}
-              className="w-full inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full bg-[#1A1A1A] text-white dark:bg-white dark:text-[#1A1A1A] font-bold text-xs uppercase tracking-wider hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-colors shadow-xs disabled:opacity-50"
+              className="w-full py-3 rounded-xl bg-primary text-white text-xs font-semibold hover:bg-primary-hover disabled:opacity-50 flex items-center justify-center gap-1.5"
             >
-              <Sparkles className="w-4 h-4" />
-              <span>Làm dễ hiểu ngay</span>
+              <Sparkles className="w-4 h-4 shrink-0" /> Làm dễ hiểu ngay
             </button>
           </div>
         </div>
 
-        {/* Right Column: Easy Read Output */}
-        <div
-          className={`space-y-6 ${
-            activeMobileTab === 'input' ? 'hidden md:block' : 'block'
-          }`}
-        >
-          {!result && !loading && (
-            <div className="bg-white dark:bg-neutral-900 p-8 rounded-2xl border border-neutral-200 dark:border-neutral-800 shadow-xs text-center space-y-3">
-              <div className="w-10 h-10 rounded-full bg-neutral-100 dark:bg-neutral-800 text-neutral-500 mx-auto flex items-center justify-center">
-                <FileText className="w-5 h-5" />
-              </div>
-              <h3 className="text-sm font-semibold text-[#1A1A1A] dark:text-white">Chưa có kết quả Easy Read</h3>
-              <p className="text-xs text-neutral-400 font-light max-w-xs mx-auto">
-                Dán văn bản gốc hoặc chọn mẫu bên trái, sau đó nhấn "Làm dễ hiểu ngay".
-              </p>
+        {/* Right Column: Result */}
+        <div className="bg-surface border border-slate-200 dark:border-slate-800 p-6 rounded-2xl flex flex-col justify-between min-h-[500px]">
+          {loading ? (
+            <LoadingSpinner message="Lovira đang chuyển văn bản sang dạng dễ hiểu..." />
+          ) : error ? (
+            <div className="p-4 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 text-rose-800 dark:text-rose-200 text-xs space-y-2">
+              <p className="font-bold">{error}</p>
             </div>
-          )}
-
-          {loading && (
-            <LoadingSpinner
-              message="Lovira đang làm nội dung dễ hiểu hơn…"
-              subMessage="Đang giản lược câu chữ, loại bỏ từ ngữ hành chính rườm rà và trích xuất các ý chính."
-            />
-          )}
-
-          {error && (
-            <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-200 text-xs">
-              {error}
-            </div>
-          )}
-
-          {result && !loading && (
-            <div className="bg-white dark:bg-neutral-900 p-6 rounded-2xl border border-neutral-200 dark:border-neutral-800 shadow-xs space-y-6">
-              {/* Header & Actions */}
-              <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-neutral-100 dark:border-neutral-800">
-                <span className="text-[10px] font-bold uppercase tracking-[0.15em] px-3 py-1 rounded-full bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 border border-neutral-200/80 dark:border-neutral-700">
-                  Nội dung Dễ hiểu (Easy Read)
-                </span>
-
+          ) : result ? (
+            <div className="space-y-6">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+                <h3 className="font-bold text-base text-text-primary">Nội dung Dễ hiểu (Easy Read)</h3>
                 <div className="flex items-center gap-2">
                   <ReadAloudButton
                     text={`${result.title || ''}. ${result.summary}. ${result.simplifiedText}`}
                     speechRate={settings.speechRate}
                     size="sm"
                   />
-
                   <button
                     onClick={handleCopy}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-neutral-100 dark:bg-neutral-800 text-[#1A1A1A] dark:text-neutral-200 text-xs font-bold uppercase tracking-wider hover:bg-neutral-200 dark:hover:bg-neutral-700 border border-neutral-200 dark:border-neutral-700"
+                    className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 text-xs font-semibold text-text-primary hover:bg-surface-subtle flex items-center gap-1"
                   >
                     {copied ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
-                    <span>{copied ? 'Đã chép' : 'Sao chép'}</span>
+                    <span>{copied ? 'Đã sao chép' : 'Sao chép'}</span>
                   </button>
                 </div>
               </div>
 
-              {/* Title if present */}
               {result.title && (
-                <h2 className="text-xl font-light text-[#1A1A1A] dark:text-white">
-                  {result.title}
-                </h2>
+                <h4 className="text-lg font-bold text-text-primary">{result.title}</h4>
               )}
 
-              {/* Core Summary */}
-              <div className="p-4 rounded-xl bg-neutral-50 dark:bg-neutral-800/60 border border-neutral-200 dark:border-neutral-700">
-                <div className="text-[10px] font-bold tracking-[0.2em] uppercase text-neutral-400 mb-1">
-                  Ý cốt lõi
-                </div>
-                <p className="text-base font-normal text-[#1A1A1A] dark:text-white leading-relaxed">
-                  {result.summary}
-                </p>
+              <div className="p-3.5 rounded-xl bg-surface-subtle text-sm text-text-primary leading-relaxed">
+                <strong>Tóm tắt:</strong> {result.summary}
               </div>
 
-              {/* Step-by-Step list if available */}
               {result.steps && result.steps.length > 0 && (
-                <div className="space-y-3 p-4 rounded-2xl bg-indigo-50/60 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-900/60">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-indigo-800 dark:text-indigo-300 flex items-center gap-1.5">
-                    <ListOrdered className="w-4 h-4" />
-                    <span>Các bước thực hiện</span>
-                  </h3>
-                  <ol className="space-y-2 text-sm text-slate-900 dark:text-slate-100 font-semibold">
+                <div className="space-y-2">
+                  <h4 className="text-xs font-bold text-text-secondary uppercase tracking-wider flex items-center gap-1">
+                    <ListOrdered className="w-4 h-4" /> Các bước thực hiện
+                  </h4>
+                  <ol className="space-y-2 text-sm text-text-primary font-medium">
                     {result.steps.map((st, i) => (
-                      <li key={i} className="flex items-start gap-2.5">
-                        <span className="w-6 h-6 rounded-full bg-indigo-600 text-white text-xs flex items-center justify-center shrink-0 font-bold">
+                      <li key={i} className="flex items-start gap-2">
+                        <span className="w-5 h-5 rounded-full bg-primary text-white text-xs flex items-center justify-center shrink-0 font-bold mt-0.5">
                           {i + 1}
                         </span>
-                        <span className="mt-0.5">{st}</span>
+                        <span>{st}</span>
                       </li>
                     ))}
                   </ol>
                 </div>
               )}
 
-              {/* Main Simplified Text */}
               <div className="space-y-2">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                  Nội dung đã được đơn giản hóa
-                </h3>
-                <div className="p-5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-base sm:text-lg leading-relaxed text-slate-900 dark:text-slate-100 whitespace-pre-wrap font-sans">
+                <h4 className="text-xs font-bold text-text-secondary uppercase tracking-wider">Nội dung chi tiết</h4>
+                <div className="p-4 rounded-xl bg-surface-subtle text-sm leading-relaxed text-text-primary whitespace-pre-wrap">
                   {result.simplifiedText}
                 </div>
               </div>
 
-              {/* Key Points */}
-              {result.keyPoints && result.keyPoints.length > 0 && (
-                <div className="space-y-2">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                    Điểm cần nhớ
-                  </h3>
-                  <ul className="space-y-2 text-sm text-slate-800 dark:text-slate-200">
-                    {result.keyPoints.map((kp, i) => (
-                      <li key={i} className="flex items-start gap-2">
-                        <span className="w-2.5 h-2.5 rounded-full bg-amber-500 mt-1.5 shrink-0"></span>
-                        <span>{kp}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {/* Important Dates */}
-              {result.importantDates && result.importantDates.length > 0 && (
-                <div className="p-4 rounded-2xl bg-slate-100 dark:bg-slate-800 space-y-2">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                    <Clock className="w-4 h-4 text-amber-600" />
-                    <span>Thời gian & Ngày quan trọng</span>
-                  </h3>
-                  <ul className="list-disc list-inside text-xs text-slate-800 dark:text-slate-200 space-y-1 font-semibold">
-                    {result.importantDates.map((d, i) => (
-                      <li key={i}>{d}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {/* Difficult Terms Glossary */}
               {result.difficultTerms && result.difficultTerms.length > 0 && (
                 <div className="space-y-2">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
-                    <HelpCircle className="w-4 h-4 text-indigo-500" />
-                    <span>Giải thích từ khó</span>
-                  </h3>
-                  <div className="grid grid-cols-1 gap-2">
+                  <h4 className="text-xs font-bold text-text-secondary uppercase tracking-wider flex items-center gap-1">
+                    <HelpCircle className="w-4 h-4 text-primary" /> Giải thích từ khó
+                  </h4>
+                  <div className="space-y-1.5">
                     {result.difficultTerms.map((item, idx) => (
-                      <div key={idx} className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/80 text-xs border border-slate-200 dark:border-slate-700 space-y-0.5">
-                        <span className="font-bold text-indigo-700 dark:text-indigo-300">{item.term}:</span>{' '}
-                        <span className="text-slate-700 dark:text-slate-300">{item.explanation}</span>
+                      <div key={idx} className="p-2.5 rounded-lg bg-surface-subtle text-xs border border-slate-100 dark:border-slate-800">
+                        <span className="font-bold text-primary">{item.term}:</span>{' '}
+                        <span className="text-text-primary">{item.explanation}</span>
                       </div>
                     ))}
                   </div>
                 </div>
               )}
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+                <h3 className="font-bold text-base text-text-primary">Nội dung Dễ hiểu (Easy Read)</h3>
+              </div>
+              <div className="p-8 text-center text-text-secondary text-sm">
+                Dán văn bản bên trái và nhấn "Làm dễ hiểu ngay" để xem kết quả tại đây.
+              </div>
             </div>
           )}
         </div>

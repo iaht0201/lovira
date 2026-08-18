@@ -1,15 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import {
   Camera,
-  Upload,
-  Sparkles,
+  ImagePlus,
   AlertTriangle,
-  Send,
+  Volume2,
   Copy,
   Check,
   RotateCcw,
-  MessageSquare,
-  ShieldAlert,
+  Sparkles,
 } from 'lucide-react';
 import { CameraModal } from './CameraModal';
 import { ReadAloudButton } from '../common/ReadAloudButton';
@@ -62,9 +60,9 @@ export const VisionView: React.FC<VisionViewProps> = ({
       return;
     }
 
-    const MAX_SIZE_BYTES = 10 * 1024 * 1024; // 10MB
+    const MAX_SIZE_BYTES = 10 * 1024 * 1024;
     if (file.size > MAX_SIZE_BYTES) {
-      setError('Dung lượng ảnh vượt quá giới hạn 10MB. Vui lòng chọn ảnh nhỏ hơn.');
+      setError('Dung lượng ảnh vượt quá giới hạn 10MB.');
       return;
     }
 
@@ -143,14 +141,13 @@ export const VisionView: React.FC<VisionViewProps> = ({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          documentText: `Đây là thông tin từ hình ảnh: ${JSON.stringify(result)}`,
+          documentText: `Thôn tin phân tích ảnh: ${JSON.stringify(result)}`,
           question: q,
           customApiKey: localStorage.getItem('lovira_custom_gemini_key') || undefined,
         }),
       });
       const data = await res.json();
-      const answer = data.answer || 'Tôi chưa tìm thấy câu trả lời rõ ràng trong ảnh.';
-
+      const answer = data.answer || 'Tôi chưa tìm thấy thông tin này trong ảnh.';
       setFollowUpAnswers((prev) => [...prev, { q, a: answer }]);
     } catch (err) {
       console.error('Followup error:', err);
@@ -161,294 +158,213 @@ export const VisionView: React.FC<VisionViewProps> = ({
 
   const handleCopy = () => {
     if (!result) return;
-    const textToCopy = `[Mô tả từ Lovira]\n${result.summary}\n\n[Chi tiết]\n${result.details.join('\n')}\n\n[Văn bản đọc được]\n${result.detectedText.join('\n')}`;
+    const textToCopy = `[Mô tả từ Lovira]\n${result.summary}\n\n[Chi tiết]\n${result.details.join('\n')}`;
     navigator.clipboard.writeText(textToCopy);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
   return (
-    <div className="space-y-8 pb-12">
-      {/* Title Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white dark:bg-neutral-900 p-6 rounded-2xl border border-neutral-200 dark:border-neutral-800 shadow-xs">
-        <div>
-          <h1 className="text-2xl font-light text-[#1A1A1A] dark:text-white flex items-center gap-2.5">
-            <span>Nhìn giúp tôi</span>
-          </h1>
-          <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1 font-light">
-            Chụp hoặc tải ảnh để Lovira nhận diện khung cảnh, trích xuất chữ viết và lưu ý chướng ngại vật.
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-2xl font-bold text-text-primary">Nhìn giúp tôi</h2>
+        <p className="text-sm text-text-secondary mt-1">Chụp hoặc tải ảnh để Lovira mô tả khung cảnh và đọc văn bản trong ảnh.</p>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        {/* Left Column: Controls & Dropzone (5 Cols) */}
+        <div className="lg:col-span-5 space-y-4">
+          {/* Mode Selection */}
+          <div className="bg-surface border border-slate-200 dark:border-slate-800 p-2 rounded-xl grid grid-cols-2 gap-1.5">
+            {[
+              { id: 'scene', label: 'Mô tả cảnh' },
+              { id: 'text', label: 'Đọc văn bản' },
+              { id: 'object', label: 'Vật thể' },
+              { id: 'quick', label: 'Tóm tắt nhanh' },
+            ].map((m) => (
+              <button
+                key={m.id}
+                onClick={() => handleModeChange(m.id as any)}
+                className={`py-2 px-3 rounded-lg font-bold text-xs transition-colors ${
+                  visionMode === m.id
+                    ? 'bg-primary-soft text-primary font-bold'
+                    : 'text-text-secondary hover:text-text-primary font-semibold'
+                }`}
+              >
+                {m.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Upload Dropzone / Preview */}
+          <div
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={handleDrop}
+            className="bg-surface border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-2xl p-6 text-center flex flex-col items-center justify-center min-h-[300px] space-y-4"
+          >
+            {selectedImage ? (
+              <div className="space-y-3 w-full">
+                <div className="relative rounded-xl overflow-hidden bg-black max-h-[260px] flex items-center justify-center">
+                  <img src={selectedImage} alt="Xem trước" className="max-h-[250px] w-auto object-contain" />
+                </div>
+                <div className="flex items-center justify-center gap-2">
+                  <button
+                    onClick={() => {
+                      setSelectedImage(null);
+                      setResult(null);
+                    }}
+                    className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 text-xs font-semibold text-text-primary hover:bg-surface-subtle flex items-center gap-1"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" /> Chọn ảnh khác
+                  </button>
+                  <button
+                    onClick={() => runVisionAnalysis(selectedImage, visionMode)}
+                    className="px-3 py-1.5 rounded-lg bg-primary text-white text-xs font-semibold hover:bg-primary-hover flex items-center gap-1"
+                  >
+                    <Sparkles className="w-3.5 h-3.5" /> Phân tích lại
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="w-14 h-14 rounded-2xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 flex items-center justify-center shrink-0">
+                  <ImagePlus className="w-7 h-7 shrink-0" />
+                </div>
+                <div>
+                  <p className="font-bold text-sm text-text-primary">Kéo thả ảnh vào đây</p>
+                  <p className="text-xs text-text-secondary mt-1">JPG, PNG hoặc WEBP (Tối đa 10MB)</p>
+                </div>
+                <div className="flex flex-wrap items-center justify-center gap-3">
+                  <label className="px-4 py-2.5 rounded-xl bg-primary text-white text-xs font-semibold hover:bg-primary-hover shadow-xs cursor-pointer">
+                    Chọn ảnh từ máy
+                    <input type="file" accept="image/jpeg,image/png,image/webp" onChange={handleFileChange} className="hidden" />
+                  </label>
+                  <button
+                    onClick={() => setIsCameraOpen(true)}
+                    className="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 text-xs font-semibold text-text-primary hover:bg-surface-subtle flex items-center gap-1.5"
+                  >
+                    <Camera className="w-4 h-4 shrink-0" /> Mở Camera
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+
+          <p className="text-xs text-text-secondary leading-relaxed">
+            * Lovira cam kết hình ảnh chỉ được xử lý tạm thời cho tác vụ phân tích và không lưu trữ nếu chưa có sự đồng ý.
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => setIsCameraOpen(true)}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[#1A1A1A] text-white dark:bg-white dark:text-[#1A1A1A] font-bold text-xs uppercase tracking-wider hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-colors shadow-xs focus:outline-none focus:ring-2 focus:ring-[#1A1A1A]"
-          >
-            <Camera className="w-3.5 h-3.5" />
-            <span>Mở camera</span>
-          </button>
-
-          <label className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-neutral-100 dark:bg-neutral-800 text-[#1A1A1A] dark:text-neutral-200 hover:bg-neutral-200 dark:hover:bg-neutral-700 font-bold text-xs uppercase tracking-wider cursor-pointer transition-colors border border-neutral-200 dark:border-neutral-700">
-            <Upload className="w-3.5 h-3.5" />
-            <span>Tải ảnh lên</span>
-            <input
-              type="file"
-              accept="image/jpeg,image/png,image/webp,image/jpg"
-              onChange={handleFileChange}
-              className="sr-only"
-            />
-          </label>
-        </div>
-      </div>
-
-      {/* Mode Selection Tabs */}
-      <div className="flex flex-wrap gap-2 p-1.5 rounded-full bg-neutral-100 dark:bg-neutral-800/80 border border-neutral-200 dark:border-neutral-700/60">
-        {[
-          { id: 'scene', label: 'Mô tả khung cảnh' },
-          { id: 'text', label: 'Đọc chữ trong ảnh' },
-          { id: 'object', label: 'Giải thích vật thể' },
-          { id: 'quick', label: 'Tóm tắt nhanh' },
-        ].map((m) => (
-          <button
-            key={m.id}
-            onClick={() => handleModeChange(m.id as any)}
-            className={`flex-1 min-w-[140px] px-4 py-2 rounded-full font-bold text-xs uppercase tracking-wider transition-all focus:outline-none focus:ring-2 focus:ring-[#1A1A1A] ${
-              visionMode === m.id
-                ? 'bg-[#1A1A1A] text-white dark:bg-white dark:text-[#1A1A1A] shadow-xs'
-                : 'text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white'
-            }`}
-          >
-            {m.label}
-          </button>
-        ))}
-      </div>
-
-      {/* Primary Workspace */}
-      {!selectedImage ? (
-        /* Dropzone Empty State */
-        <div
-          onDragOver={(e) => e.preventDefault()}
-          onDrop={handleDrop}
-          className="border border-dashed border-neutral-300 dark:border-neutral-800 rounded-2xl p-12 text-center bg-white dark:bg-neutral-900 hover:border-neutral-400 transition-colors space-y-4 shadow-xs"
-        >
-          <div className="w-12 h-12 rounded-full bg-neutral-100 dark:bg-neutral-800 text-[#1A1A1A] dark:text-white mx-auto flex items-center justify-center">
-            <Upload className="w-5 h-5" />
-          </div>
-          <div>
-            <h2 className="text-base font-light text-[#1A1A1A] dark:text-white">
-              Kéo thả hoặc chọn tệp hình ảnh
-            </h2>
-            <p className="text-xs text-neutral-400 mt-1 max-w-sm mx-auto font-light">
-              Hỗ trợ tệp JPG, PNG, WEBP. Lovira sẽ phân tích ngay lập tức.
-            </p>
-          </div>
-
-          <div className="flex flex-wrap justify-center gap-3 pt-2">
-            <button
-              onClick={() => setIsCameraOpen(true)}
-              className="inline-flex items-center gap-2 px-5 py-2 rounded-full bg-[#1A1A1A] text-white dark:bg-white dark:text-[#1A1A1A] font-bold text-xs uppercase tracking-wider hover:bg-neutral-800 transition-colors"
-            >
-              <Camera className="w-3.5 h-3.5" />
-              <span>Chụp ảnh ngay</span>
-            </button>
-          </div>
-        </div>
-      ) : (
-        /* Image & Analysis Workspace */
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-          {/* Image Preview Column */}
-          <div className="lg:col-span-5 bg-white dark:bg-neutral-900 p-4 rounded-2xl border border-neutral-200 dark:border-neutral-800 shadow-xs space-y-4">
-            <div className="relative rounded-xl overflow-hidden bg-neutral-950 min-h-[280px] flex items-center justify-center">
-              <img
-                src={selectedImage}
-                alt="Hình ảnh đang phân tích"
-                className="max-h-[450px] w-full object-contain"
-              />
-            </div>
-
-            <div className="flex items-center justify-between gap-2 pt-2">
+        {/* Right Column: Result Workspace (7 Cols) */}
+        <div className="lg:col-span-7 bg-surface border border-slate-200 dark:border-slate-800 rounded-2xl p-6 flex flex-col justify-between min-h-[500px]">
+          {loading ? (
+            <LoadingSpinner message="Lovira đang nhìn và phân tích hình ảnh..." />
+          ) : error ? (
+            <div className="p-4 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 text-rose-800 dark:text-rose-200 text-xs space-y-2">
+              <p className="font-bold">{error}</p>
               <button
-                onClick={() => {
-                  setSelectedImage(null);
-                  setResult(null);
-                }}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-neutral-100 dark:bg-neutral-800 text-[#1A1A1A] dark:text-neutral-200 text-xs font-bold uppercase tracking-wider hover:bg-neutral-200 dark:hover:bg-neutral-700"
+                onClick={() => selectedImage && runVisionAnalysis(selectedImage, visionMode)}
+                className="px-3 py-1 bg-rose-600 text-white rounded-md text-xs font-semibold"
               >
-                <RotateCcw className="w-3.5 h-3.5" />
-                <span>Chọn ảnh khác</span>
-              </button>
-
-              <button
-                onClick={() => runVisionAnalysis(selectedImage, visionMode)}
-                disabled={loading}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#1A1A1A] text-white dark:bg-white dark:text-[#1A1A1A] text-xs font-bold uppercase tracking-wider hover:bg-neutral-800 dark:hover:bg-neutral-200"
-              >
-                <Sparkles className="w-3.5 h-3.5" />
-                <span>Phân tích lại</span>
+                Thử lại
               </button>
             </div>
-          </div>
-
-          {/* AI Result Column */}
-          <div className="lg:col-span-7 space-y-6">
-            {loading && (
-              <LoadingSpinner
-                message="Lovira đang nhìn và phân tích hình ảnh…"
-                subMessage="Đang nhận diện vị trí các vật thể, bảng hiệu và kiểm tra cảnh báo an toàn."
-              />
-            )}
-
-            {error && (
-              <div className="p-5 rounded-2xl bg-neutral-50 dark:bg-neutral-800/80 border border-neutral-200 dark:border-neutral-700 text-[#1A1A1A] dark:text-white space-y-2">
-                <div className="flex items-center gap-2 font-bold text-xs uppercase tracking-wider text-rose-600 dark:text-rose-400">
-                  <AlertTriangle className="w-4 h-4" />
-                  <span>Không thể hoàn thành phân tích</span>
+          ) : result ? (
+            <div className="space-y-6">
+              {/* Header actions */}
+              <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
+                <h3 className="font-bold text-base text-text-primary">Kết quả phân tích</h3>
+                <div className="flex items-center gap-2">
+                  <ReadAloudButton
+                    text={`${result.summary}. ${result.details.join('. ')}`}
+                    speechRate={settings.speechRate}
+                    size="sm"
+                  />
+                  <button
+                    onClick={handleCopy}
+                    className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 text-xs font-semibold text-text-primary hover:bg-surface-subtle flex items-center gap-1.5"
+                  >
+                    {copied ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
+                    <span>{copied ? 'Đã sao chép' : 'Sao chép'}</span>
+                  </button>
                 </div>
-                <p className="text-xs font-light">{error}</p>
-                <button
-                  onClick={() => runVisionAnalysis(selectedImage, visionMode)}
-                  className="px-3 py-1.5 rounded-full bg-[#1A1A1A] text-white font-bold text-xs uppercase tracking-wider hover:bg-neutral-800"
-                >
-                  Thử lại
-                </button>
               </div>
-            )}
 
-            {result && !loading && (
-              <div className="bg-white dark:bg-neutral-900 p-6 rounded-2xl border border-neutral-200 dark:border-neutral-800 shadow-xs space-y-6">
-                {/* Result Header & Actions */}
-                <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-neutral-100 dark:border-neutral-800">
-                  <span className="text-[10px] font-bold uppercase tracking-[0.15em] px-3 py-1 rounded-full bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 border border-neutral-200/80 dark:border-neutral-700">
-                    Kết quả phân tích từ Lovira
-                  </span>
-
-                  <div className="flex items-center gap-2">
-                    <ReadAloudButton
-                      text={`${result.summary}. ${result.details.join('. ')}. ${
-                        result.possibleHazards.length > 0
-                          ? 'Cảnh báo an toàn: ' + result.possibleHazards.join('. ')
-                          : ''
-                      }`}
-                      speechRate={settings.speechRate}
-                      size="sm"
-                    />
-
-                    <button
-                      onClick={handleCopy}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-neutral-100 dark:bg-neutral-800 text-[#1A1A1A] dark:text-neutral-200 text-xs font-bold uppercase tracking-wider hover:bg-neutral-200 dark:hover:bg-neutral-700 border border-neutral-200 dark:border-neutral-700"
-                    >
-                      {copied ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
-                      <span>{copied ? 'Đã chép' : 'Sao chép'}</span>
-                    </button>
-                  </div>
-                </div>
-
-                {/* Quick Summary */}
-                <div className="p-4 rounded-xl bg-neutral-50 dark:bg-neutral-800/60 border border-neutral-200 dark:border-neutral-700">
-                  <div className="text-[10px] font-bold tracking-[0.2em] uppercase text-neutral-400 mb-1">
-                    Tóm tắt nhanh
-                  </div>
-                  <p className="text-sm font-normal text-[#1A1A1A] dark:text-white leading-relaxed">
+              {/* Structured Content Area */}
+              <div className="space-y-5">
+                <div>
+                  <h4 className="text-xs font-bold text-text-secondary uppercase tracking-wider mb-2">Mô tả tổng quan</h4>
+                  <p className="text-sm text-text-primary leading-relaxed bg-surface-subtle p-4 rounded-xl">
                     {result.summary}
                   </p>
                 </div>
 
-                {/* Safety Warnings if any */}
-                {result.possibleHazards && result.possibleHazards.length > 0 && (
-                  <div className="p-4 rounded-2xl bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800/80 space-y-2">
-                    <div className="flex items-center gap-2 text-rose-800 dark:text-rose-300 font-bold text-sm">
-                      <ShieldAlert className="w-5 h-5 text-rose-600 dark:text-rose-400" />
-                      <span>Lưu ý an toàn & chướng ngại vật</span>
-                    </div>
-                    <ul className="list-disc list-inside space-y-1 text-xs text-rose-900 dark:text-rose-200 font-medium">
-                      {result.possibleHazards.map((haz, i) => (
-                        <li key={i}>{haz}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-
-                {/* Detected Text */}
-                {result.detectedText && result.detectedText.length > 0 && (
-                  <div className="space-y-2">
-                    <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                      Văn bản trích xuất được trong ảnh
-                    </h2>
-                    <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 space-y-1.5 font-mono text-xs text-slate-800 dark:text-slate-200">
-                      {result.detectedText.map((txt, i) => (
-                        <p key={i}>"{txt}"</p>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Key Details List */}
                 {result.details && result.details.length > 0 && (
-                  <div className="space-y-2">
-                    <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                      Chi tiết quan sát
-                    </h2>
-                    <ul className="space-y-2 text-sm text-slate-800 dark:text-slate-200">
-                      {result.details.map((det, i) => (
-                        <li key={i} className="flex items-start gap-2">
-                          <span className="w-2 h-2 rounded-full bg-indigo-500 mt-2 shrink-0"></span>
-                          <span>{det}</span>
-                        </li>
+                  <div>
+                    <h4 className="text-xs font-bold text-text-secondary uppercase tracking-wider mb-2">Vật thể & Vị trí</h4>
+                    <ul className="text-sm text-text-primary space-y-2 list-disc list-inside">
+                      {result.details.map((d, i) => (
+                        <li key={i}>{d}</li>
                       ))}
                     </ul>
                   </div>
                 )}
 
-                {/* Safety Grounding Note */}
-                <div className="p-3 rounded-xl bg-slate-100 dark:bg-slate-800/50 text-[11px] text-slate-500 dark:text-slate-400">
-                  <p>
-                    <strong>Lưu ý:</strong> Mô tả AI có thể chưa hoàn toàn chính xác. Không nên sử dụng Lovira như phương tiện duy nhất để đảm bảo an toàn khi di chuyển.
-                  </p>
-                </div>
-
-                {/* Follow-up Q&A Form */}
-                <div className="pt-4 border-t border-slate-100 dark:border-slate-800 space-y-4">
-                  <h2 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                    <MessageSquare className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-                    <span>Hỏi thêm về bức ảnh này</span>
-                  </h2>
-
-                  {followUpAnswers.length > 0 && (
-                    <div className="space-y-3">
-                      {followUpAnswers.map((item, idx) => (
-                        <div key={idx} className="p-3.5 rounded-2xl bg-indigo-50/50 dark:bg-slate-800/80 space-y-1.5 text-xs">
-                          <p className="font-bold text-indigo-900 dark:text-indigo-200">Hỏi: {item.q}</p>
-                          <p className="text-slate-700 dark:text-slate-300">Đáp: {item.a}</p>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  <form onSubmit={handleFollowUp} className="flex gap-2">
-                    <input
-                      type="text"
-                      value={followUpQuestion}
-                      onChange={(e) => setFollowUpQuestion(e.target.value)}
-                      placeholder="Ví dụ: Bảng phía trước ghi chữ gì? Có cầu thang không?..."
-                      className="flex-1 px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    />
-                    <button
-                      type="submit"
-                      disabled={followUpLoading || !followUpQuestion.trim()}
-                      className="px-4 py-2.5 rounded-xl bg-indigo-600 text-white font-bold text-xs hover:bg-indigo-700 transition-colors disabled:opacity-50"
-                    >
-                      <Send className="w-4 h-4" />
-                    </button>
-                  </form>
-                </div>
+                {result.possibleHazards && result.possibleHazards.length > 0 && (
+                  <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 flex items-start gap-3">
+                    <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                    <p className="text-xs text-amber-800 dark:text-amber-300 leading-relaxed">
+                      <strong>Lưu ý an toàn:</strong> {result.possibleHazards.join('. ')}
+                    </p>
+                  </div>
+                )}
               </div>
-            )}
+
+              {/* Follow-up Question List */}
+              {followUpAnswers.length > 0 && (
+                <div className="space-y-2">
+                  {followUpAnswers.map((item, idx) => (
+                    <div key={idx} className="p-3 rounded-xl bg-surface-subtle text-xs space-y-1">
+                      <p className="font-bold text-text-primary">Hỏi: {item.q}</p>
+                      <p className="text-text-secondary">Đáp: {item.a}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-5">
+              <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
+                <h3 className="font-bold text-base text-text-primary">Kết quả phân tích</h3>
+              </div>
+              <div className="p-8 text-center text-text-secondary text-sm">
+                Vui lòng chụp ảnh hoặc tải ảnh lên để xem kết quả phân tích tại đây.
+              </div>
+            </div>
+          )}
+
+          {/* Follow-up Question Input Form */}
+          <div className="pt-6 border-t border-slate-100 dark:border-slate-800">
+            <form onSubmit={handleFollowUp} className="flex items-center gap-2">
+              <input
+                type="text"
+                value={followUpQuestion}
+                onChange={(e) => setFollowUpQuestion(e.target.value)}
+                placeholder="Hỏi thêm về ảnh này (Ví dụ: Trên bàn có chìa khóa không?)..."
+                className="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-surface text-sm text-text-primary focus:border-primary"
+              />
+              <button
+                type="submit"
+                disabled={!selectedImage || !followUpQuestion.trim() || followUpLoading}
+                className="px-5 py-2.5 rounded-xl bg-primary text-white font-semibold text-sm hover:bg-primary-hover disabled:opacity-50"
+              >
+                Gửi
+              </button>
+            </form>
           </div>
         </div>
-      )}
+      </div>
 
-      {/* Camera Capture Modal */}
       <CameraModal
         isOpen={isCameraOpen}
         onClose={() => setIsCameraOpen(false)}

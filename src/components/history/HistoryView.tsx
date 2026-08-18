@@ -67,27 +67,24 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ userProfile }) => {
   const getTypeIcon = (type: string) => {
     switch (type) {
       case 'vision':
-        return <Eye className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />;
+        return <Eye className="w-4 h-4 text-primary" />;
       case 'conversation':
-        return <Mic className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />;
+        return <Mic className="w-4 h-4 text-emerald-600" />;
       case 'easy-read':
-        return <FileText className="w-4 h-4 text-amber-600 dark:text-amber-400" />;
+        return <FileText className="w-4 h-4 text-amber-600" />;
       case 'document':
-        return <BookOpen className="w-4 h-4 text-rose-600 dark:text-rose-400" />;
+        return <BookOpen className="w-4 h-4 text-coral" />;
       default:
-        return <Sparkles className="w-4 h-4 text-slate-600" />;
+        return <Sparkles className="w-4 h-4 text-text-secondary" />;
     }
   };
 
   return (
-    <div className="space-y-8 pb-12">
-      {/* Title Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white dark:bg-neutral-900 p-6 rounded-2xl border border-neutral-200 dark:border-neutral-800 shadow-xs">
+    <div className="space-y-6">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-light text-[#1A1A1A] dark:text-white flex items-center gap-2.5">
-            <span>Lịch sử hoạt động</span>
-          </h1>
-          <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1 font-light">
+          <h2 className="text-2xl font-bold text-text-primary">Lịch sử hoạt động</h2>
+          <p className="text-sm text-text-secondary mt-1">
             Xem lại các phân tích hình ảnh, tóm tắt cuộc trò chuyện và nội dung Easy Read bạn đã lưu.
           </p>
         </div>
@@ -95,24 +92,23 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ userProfile }) => {
         {items.length > 0 && (
           <button
             onClick={handleClearAll}
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-neutral-100 text-rose-600 hover:bg-rose-50 dark:bg-neutral-800 dark:text-rose-400 font-bold text-xs uppercase tracking-wider transition-colors shrink-0 border border-neutral-200 dark:border-neutral-700"
+            className="px-3.5 py-2 rounded-xl border border-rose-200 dark:border-rose-900 text-xs font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 flex items-center gap-1.5 shrink-0"
           >
-            <Trash2 className="w-3.5 h-3.5" />
-            <span>Xóa tất cả lịch sử</span>
+            <Trash2 className="w-3.5 h-3.5" /> Xóa tất cả lịch sử
           </button>
         )}
       </div>
 
       {/* Filter and Search Bar */}
-      <div className="flex flex-col sm:flex-row gap-4 justify-between items-center bg-white dark:bg-neutral-900 p-4 rounded-2xl border border-neutral-200 dark:border-neutral-800 shadow-xs">
+      <div className="flex flex-col sm:flex-row gap-4 justify-between items-center bg-surface p-4 rounded-2xl border border-slate-200 dark:border-slate-800">
         <div className="relative w-full sm:w-72">
-          <Search className="w-3.5 h-3.5 absolute left-3.5 top-3 text-neutral-400" />
+          <Search className="w-4 h-4 absolute left-3 top-2.5 text-text-secondary" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Tìm kiếm lịch sử..."
-            className="w-full pl-10 pr-4 py-2 rounded-full border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 text-[#1A1A1A] dark:text-white text-xs focus:outline-none focus:ring-2 focus:ring-[#1A1A1A]"
+            className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-surface text-xs text-text-primary focus:border-primary"
           />
         </div>
 
@@ -127,10 +123,10 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ userProfile }) => {
             <button
               key={f.id}
               onClick={() => setFilterType(f.id)}
-              className={`px-3.5 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider transition-all ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
                 filterType === f.id
-                  ? 'bg-[#1A1A1A] text-white dark:bg-white dark:text-[#1A1A1A] shadow-xs'
-                  : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-700'
+                  ? 'bg-primary-soft text-primary font-bold'
+                  : 'text-text-secondary hover:text-text-primary'
               }`}
             >
               {f.label}
@@ -141,11 +137,11 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ userProfile }) => {
 
       {/* List Grid */}
       {filteredItems.length === 0 ? (
-        <div className="bg-white dark:bg-neutral-900 p-12 rounded-2xl border border-neutral-200 dark:border-neutral-800 text-center space-y-2 shadow-xs">
-          <HistoryIcon className="w-8 h-8 text-neutral-300 dark:text-neutral-600 mx-auto" />
-          <p className="text-sm font-light text-[#1A1A1A] dark:text-white">Không tìm thấy lịch sử nào</p>
-          <p className="text-xs text-neutral-400 font-light">
-            Hãy trải nghiệm các tính năng của Lovira để tự động lưu lại lịch sử tiện lợi.
+        <div className="bg-surface p-12 rounded-2xl border border-slate-200 dark:border-slate-800 text-center space-y-2">
+          <HistoryIcon className="w-8 h-8 text-text-secondary mx-auto" />
+          <p className="text-sm font-bold text-text-primary">Chưa có lịch sử hoạt động</p>
+          <p className="text-xs text-text-secondary max-w-sm mx-auto">
+            Trải nghiệm các tính năng của Lovira để nội dung tự động được lưu lại tại đây.
           </p>
         </div>
       ) : (
@@ -154,15 +150,15 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ userProfile }) => {
             <div
               key={item.id}
               onClick={() => setSelectedItem(item)}
-              className="group p-5 rounded-2xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 hover:border-neutral-400 transition-all cursor-pointer flex flex-col justify-between space-y-3 shadow-xs"
+              className="p-5 rounded-2xl bg-surface border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 transition-all cursor-pointer flex flex-col justify-between space-y-3"
             >
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <div className="p-1 rounded-md bg-neutral-100 dark:bg-neutral-800">
+                    <div className="p-1 rounded bg-surface-subtle">
                       {getTypeIcon(item.type)}
                     </div>
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-text-secondary">
                       {item.type}
                     </span>
                   </div>
@@ -170,28 +166,26 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ userProfile }) => {
                   <button
                     onClick={(e) => handleDeleteItem(item.id, e)}
                     title="Xóa mục này"
-                    className="p-1 rounded-md hover:bg-rose-50 dark:hover:bg-rose-950/50 text-neutral-400 hover:text-rose-600 transition-colors"
+                    className="p-1 rounded text-text-secondary hover:text-rose-600 transition-colors"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
                 </div>
 
-                <h3 className="text-sm font-normal text-[#1A1A1A] dark:text-white line-clamp-1">
+                <h3 className="text-sm font-bold text-text-primary line-clamp-1">
                   {item.title}
                 </h3>
-                <p className="text-xs text-neutral-500 dark:text-neutral-400 line-clamp-2 leading-relaxed font-light">
+                <p className="text-xs text-text-secondary line-clamp-2 leading-relaxed">
                   {item.preview}
                 </p>
               </div>
 
-              <div className="flex items-center justify-between pt-2 border-t border-neutral-100 dark:border-neutral-800 text-[10px] text-neutral-400 uppercase tracking-wider">
+              <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800 text-[10px] text-text-secondary uppercase">
                 <span className="flex items-center gap-1">
                   <Clock className="w-3 h-3" />
                   {new Date(item.createdAt).toLocaleString('vi-VN')}
                 </span>
-                <span className="font-bold text-[#1A1A1A] dark:text-white group-hover:underline">
-                  Xem chi tiết &rarr;
-                </span>
+                <span className="font-bold text-primary">Xem chi tiết &rarr;</span>
               </div>
             </div>
           ))}
@@ -203,35 +197,33 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ userProfile }) => {
         <div
           role="dialog"
           aria-modal="true"
-          className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4"
+          className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4"
         >
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-2xl rounded-3xl p-6 shadow-2xl space-y-6 max-h-[85vh] overflow-y-auto relative">
+          <div className="bg-surface border border-slate-200 dark:border-slate-800 w-full max-w-xl rounded-2xl p-6 space-y-6 max-h-[85vh] overflow-y-auto relative">
             <button
               onClick={() => setSelectedItem(null)}
-              className="absolute top-4 right-4 p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-700"
+              className="absolute top-4 right-4 p-1 rounded-lg text-text-secondary hover:text-text-primary"
             >
               <X className="w-5 h-5" />
             </button>
 
             <div className="flex items-center gap-3">
-              <div className="p-2.5 rounded-xl bg-indigo-50 dark:bg-indigo-950">
+              <div className="p-2 rounded-xl bg-surface-subtle">
                 {getTypeIcon(selectedItem.type)}
               </div>
               <div>
-                <h2 className="text-lg font-bold text-slate-900 dark:text-white">
+                <h3 className="text-lg font-bold text-text-primary">
                   {selectedItem.title}
-                </h2>
-                <p className="text-xs text-slate-400">
-                  Đã lưu lúc {new Date(selectedItem.createdAt).toLocaleString('vi-VN')}
+                </h3>
+                <p className="text-xs text-text-secondary">
+                  Lưu lúc {new Date(selectedItem.createdAt).toLocaleString('vi-VN')}
                 </p>
               </div>
             </div>
 
-            <div className="p-4 rounded-2xl bg-indigo-50/60 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-900/60 space-y-1">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-300">
-                Nội dung xem trước
-              </h3>
-              <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 leading-relaxed">
+            <div className="p-4 rounded-xl bg-surface-subtle border border-slate-100 dark:border-slate-800 space-y-1">
+              <span className="text-xs font-bold uppercase text-text-secondary">Nội dung chi tiết</span>
+              <p className="text-sm text-text-primary leading-relaxed">
                 {selectedItem.preview}
               </p>
             </div>
@@ -241,7 +233,7 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ userProfile }) => {
 
               <button
                 onClick={() => setSelectedItem(null)}
-                className="px-5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-bold text-xs hover:bg-slate-200"
+                className="px-4 py-2 rounded-xl bg-surface-subtle text-text-primary font-semibold text-xs border border-slate-200 dark:border-slate-800"
               >
                 Đóng
               </button>

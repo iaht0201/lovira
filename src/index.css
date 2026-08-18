@@ -1,64 +1,107 @@
 @import "tailwindcss";
 
-@layer utilities {
-  .font-scale-100 {
-    font-size: 100%;
-  }
-  .font-scale-125 {
-    font-size: 125%;
-  }
-  .font-scale-150 {
-    font-size: 150%;
-  }
-  .font-scale-175 {
-    font-size: 175%;
-  }
-}
-
 :root {
-  --bg-canvas: #F5F5F5;
-  --text-main: #1A1A1A;
+  --canvas: #f6f7fb;
+  --surface: #ffffff;
+  --surface-subtle: #eef1f7;
+  --text-primary: #172038;
+  --text-secondary: #536079;
+  --focus: #1d4ed8;
+  --font-scale: 1;
 }
 
-body {
-  background-color: #F5F5F5;
-  color: #1A1A1A;
-  font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-  -webkit-font-smoothing: antialiased;
-}
-
-.dark body,
 .dark {
-  background-color: #0d0e12;
-  color: #f3f4f6;
+  --canvas: #0f1420;
+  --surface: #171e2d;
+  --surface-subtle: #20293b;
+  --text-primary: #f5f7ff;
+  --text-secondary: #c7cede;
+  --focus: #a9c5ff;
+  color-scheme: dark;
 }
 
 .high-contrast {
-  --tw-border-opacity: 1 !important;
-  border-color: rgba(234, 179, 8, 1) !important;
+  --canvas: #000000 !important;
+  --surface: #121212 !important;
+  --surface-subtle: #242424 !important;
+  --text-primary: #ffffff !important;
+  --text-secondary: #e0e0e0 !important;
+  --focus: #ffff00 !important;
 }
 
-.high-contrast button,
-.high-contrast input,
-.high-contrast select,
-.high-contrast textarea {
-  border-width: 2px !important;
+html {
+  scroll-behavior: smooth;
+  height: 100%;
 }
 
-.large-controls button,
-.large-controls a.btn,
-.large-controls input:not([type="checkbox"]):not([type="radio"]),
-.large-controls select,
-.large-controls textarea {
-  min-height: 48px !important;
-  padding-top: 0.625rem !important;
-  padding-bottom: 0.625rem !important;
+body {
+  height: 100%;
+  font-size: calc(16px * var(--font-scale));
+  background-color: var(--canvas);
+  color: var(--text-primary);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
 }
 
-.large-controls input[type="checkbox"],
-.large-controls input[type="radio"] {
-  width: 22px !important;
-  height: 22px !important;
+/* Custom Color Utility Classes */
+.bg-canvas { background-color: var(--canvas); }
+.bg-surface { background-color: var(--surface); }
+.bg-surface-subtle { background-color: var(--surface-subtle); }
+
+.text-text-primary { color: var(--text-primary); }
+.text-text-secondary { color: var(--text-secondary); }
+
+/* Custom Brand Color Accents */
+.bg-primary { background-color: #3546b5; }
+.bg-primary-hover { background-color: #293997; }
+.bg-primary-soft { background-color: #eef0ff; }
+.text-primary { color: #3546b5; }
+.border-primary { border-color: #3546b5; }
+
+.bg-teal { background-color: #087a78; }
+.bg-teal-hover { background-color: #066563; }
+.bg-teal-soft { background-color: #e8f7f6; }
+.text-teal { color: #087a78; }
+
+.bg-coral { background-color: #c74561; }
+.bg-coral-hover { background-color: #aa344e; }
+.bg-coral-soft { background-color: #fff0f3; }
+.text-coral { color: #c74561; }
+
+.dark .bg-primary-soft { background-color: rgba(53, 70, 181, 0.2); }
+.dark .text-primary { color: #8292f8; }
+.dark .bg-teal-soft { background-color: rgba(8, 122, 120, 0.2); }
+.dark .text-teal { color: #38bdf8; }
+.dark .bg-coral-soft { background-color: rgba(199, 69, 97, 0.2); }
+.dark .text-coral { color: #f43f5e; }
+
+:focus-visible {
+  outline: 3px solid var(--focus) !important;
+  outline-offset: 3px !important;
+}
+
+.skip-link {
+  position: absolute;
+  top: -50px;
+  left: 16px;
+  background: #3546b5;
+  color: white;
+  padding: 10px 20px;
+  z-index: 9999;
+  font-weight: 600;
+  border-radius: 8px;
+  transition: top 0.2s ease;
+}
+.skip-link:focus {
+  top: 16px;
+}
+
+.wave-bar {
+  animation: soundWave 1.2s ease-in-out infinite alternate;
+}
+@keyframes soundWave {
+  0% { height: 8px; }
+  100% { height: 42px; }
 }
 
 .reduce-motion * {
@@ -74,20 +117,6 @@ body {
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
-}
-
-/* Accessible clean focus ring defaults */
-:focus-visible {
-  outline: 2px solid #1a1a1a !important;
-  outline-offset: 2px !important;
-}
-
-.dark :focus-visible {
-  outline: 2px solid #f3f4f6 !important;
-}
-
-html {
-  scroll-behavior: smooth;
 }
 
 

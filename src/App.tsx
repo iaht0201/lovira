@@ -76,108 +76,123 @@ export default function App() {
 
   // Determine dark mode & contrast classes
   const isDark = settings.theme === 'dark';
-  const fontScaleClass = `font-scale-${settings.fontScale}`;
+
+  // Synchronize accessibility attributes with document.documentElement
+  useEffect(() => {
+    if (isDark) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+
+    if (settings.highContrast) {
+      document.documentElement.classList.add('high-contrast');
+    } else {
+      document.documentElement.classList.remove('high-contrast');
+    }
+
+    const scaleVal = (parseFloat(settings.fontScale) || 100) / 100;
+    document.documentElement.style.setProperty('--font-scale', scaleVal.toString());
+  }, [isDark, settings.highContrast, settings.fontScale]);
 
   return (
     <div
-      className={`${isDark ? 'dark' : ''} ${
-        settings.highContrast ? 'high-contrast' : ''
-      } ${settings.reducedMotion ? 'reduce-motion' : ''} ${
-        settings.largeControls ? 'large-controls' : ''
-      }`}
+      className={`min-h-screen flex flex-col bg-canvas text-text-primary ${
+        settings.reducedMotion ? 'reduce-motion' : ''
+      } ${settings.largeControls ? 'large-controls' : ''}`}
     >
-      <div className={`min-h-screen bg-[#F5F5F5] dark:bg-[#0d0e12] text-[#1A1A1A] dark:text-neutral-100 transition-colors font-sans ${fontScaleClass}`}>
-        <SkipLink />
+      <SkipLink />
 
-        <div className="flex min-h-screen">
-          {/* Desktop Sidebar */}
-          <Sidebar
-            currentRoute={currentRoute}
-            onNavigate={navigateTo}
-            userProfile={userProfile}
-          />
+      {/* Global Top Header Bar */}
+      <Header
+        settings={settings}
+        onUpdateSettings={handleUpdateSettings}
+        userProfile={userProfile}
+        onNavigate={navigateTo}
+      />
 
-          {/* Main Content Area */}
-          <div className="flex-1 flex flex-col min-w-0">
-            <Header
-              settings={settings}
-              onUpdateSettings={handleUpdateSettings}
-              userProfile={userProfile}
-              onNavigate={navigateTo}
-            />
-
-            <main id="main-content" tabIndex={-1} className="flex-1 p-4 sm:p-6 lg:p-8 pb-28 sm:pb-8 max-w-7xl w-full mx-auto outline-none">
-              <ErrorBoundary key={currentRoute}>
-                {currentRoute === '/' && (
-                  <DashboardView
-                    userProfile={userProfile}
-                    settings={settings}
-                    onUpdateSettings={handleUpdateSettings}
-                    onNavigate={navigateTo}
-                  />
-                )}
-
-                {currentRoute.startsWith('/vision') && (
-                  <VisionView
-                    userProfile={userProfile}
-                    settings={settings}
-                    initialAction={currentRoute.includes('action=camera') ? 'camera' : undefined}
-                  />
-                )}
-
-                {currentRoute.startsWith('/conversation') && (
-                  <ConversationView
-                    userProfile={userProfile}
-                    settings={settings}
-                    onNavigate={navigateTo}
-                  />
-                )}
-
-                {currentRoute.startsWith('/easy-read') && (
-                  <EasyReadView
-                    userProfile={userProfile}
-                    settings={settings}
-                  />
-                )}
-
-                {currentRoute.startsWith('/documents') && (
-                  <DocumentView
-                    userProfile={userProfile}
-                    settings={settings}
-                  />
-                )}
-
-                {currentRoute.startsWith('/history') && (
-                  <HistoryView userProfile={userProfile} />
-                )}
-
-                {currentRoute.startsWith('/settings') && (
-                  <SettingsView
-                    settings={settings}
-                    onUpdateSettings={handleUpdateSettings}
-                    userProfile={userProfile}
-                  />
-                )}
-              </ErrorBoundary>
-            </main>
-          </div>
-        </div>
-
-        {/* Mobile Navigation */}
-        <MobileNav
+      {/* Workspace Area: Sidebar + Main Content */}
+      <div className="flex-1 flex overflow-hidden">
+        {/* Desktop Sidebar */}
+        <Sidebar
           currentRoute={currentRoute}
           onNavigate={navigateTo}
-          onOpenMoreMenu={() => setIsMoreMenuOpen(true)}
+          userProfile={userProfile}
+          settings={settings}
+          onUpdateSettings={handleUpdateSettings}
         />
 
-        {/* Mobile More Menu Drawer */}
-        <MoreMenuModal
-          isOpen={isMoreMenuOpen}
-          onClose={() => setIsMoreMenuOpen(false)}
-          onNavigate={navigateTo}
-          currentRoute={currentRoute}
-        />
+        {/* Main Content Viewport */}
+        <main id="main-content" tabIndex={-1} className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 pb-28 sm:pb-8 max-w-7xl mx-auto w-full outline-none">
+          <ErrorBoundary key={currentRoute}>
+            {currentRoute === '/' && (
+              <DashboardView
+                userProfile={userProfile}
+                settings={settings}
+                onUpdateSettings={handleUpdateSettings}
+                onNavigate={navigateTo}
+              />
+            )}
+
+            {currentRoute.startsWith('/vision') && (
+              <VisionView
+                userProfile={userProfile}
+                settings={settings}
+                initialAction={currentRoute.includes('action=camera') ? 'camera' : undefined}
+              />
+            )}
+
+            {currentRoute.startsWith('/conversation') && (
+              <ConversationView
+                userProfile={userProfile}
+                settings={settings}
+                onNavigate={navigateTo}
+              />
+            )}
+
+            {currentRoute.startsWith('/easy-read') && (
+              <EasyReadView
+                userProfile={userProfile}
+                settings={settings}
+              />
+            )}
+
+            {currentRoute.startsWith('/documents') && (
+              <DocumentView
+                userProfile={userProfile}
+                settings={settings}
+              />
+            )}
+
+            {currentRoute.startsWith('/history') && (
+              <HistoryView userProfile={userProfile} />
+            )}
+
+            {currentRoute.startsWith('/settings') && (
+              <SettingsView
+                settings={settings}
+                onUpdateSettings={handleUpdateSettings}
+                userProfile={userProfile}
+              />
+            )}
+          </ErrorBoundary>
+        </main>
       </div>
+
+      {/* Mobile Navigation */}
+      <MobileNav
+        currentRoute={currentRoute}
+        onNavigate={navigateTo}
+        onOpenMoreMenu={() => setIsMoreMenuOpen(true)}
+      />
+
+      {/* Mobile More Menu Drawer */}
+      <MoreMenuModal
+        isOpen={isMoreMenuOpen}
+        onClose={() => setIsMoreMenuOpen(false)}
+        onNavigate={navigateTo}
+        currentRoute={currentRoute}
+      />
     </div>
   );
 }

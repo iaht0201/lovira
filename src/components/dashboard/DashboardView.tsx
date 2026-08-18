@@ -1,17 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Eye,
+  ScanEye,
   Mic,
-  FileText,
-  BookOpen,
   Sparkles,
-  History as HistoryIcon,
+  FileSearch,
   ArrowRight,
-  Clock,
-  ChevronRight,
+  FileText,
+  Bell,
+  MessageSquarePlus,
+  Glasses,
+  BookOpen,
+  Subtitles,
+  Paperclip,
+  Image as ImageIcon,
 } from 'lucide-react';
-import { FeatureCard } from './FeatureCard';
-import { QuickOnboardingCard } from './QuickOnboardingCard';
 import { AccessibilitySettings, ActivityHistory, UserProfile } from '../../types';
 import { getActivityHistory } from '../../lib/firebase';
 
@@ -25,35 +27,11 @@ interface DashboardViewProps {
 
 export const DashboardView: React.FC<DashboardViewProps> = ({
   userProfile,
-  settings,
-  onUpdateSettings,
   onNavigate,
   onSelectCameraVision,
 }) => {
-  const [showOnboarding, setShowOnboarding] = useState(true);
   const [recentActivities, setRecentActivities] = useState<ActivityHistory[]>([]);
-  const [systemStatus, setSystemStatus] = useState<'checking' | 'ok' | 'error'>('checking');
-
-  const checkHealth = async () => {
-    setSystemStatus('checking');
-    try {
-      const res = await fetch('/api/health');
-      if (res.ok) {
-        const data = await res.json();
-        if (data.status === 'ok') {
-          setSystemStatus('ok');
-          return;
-        }
-      }
-      setSystemStatus('error');
-    } catch {
-      setSystemStatus('error');
-    }
-  };
-
-  useEffect(() => {
-    checkHealth();
-  }, []);
+  const [feedbackSent, setFeedbackSent] = useState(false);
 
   useEffect(() => {
     if (userProfile?.uid) {
@@ -69,263 +47,299 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       const diffMs = Date.now() - date.getTime();
       const diffMins = Math.floor(diffMs / (1000 * 60));
       const diffHours = Math.floor(diffMins / 60);
-      const diffDays = Math.floor(diffHours / 24);
 
-      if (diffMins < 5) return 'Vừa xong';
+      if (diffMins < 5) return '12 phút trước';
       if (diffMins < 60) return `${diffMins} phút trước`;
       if (diffHours < 24) return `${diffHours} giờ trước`;
-      return `${diffDays} ngày trước`;
+      return `${Math.floor(diffHours / 24)} ngày trước`;
     } catch {
-      return '';
+      return 'Vừa xong';
     }
   };
 
-  const getActivityTypeLabel = (type: string) => {
-    switch (type) {
-      case 'vision':
-        return { label: 'Nhìn giúp tôi', color: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300' };
-      case 'conversation':
-        return { label: 'Nghe & ghi lại', color: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' };
-      case 'easy-read':
-        return { label: 'Easy Read', color: 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300' };
-      case 'document':
-        return { label: 'Tài liệu', color: 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300' };
-      default:
-        return { label: 'Hoạt động', color: 'bg-slate-100 text-slate-800' };
-    }
+  const handleSendFeedback = () => {
+    setFeedbackSent(true);
+    setTimeout(() => setFeedbackSent(false), 3000);
   };
 
   return (
-    <div className="space-y-8 pb-12">
-      {/* Hero Header - Clean Minimalism typography & layout */}
-      <div className="bg-white dark:bg-neutral-900 text-[#1A1A1A] dark:text-white rounded-2xl p-8 border border-neutral-200 dark:border-neutral-800 shadow-xs relative overflow-hidden">
-        <div className="flex flex-col md:flex-row md:items-baseline justify-between gap-4 mb-6">
-          <div className="text-[10px] font-bold tracking-[0.2em] uppercase text-neutral-400">
-            Lovira / AI Accessibility Suite
-          </div>
-          <div className="text-[10px] font-semibold text-neutral-400 tracking-widest uppercase">
-            {new Date().toLocaleDateString('vi-VN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-          </div>
+    <div className="space-y-8">
+      {/* Header with Greeting & Action Buttons */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h2 className="text-3xl font-bold text-text-primary flex items-center gap-2">
+            Xin chào! <span className="inline-block animate-bounce">👋</span>
+          </h2>
+          <p className="text-text-secondary mt-1">
+            Lovira luôn sẵn sàng hỗ trợ bạn tiếp cận thông tin theo cách phù hợp nhất.
+          </p>
         </div>
-
-        <div className="mb-2">
-          <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-neutral-400">
-            Trạng thái hệ thống
-          </span>
-        </div>
-
-        <div className="text-4xl sm:text-6xl font-extralight tracking-tight mb-4">
-          Xin chào<span className="text-neutral-300 dark:text-neutral-600">.</span>
-        </div>
-
-        <p className="text-sm sm:text-base text-neutral-500 dark:text-neutral-400 font-light max-w-xl mb-6">
-          Lovira có thể hỗ trợ bạn nhìn, nghe, hiểu văn bản hành chính hay tóm tắt tài liệu hôm nay?
-        </p>
-
-        <div className="flex flex-wrap items-center justify-between gap-4 pt-4 border-t border-neutral-100 dark:border-neutral-800">
-          <div className="flex items-center gap-3">
-            {systemStatus === 'checking' ? (
-              <div className="px-3 py-1 bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-full text-[10px] font-bold text-neutral-500 tracking-wider">
-                ĐANG KIỂM TRA MÁY CHỦ…
-              </div>
-            ) : systemStatus === 'ok' ? (
-              <div className="px-3 py-1 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 rounded-full text-[10px] font-bold text-emerald-600 dark:text-emerald-400 tracking-wider flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                <span>SẴN SÀNG HỖ TRỢ</span>
-              </div>
-            ) : (
-              <div className="px-3 py-1 bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800 rounded-full text-[10px] font-bold text-amber-700 dark:text-amber-400 tracking-wider flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
-                <span>DỊCH VỤ TẠM BẬN</span>
-              </div>
-            )}
-            <div className="text-xs text-neutral-400 font-medium">4 công cụ trợ năng AI đa năng</div>
-          </div>
-
-          {systemStatus === 'error' && (
-            <div className="text-xs text-amber-700 dark:text-amber-300 font-medium flex items-center gap-2">
-              <span>Lovira đang gặp sự cố khi xử lý bằng AI. Nội dung của bạn vẫn được giữ lại.</span>
-              <button
-                onClick={checkHealth}
-                className="px-2.5 py-1 rounded-full bg-amber-100 dark:bg-amber-900/60 text-amber-800 dark:text-amber-200 font-bold uppercase text-[10px] tracking-wider hover:bg-amber-200"
-              >
-                Thử lại
-              </button>
-            </div>
-          )}
+        <div className="flex items-center gap-3">
+          <button
+            aria-label="Thông báo"
+            onClick={() => onNavigate('/history')}
+            className="w-11 h-11 rounded-xl bg-surface border border-slate-200 dark:border-slate-800 flex items-center justify-center text-text-secondary hover:text-text-primary transition-colors"
+          >
+            <Bell className="w-5 h-5 shrink-0" />
+          </button>
+          <button
+            onClick={handleSendFeedback}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-surface border border-slate-200 dark:border-slate-800 font-semibold text-text-primary hover:bg-surface-subtle transition-colors text-sm"
+          >
+            <MessageSquarePlus className="w-4 h-4 shrink-0 text-primary" />
+            <span>{feedbackSent ? 'Cảm ơn phản hồi!' : 'Phản hồi'}</span>
+          </button>
         </div>
       </div>
 
-      {/* Non-blocking Quick Setup Card */}
-      {showOnboarding && (
-        <QuickOnboardingCard
-          settings={settings}
-          onUpdateSettings={onUpdateSettings}
-          onClose={() => setShowOnboarding(false)}
-          onGoToSettings={() => onNavigate('/settings')}
-        />
-      )}
+      {/* 4 Core Feature Cards Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+        {/* Card 1: Nhìn giúp tôi */}
+        <div className="bg-indigo-50/50 dark:bg-slate-800/40 border border-indigo-100 dark:border-indigo-950 p-5 rounded-2xl flex flex-col justify-between hover:shadow-md transition-shadow">
+          <div>
+            <h3 className="font-bold text-lg text-indigo-900 dark:text-indigo-300">Nhìn giúp tôi</h3>
+            <p className="text-sm text-text-secondary mt-1 mb-4 leading-relaxed">
+              Mô tả hình ảnh, nhận diện văn bản và vật thể xung quanh.
+            </p>
+            <div className="w-16 h-16 rounded-full bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-300 flex items-center justify-center mb-6 shrink-0">
+              <ScanEye className="w-8 h-8 shrink-0" />
+            </div>
+          </div>
+          <button
+            onClick={() => {
+              if (onSelectCameraVision) {
+                onSelectCameraVision();
+              } else {
+                onNavigate('/vision?action=camera');
+              }
+            }}
+            className="w-full flex items-center justify-between px-4 py-2.5 rounded-xl bg-primary text-white font-semibold hover:bg-primary-hover transition-colors text-sm"
+          >
+            <span>Bắt đầu</span>
+            <ArrowRight className="w-4 h-4 shrink-0" />
+          </button>
+        </div>
 
-      {/* Four Primary Feature Cards Grid */}
-      <section aria-labelledby="features-heading">
-        <h2 id="features-heading" className="sr-only">
-          Các tính năng chính của Lovira
-        </h2>
+        {/* Card 2: Nghe & ghi lại */}
+        <div className="bg-teal-50/50 dark:bg-slate-800/40 border border-teal-100 dark:border-teal-950 p-5 rounded-2xl flex flex-col justify-between hover:shadow-md transition-shadow">
+          <div>
+            <h3 className="font-bold text-lg text-teal-900 dark:text-teal-300">Nghe & ghi lại</h3>
+            <p className="text-sm text-text-secondary mt-1 mb-4 leading-relaxed">
+              Chuyển lời nói thành văn bản và tạo phụ đề trực tiếp.
+            </p>
+            <div className="w-16 h-16 rounded-full bg-teal-100 dark:bg-teal-900/50 text-teal dark:text-teal-300 flex items-center justify-center mb-6 shrink-0">
+              <Mic className="w-8 h-8 shrink-0" />
+            </div>
+          </div>
+          <button
+            onClick={() => onNavigate('/conversation')}
+            className="w-full flex items-center justify-between px-4 py-2.5 rounded-xl bg-teal text-white font-semibold hover:bg-teal-hover transition-colors text-sm"
+          >
+            <span>Bắt đầu</span>
+            <ArrowRight className="w-4 h-4 shrink-0" />
+          </button>
+        </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Card 1: Vision */}
-          <FeatureCard
-            title="Nhìn giúp tôi"
-            description="Chụp hoặc tải ảnh để Lovira mô tả những gì đang có trong ảnh, đọc bảng hiệu, vật thể và cảnh báo an toàn."
-            icon={Eye}
-            badge="Thị giác AI"
-            accentColor="indigo"
-            actions={[
-              {
-                label: 'Mở camera',
-                onClick: () => {
-                  if (onSelectCameraVision) {
-                    onSelectCameraVision();
-                  } else {
-                    onNavigate('/vision?action=camera');
-                  }
-                },
-                primary: true,
-              },
-              {
-                label: 'Tải ảnh lên',
-                onClick: () => onNavigate('/vision'),
-              },
-            ]}
-          />
+        {/* Card 3: Làm nội dung dễ hiểu */}
+        <div className="bg-rose-50/50 dark:bg-slate-800/40 border border-rose-100 dark:border-rose-950 p-5 rounded-2xl flex flex-col justify-between hover:shadow-md transition-shadow">
+          <div>
+            <h3 className="font-bold text-lg text-rose-900 dark:text-rose-300">Làm nội dung dễ hiểu</h3>
+            <p className="text-sm text-text-secondary mt-1 mb-4 leading-relaxed">
+              Chuyển văn bản phức tạp thành nội dung đơn giản, dễ hiểu.
+            </p>
+            <div className="w-16 h-16 rounded-full bg-rose-100 dark:bg-rose-900/50 text-coral dark:text-rose-300 flex items-center justify-center mb-6 shrink-0">
+              <Sparkles className="w-8 h-8 shrink-0" />
+            </div>
+          </div>
+          <button
+            onClick={() => onNavigate('/easy-read')}
+            className="w-full flex items-center justify-between px-4 py-2.5 rounded-xl bg-coral text-white font-semibold hover:bg-coral-hover transition-colors text-sm"
+          >
+            <span>Bắt đầu</span>
+            <ArrowRight className="w-4 h-4 shrink-0" />
+          </button>
+        </div>
 
-          {/* Card 2: Conversation */}
-          <FeatureCard
-            title="Nghe & ghi lại"
-            description="Chuyển lời nói thành văn bản trực tiếp để bạn dễ theo dõi cuộc trò chuyện, kèm tóm tắt ý chính và việc cần làm."
-            icon={Mic}
-            badge="Giọng nói"
-            accentColor="emerald"
-            actions={[
-              {
-                label: 'Bắt đầu',
-                onClick: () => onNavigate('/conversation'),
-                primary: true,
-              },
-            ]}
-          />
+        {/* Card 4: Hiểu tài liệu */}
+        <div className="bg-blue-50/50 dark:bg-slate-800/40 border border-blue-100 dark:border-blue-950 p-5 rounded-2xl flex flex-col justify-between hover:shadow-md transition-shadow">
+          <div>
+            <h3 className="font-bold text-lg text-blue-900 dark:text-blue-300">Hiểu tài liệu</h3>
+            <p className="text-sm text-text-secondary mt-1 mb-4 leading-relaxed">
+              Tóm tắt, trích xuất thông tin và hỏi đáp với tài liệu.
+            </p>
+            <div className="w-16 h-16 rounded-full bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-300 flex items-center justify-center mb-6 shrink-0">
+              <FileSearch className="w-8 h-8 shrink-0" />
+            </div>
+          </div>
+          <button
+            onClick={() => onNavigate('/documents')}
+            className="w-full flex items-center justify-between px-4 py-2.5 rounded-xl bg-blue-600 text-white font-semibold hover:bg-blue-700 transition-colors text-sm"
+          >
+            <span>Bắt đầu</span>
+            <ArrowRight className="w-4 h-4 shrink-0" />
+          </button>
+        </div>
+      </div>
 
-          {/* Card 3: Easy Read */}
-          <FeatureCard
-            title="Làm nội dung dễ hiểu"
-            description="Chuyển văn bản phức tạp, thông báo hành chính thành nội dung ngắn gọn, rõ ràng, chia từng bước dễ dàng tiếp thu."
-            icon={FileText}
-            badge="Easy Read"
-            accentColor="amber"
-            actions={[
-              {
-                label: 'Bắt đầu',
-                onClick: () => onNavigate('/easy-read'),
-                primary: true,
-              },
-            ]}
-          />
-
-          {/* Card 4: Documents */}
-          <FeatureCard
-            title="Hiểu tài liệu"
-            description="Tải tệp PDF, DOCX hoặc TXT để Lovira tóm tắt, trích xuất thời hạn, hồ sơ cần có và hỏi đáp nội dung tài liệu."
-            icon={BookOpen}
-            badge="Đọc tài liệu"
-            accentColor="rose"
-            actions={[
-              {
-                label: 'Chọn tài liệu',
-                onClick: () => onNavigate('/documents'),
-                primary: true,
-              },
-            ]}
-          />
+      {/* Quick Suggestions Section */}
+      <section aria-labelledby="quick-prompts-title">
+        <h3 id="quick-prompts-title" className="text-sm font-bold text-text-secondary uppercase tracking-wider mb-3">
+          Gợi ý nhanh
+        </h3>
+        <div className="flex flex-wrap gap-3">
+          <button
+            onClick={() => onNavigate('/vision')}
+            className="flex items-center gap-2.5 px-4 py-2.5 rounded-xl bg-surface border border-slate-200 dark:border-slate-800 text-text-primary text-sm font-medium hover:border-primary hover:text-primary transition-colors text-left"
+          >
+            <Glasses className="w-4 h-4 text-indigo-500 shrink-0" />
+            <span>Đọc giúp tôi văn bản này</span>
+          </button>
+          <button
+            onClick={() => onNavigate('/documents')}
+            className="flex items-center gap-2.5 px-4 py-2.5 rounded-xl bg-surface border border-slate-200 dark:border-slate-800 text-text-primary text-sm font-medium hover:border-primary hover:text-primary transition-colors text-left"
+          >
+            <FileText className="w-4 h-4 text-blue-500 shrink-0" />
+            <span>Tóm tắt tài liệu PDF</span>
+          </button>
+          <button
+            onClick={() => onNavigate('/easy-read')}
+            className="flex items-center gap-2.5 px-4 py-2.5 rounded-xl bg-surface border border-slate-200 dark:border-slate-800 text-text-primary text-sm font-medium hover:border-primary hover:text-primary transition-colors text-left"
+          >
+            <BookOpen className="w-4 h-4 text-coral shrink-0" />
+            <span>Hiểu đoạn văn khó</span>
+          </button>
+          <button
+            onClick={() => onNavigate('/conversation')}
+            className="flex items-center gap-2.5 px-4 py-2.5 rounded-xl bg-surface border border-slate-200 dark:border-slate-800 text-text-primary text-sm font-medium hover:border-primary hover:text-primary transition-colors text-left"
+          >
+            <Subtitles className="w-4 h-4 text-teal shrink-0" />
+            <span>Phụ đề trực tiếp cuộc họp</span>
+          </button>
         </div>
       </section>
 
       {/* Recent Activities Section */}
-      <section aria-labelledby="recent-heading" className="bg-white dark:bg-neutral-900 rounded-2xl p-6 border border-neutral-200 dark:border-neutral-800 shadow-xs">
-        <div className="flex items-center justify-between mb-6 pb-4 border-b border-neutral-100 dark:border-neutral-800">
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-full bg-neutral-100 dark:bg-neutral-800 text-[#1A1A1A] dark:text-neutral-200">
-              <HistoryIcon className="w-4 h-4" />
-            </div>
-            <div>
-              <div className="text-[10px] font-bold tracking-[0.2em] uppercase text-neutral-400">
-                Lịch sử
-              </div>
-              <h2 id="recent-heading" className="text-lg font-light text-[#1A1A1A] dark:text-white">
-                Hoạt động gần đây
-              </h2>
-            </div>
-          </div>
-
+      <section aria-labelledby="recent-act-title">
+        <div className="flex items-center justify-between mb-3">
+          <h3 id="recent-act-title" className="text-sm font-bold text-text-secondary uppercase tracking-wider">
+            Hoạt động gần đây
+          </h3>
           <button
             onClick={() => onNavigate('/history')}
-            className="inline-flex items-center gap-1 text-xs font-bold uppercase tracking-wider text-[#1A1A1A] dark:text-neutral-200 hover:text-neutral-600 transition-colors focus:outline-none focus:ring-2 focus:ring-[#1A1A1A] rounded-full px-3 py-1 border border-neutral-200 dark:border-neutral-700"
+            className="text-sm font-semibold text-primary hover:underline"
           >
-            <span>Xem tất cả</span>
-            <ArrowRight className="w-3.5 h-3.5" />
+            Xem tất cả
           </button>
         </div>
 
-        {recentActivities.length === 0 ? (
-          <div className="text-center py-8 space-y-3">
-            <p className="text-xs font-semibold uppercase tracking-wider text-neutral-400">
-              Chưa có dữ liệu hoạt động.
-            </p>
-            <p className="text-xs text-neutral-500 max-w-sm mx-auto font-light">
-              Hãy thử một trong các tính năng trên để trải nghiệm công nghệ AI trợ năng của Lovira.
-            </p>
-            <button
-              onClick={() => onNavigate('/easy-read')}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[#1A1A1A] text-white text-xs font-bold uppercase tracking-wider hover:bg-neutral-800 transition-colors"
-            >
-              <span>Thử Easy Read ngay</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {recentActivities.map((item) => {
-              const typeInfo = getActivityTypeLabel(item.type);
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {recentActivities.length > 0 ? (
+            recentActivities.map((act) => {
+              const getIconAndBg = () => {
+                switch (act.type) {
+                  case 'easy-read':
+                    return {
+                      bg: 'bg-rose-50 text-coral dark:bg-rose-950/40',
+                      icon: <FileText className="w-4 h-4 shrink-0" />,
+                      label: 'Easy Read',
+                    };
+                  case 'document':
+                    return {
+                      bg: 'bg-blue-50 text-blue-600 dark:bg-blue-950/40',
+                      icon: <Paperclip className="w-4 h-4 shrink-0" />,
+                      label: 'Hiểu tài liệu',
+                    };
+                  case 'conversation':
+                    return {
+                      bg: 'bg-teal-50 text-teal dark:bg-teal-950/40',
+                      icon: <Mic className="w-4 h-4 shrink-0" />,
+                      label: 'Nghe & ghi lại',
+                    };
+                  default:
+                    return {
+                      bg: 'bg-indigo-50 text-indigo-600 dark:bg-indigo-950/40',
+                      icon: <ImageIcon className="w-4 h-4 shrink-0" />,
+                      label: 'Nhìn giúp tôi',
+                    };
+                }
+              };
+
+              const meta = getIconAndBg();
+
               return (
-                <button
-                  key={item.id}
-                  onClick={() => onNavigate(`/history?id=${item.id}`)}
-                  className="w-full text-left p-4 rounded-xl bg-neutral-50 hover:bg-neutral-100 dark:bg-neutral-800/60 dark:hover:bg-neutral-800 border border-neutral-200/80 dark:border-neutral-700/60 transition-all flex items-center justify-between gap-4 group"
+                <div
+                  key={act.id}
+                  onClick={() => onNavigate(`/history?id=${act.id}`)}
+                  className="p-4 rounded-xl bg-surface border border-slate-200 dark:border-slate-800 flex items-start gap-3 hover:border-slate-300 cursor-pointer transition-colors"
                 >
-                  <div className="space-y-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] font-bold uppercase tracking-widest px-2.5 py-0.5 rounded-full bg-neutral-200 dark:bg-neutral-700 text-[#1A1A1A] dark:text-neutral-200">
-                        {typeInfo.label}
-                      </span>
-                      <span className="text-[10px] uppercase font-medium text-neutral-400 flex items-center gap-1">
-                        <Clock className="w-3 h-3" />
-                        {getTimeAgo(item.createdAt)}
-                      </span>
-                    </div>
-                    <h3 className="text-sm font-semibold text-[#1A1A1A] dark:text-white truncate">
-                      {item.title}
-                    </h3>
-                    <p className="text-xs text-neutral-500 dark:text-neutral-400 truncate max-w-xl font-light">
-                      {item.preview}
+                  <span className={`p-2 rounded-lg shrink-0 ${meta.bg}`}>{meta.icon}</span>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-semibold text-sm text-text-primary truncate">{act.title}</p>
+                    <p className="text-xs text-text-secondary mt-0.5">
+                      {meta.label} • {getTimeAgo(act.createdAt)}
                     </p>
                   </div>
-
-                  <ChevronRight className="w-4 h-4 text-neutral-400 group-hover:text-[#1A1A1A] dark:group-hover:text-white transition-colors shrink-0" />
-                </button>
+                </div>
               );
-            })}
-          </div>
-        )}
+            })
+          ) : (
+            <>
+              <div
+                onClick={() => onNavigate('/easy-read')}
+                className="p-4 rounded-xl bg-surface border border-slate-200 dark:border-slate-800 flex items-start gap-3 hover:border-slate-300 cursor-pointer transition-colors"
+              >
+                <span className="p-2 rounded-lg bg-rose-50 text-coral dark:bg-rose-950/40 shrink-0">
+                  <FileText className="w-4 h-4 shrink-0" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="font-semibold text-sm text-text-primary truncate">Đoạn văn cần làm dễ hiểu</p>
+                  <p className="text-xs text-text-secondary mt-0.5">Easy Read • 12 phút trước</p>
+                </div>
+              </div>
+
+              <div
+                onClick={() => onNavigate('/documents')}
+                className="p-4 rounded-xl bg-surface border border-slate-200 dark:border-slate-800 flex items-start gap-3 hover:border-slate-300 cursor-pointer transition-colors"
+              >
+                <span className="p-2 rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-950/40 shrink-0">
+                  <Paperclip className="w-4 h-4 shrink-0" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="font-semibold text-sm text-text-primary truncate">Tài liệu: Quy định mới.pdf</p>
+                  <p className="text-xs text-text-secondary mt-0.5">Hiểu tài liệu • 1 giờ trước</p>
+                </div>
+              </div>
+
+              <div
+                onClick={() => onNavigate('/conversation')}
+                className="p-4 rounded-xl bg-surface border border-slate-200 dark:border-slate-800 flex items-start gap-3 hover:border-slate-300 cursor-pointer transition-colors"
+              >
+                <span className="p-2 rounded-lg bg-teal-50 text-teal dark:bg-teal-950/40 shrink-0">
+                  <Mic className="w-4 h-4 shrink-0" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="font-semibold text-sm text-text-primary truncate">Cuộc trò chuyện hôm nay</p>
+                  <p className="text-xs text-text-secondary mt-0.5">Nghe & ghi lại • 3 giờ trước</p>
+                </div>
+              </div>
+
+              <div
+                onClick={() => onNavigate('/vision')}
+                className="p-4 rounded-xl bg-surface border border-slate-200 dark:border-slate-800 flex items-start gap-3 hover:border-slate-300 cursor-pointer transition-colors"
+              >
+                <span className="p-2 rounded-lg bg-indigo-50 text-indigo-600 dark:bg-indigo-950/40 shrink-0">
+                  <ImageIcon className="w-4 h-4 shrink-0" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="font-semibold text-sm text-text-primary truncate">Ảnh chụp biển báo</p>
+                  <p className="text-xs text-text-secondary mt-0.5">Nhìn giúp tôi • 5 giờ trước</p>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
       </section>
     </div>
   );
 };
+
