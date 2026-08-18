@@ -11,7 +11,8 @@ async function fetchApi<T>(endpoint: string, body: Record<string, unknown>): Pro
       body: JSON.stringify(body),
     });
   } catch (err) {
-    throw new Error('Không thể kết nối tới máy chủ. Vui lòng kiểm tra lại kết nối mạng.');
+    console.error(`[Lovira Network Error] Endpoint: ${endpoint}`, err);
+    throw new Error('Không thể kết nối tới máy chủ.');
   }
 
   const contentType = response.headers.get('content-type') || '';
@@ -21,22 +22,37 @@ async function fetchApi<T>(endpoint: string, body: Record<string, unknown>): Pro
     try {
       json = await response.json();
     } catch {
-      throw new Error(`Phản hồi từ máy chủ không hợp lệ (mã lỗi ${response.status}).`);
+      throw new Error('Lovira nhận được phản hồi chưa đúng định dạng. Vui lòng thử lại.');
     }
   } else {
     const rawText = await response.text();
-    console.error(`API response error (${response.status}):`, rawText);
-    if (!response.ok) {
-      if (rawText.includes('GEMINI_API_KEY')) {
-        throw new Error('Chưa cấu hình GEMINI_API_KEY trên máy chủ/Vercel.');
-      }
-      throw new Error(`Máy chủ gặp sự cố (${response.status}). Vui lòng thử lại sau giây lát.`);
+    console.error(`[Lovira Non-JSON Response] Endpoint: ${endpoint}, Status: ${response.status}`, rawText.slice(0, 300));
+    if (rawText.includes('GEMINI_API_KEY') || rawText.includes('chưa được cấu hình')) {
+      throw new Error('Lovira chưa được cấu hình dịch vụ AI.');
     }
-    throw new Error('Định dạng phản hồi từ máy chủ không hợp lệ.');
+    throw new Error('Máy chủ Lovira gặp sự cố. Vui lòng thử lại.');
   }
 
   if (!response.ok || !json.success) {
-    throw new Error(json.error || 'Có lỗi xảy ra khi xử lý yêu cầu AI.');
+    const rawErr = json.error || '';
+    if (rawErr.includes('GEMINI_API_KEY') || rawErr.includes('chưa được cấu hình')) {
+      throw new Error('Lovira chưa được cấu hình dịch vụ AI.');
+    }
+    if (
+      rawErr.includes('429') ||
+      rawErr.includes('RESOURCE_EXHAUSTED') ||
+      rawErr.includes('quota') ||
+      rawErr.includes('bận')
+    ) {
+      throw new Error('Dịch vụ AI đang bận. Vui lòng thử lại sau.');
+    }
+    if (rawErr.includes('chưa đúng định dạng') || rawErr.includes('format')) {
+      throw new Error('Lovira nhận được phản hồi chưa đúng định dạng. Vui lòng thử lại.');
+    }
+    if (rawErr) {
+      throw new Error(rawErr);
+    }
+    throw new Error('Máy chủ Lovira gặp sự cố. Vui lòng thử lại.');
   }
 
   return json.data as T;

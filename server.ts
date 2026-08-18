@@ -8,14 +8,19 @@ dotenv.config();
 const app = express();
 const PORT = 3000;
 
-// Increase payload limits for base64 image uploads & document payloads
+// Enable JSON & URLencoded body parsing
 app.use(express.json({ limit: '20mb' }));
 app.use(express.urlencoded({ extended: true, limit: '20mb' }));
 
-// Helper to get GoogleGenAI client (prefers custom key if provided, else process.env.GEMINI_API_KEY)
-function getGenAIClient(customApiKey?: string) {
-  const apiKey = customApiKey || process.env.GEMINI_API_KEY;
-  if (!apiKey) {
+// Safe Environment validation check
+function hasGeminiConfig(): boolean {
+  return Boolean(process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY.trim().length > 0);
+}
+
+// Lazy Gemini client initialization
+function getGenAIClient(customApiKey?: string): GoogleGenAI {
+  const apiKey = customApiKey && customApiKey.trim().length > 0 ? customApiKey.trim() : process.env.GEMINI_API_KEY;
+  if (!apiKey || apiKey.trim().length === 0) {
     throw new Error('GEMINI_API_KEY chưa được cấu hình trên máy chủ.');
   }
   return new GoogleGenAI({
@@ -28,14 +33,32 @@ function getGenAIClient(customApiKey?: string) {
   });
 }
 
-// Fallback models order to ensure resilience during temporary high-demand spikes
+// Safe JSON parser to handle Gemini responses without crashing
+function safeParseJson<T>(text: string | undefined): T | null {
+  if (!text || typeof text !== 'string') return null;
+  const cleaned = text
+    .replace(/^```json\s*/i, '')
+    .replace(/^```\s*/, '')
+    .replace(/```\s*$/, '')
+    .trim();
+  try {
+    return JSON.parse(cleaned) as T;
+  } catch {
+    return null;
+  }
+}
+
+// Fallback models order for resilient AI generation
 const FALLBACK_GEMINI_MODELS = [
   'gemini-2.5-flash',
   'gemini-2.5-flash-lite',
   'gemini-2.5-pro',
 ];
 
-async function generateWithModelFallback(ai: GoogleGenAI, params: Omit<Parameters<GoogleGenAI['models']['generateContent']>[0], 'model'>) {
+async function generateWithModelFallback(
+  ai: GoogleGenAI,
+  params: Omit<Parameters<GoogleGenAI['models']['generateContent']>[0], 'model'>
+) {
   let lastError: unknown;
   for (const modelName of FALLBACK_GEMINI_MODELS) {
     try {
@@ -44,14 +67,22 @@ async function generateWithModelFallback(ai: GoogleGenAI, params: Omit<Parameter
         model: modelName,
       });
     } catch (err: unknown) {
-      console.warn(`[Gemini Fallback] Model ${modelName} failed or unavailable, trying next model...`, err instanceof Error ? err.message : err);
+      const msg = err instanceof Error ? err.message : String(err);
+      if (
+        msg.includes('GEMINI_API_KEY') ||
+        msg.includes('API key') ||
+        msg.includes('API_KEY_INVALID') ||
+        msg.includes('401')
+      ) {
+        throw err;
+      }
+      console.warn(`[Lovira API] Model ${modelName} failed, retrying next model...`, msg);
       lastError = err;
     }
   }
   throw lastError;
 }
 
-// System instruction constant
 const LOVIRA_SYSTEM_INSTRUCTION = `Bạn là Lovira (Love goes Viral) - Trợ lý Trợ năng AI nhân văn hàng đầu cho người Việt Nam. 
 Nhiệm vụ chính của bạn là hỗ trợ người khuyết tật (người khiếm thị, khiếm thính, khó khăn đọc hiểu, người cao tuổi) và tất cả mọi người tiếp cận thông tin một cách bình đẳng, rõ ràng và thuận tiện nhất.
 Quy tắc phản hồi:
@@ -60,19 +91,26 @@ Quy tắc phản hồi:
 3. Luôn ưu tiên độ chính xác tuyệt đối đối với thời gian, ngày tháng, tên riêng, số điện thoại, khoản phí, địa chỉ, hướng dẫn an toàn. Không tự sáng tạo thông tin không có trong dữ liệu đầu vào.
 4. Trình bày cấu trúc mạch lạc (sử dụng gạch đầu dòng, tiêu đề rõ ràng, câu ngắn).`;
 
-// Health check endpoint
-app.get('/api/health', (_req: Request, res: Response) => {
-  res.json({ status: 'ok', app: 'Lovira', timestamp: new Date().toISOString() });
+// GET /api/health
+app.get(['/api/health', '/health'], (_req: Request, res: Response) => {
+  res.setHeader('Content-Type', 'application/json');
+  res.json({
+    status: 'ok',
+    app: 'Lovira',
+    geminiConfigured: hasGeminiConfig(),
+    timestamp: new Date().toISOString(),
+  });
 });
 
-// 1. Vision Analysis Endpoint
+// POST /api/gemini/vision
 app.post('/api/gemini/vision', async (req: Request, res: Response) => {
+  console.log('[Lovira API] vision request started');
+  res.setHeader('Content-Type', 'application/json');
   try {
     const { imageBase64, mimeType, mode = 'scene', customApiKey } = req.body || {};
 
-    if (!imageBase64) {
-      res.status(400).json({ error: 'Hình ảnh là bắt buộc.' });
-      return;
+    if (!imageBase64 || typeof imageBase64 !== 'string') {
+      return res.status(400).json({ success: false, error: 'Hình ảnh là bắt buộc.' });
     }
 
     const ai = getGenAIClient(customApiKey);
@@ -97,13 +135,15 @@ Trả về định dạng JSON với các trường:
 - possibleHazards: Mảng lưu ý chướng ngại vật/mối nguy hiểm tiềm ẩn (bậc thang, cửa kính, vật cản, v.v.).
 - confidenceNote: Ghi chú mức độ rõ ràng của ảnh.`;
 
+    const cleanBase64 = imageBase64.replace(/^data:image\/\w+;base64,/, '');
+
     const response = await generateWithModelFallback(ai, {
       contents: {
         parts: [
           {
             inlineData: {
               mimeType: mimeType || 'image/jpeg',
-              data: imageBase64.replace(/^data:image\/\w+;base64,/, ''),
+              data: cleanBase64,
             },
           },
           { text: prompt },
@@ -137,37 +177,49 @@ Trả về định dạng JSON với các trường:
       },
     });
 
-    const jsonText = response.text || '{}';
-    try {
-      const parsed = JSON.parse(jsonText);
-      res.json({ success: true, data: parsed });
-    } catch (parseError) {
-      res.json({
-        success: true,
-        data: {
-          summary: response.text || 'Đã phân tích ảnh xong.',
-          details: [],
-          detectedText: [],
-          objects: [],
-          possibleHazards: [],
-        },
-      });
+    interface VisionParsed {
+      summary?: string;
+      details?: string[];
+      detectedText?: string[];
+      objects?: Array<{ name: string; description: string; position?: string }>;
+      possibleHazards?: string[];
+      confidenceNote?: string;
     }
+
+    const parsed = safeParseJson<VisionParsed>(response.text);
+
+    const data = {
+      summary: parsed?.summary || response.text || 'Đã phân tích xong hình ảnh.',
+      details: Array.isArray(parsed?.details) ? parsed.details : [],
+      detectedText: Array.isArray(parsed?.detectedText) ? parsed.detectedText : [],
+      objects: Array.isArray(parsed?.objects) ? parsed.objects : [],
+      possibleHazards: Array.isArray(parsed?.possibleHazards) ? parsed.possibleHazards : [],
+      confidenceNote: parsed?.confidenceNote || 'Rõ ràng',
+    };
+
+    console.log('[Lovira API] vision request completed successfully');
+    return res.json({ success: true, data });
   } catch (err: unknown) {
-    console.error('Vision API error:', err);
     const message = err instanceof Error ? err.message : 'Đã xảy ra lỗi khi phân tích hình ảnh.';
-    res.status(500).json({ error: message });
+    console.error('[Lovira API] Vision error:', message);
+    const statusCode = message.includes('chưa được cấu hình') ? 401 : 500;
+    return res.status(statusCode).json({ success: false, error: message });
   }
 });
 
-// 2. Easy Read Simplification Endpoint
+// POST /api/gemini/easy-read
 app.post('/api/gemini/easy-read', async (req: Request, res: Response) => {
+  console.log('[Lovira API] easy-read request started');
+  res.setHeader('Content-Type', 'application/json');
   try {
     const { text, level = 'easy', customApiKey } = req.body || {};
 
     if (!text || typeof text !== 'string' || !text.trim()) {
-      res.status(400).json({ error: 'Văn bản cần làm dễ hiểu không được để trống.' });
-      return;
+      return res.status(400).json({ success: false, error: 'Văn bản cần làm dễ hiểu không được để trống.' });
+    }
+
+    if (text.length > 50000) {
+      return res.status(400).json({ success: false, error: 'Văn bản quá dài (tối đa 50,000 ký tự).' });
     }
 
     const ai = getGenAIClient(customApiKey);
@@ -185,7 +237,7 @@ ${levelInstruction}
 
 Văn bản gốc:
 """
-${text}
+${text.trim()}
 """
 
 Trả về JSON chứa:
@@ -229,23 +281,61 @@ Trả về JSON chứa:
       },
     });
 
-    const parsed = JSON.parse(response.text || '{}');
-    res.json({ success: true, data: parsed });
+    interface EasyReadParsed {
+      title?: string;
+      summary?: string;
+      simplifiedText?: string;
+      keyPoints?: string[];
+      steps?: string[];
+      importantDates?: string[];
+      warnings?: string[];
+      difficultTerms?: Array<{ term: string; explanation: string }>;
+    }
+
+    const parsed = safeParseJson<EasyReadParsed>(response.text);
+
+    if (!parsed || (!parsed.summary && !parsed.simplifiedText)) {
+      console.error('[Lovira API] Easy Read parsing failed, raw text:', response.text?.slice(0, 200));
+      return res.status(500).json({
+        success: false,
+        error: 'Lovira nhận được phản hồi chưa đúng định dạng. Vui lòng thử lại.',
+      });
+    }
+
+    const data = {
+      title: parsed.title || 'Văn bản Dễ hiểu',
+      summary: parsed.summary || parsed.simplifiedText || '',
+      simplifiedText: parsed.simplifiedText || parsed.summary || '',
+      keyPoints: Array.isArray(parsed.keyPoints) ? parsed.keyPoints : [],
+      steps: Array.isArray(parsed.steps) ? parsed.steps : [],
+      importantDates: Array.isArray(parsed.importantDates) ? parsed.importantDates : [],
+      warnings: Array.isArray(parsed.warnings) ? parsed.warnings : [],
+      difficultTerms: Array.isArray(parsed.difficultTerms) ? parsed.difficultTerms : [],
+    };
+
+    console.log('[Lovira API] easy-read request completed successfully');
+    return res.json({ success: true, data });
   } catch (err: unknown) {
-    console.error('Easy Read API error:', err);
     const message = err instanceof Error ? err.message : 'Đã xảy ra lỗi khi làm dễ hiểu văn bản.';
-    res.status(500).json({ error: message });
+    console.error('[Lovira API] Easy Read error:', message);
+    const statusCode = message.includes('chưa được cấu hình') ? 401 : 500;
+    return res.status(statusCode).json({ success: false, error: message });
   }
 });
 
-// 3. Conversation Summary Endpoint
+// POST /api/gemini/conversation-summary
 app.post('/api/gemini/conversation-summary', async (req: Request, res: Response) => {
+  console.log('[Lovira API] conversation-summary request started');
+  res.setHeader('Content-Type', 'application/json');
   try {
     const { transcript, customApiKey } = req.body || {};
 
-    if (!transcript || !transcript.trim()) {
-      res.status(400).json({ error: 'Nội dung cuộc trò chuyện không được để trống.' });
-      return;
+    if (!transcript || typeof transcript !== 'string' || !transcript.trim()) {
+      return res.status(400).json({ success: false, error: 'Nội dung cuộc trò chuyện không được để trống.' });
+    }
+
+    if (transcript.length > 50000) {
+      return res.status(400).json({ success: false, error: 'Nội dung ghi chép quá dài (tối đa 50,000 ký tự).' });
     }
 
     const ai = getGenAIClient(customApiKey);
@@ -254,7 +344,7 @@ app.post('/api/gemini/conversation-summary', async (req: Request, res: Response)
 
 Nội dung ghi chép:
 """
-${transcript}
+${transcript.trim()}
 """
 
 Trả về JSON gồm:
@@ -283,23 +373,43 @@ Trả về JSON gồm:
       },
     });
 
-    const parsed = JSON.parse(response.text || '{}');
-    res.json({ success: true, data: parsed });
+    interface ConvParsed {
+      summary?: string;
+      keyPoints?: string[];
+      decisions?: string[];
+      actionItems?: string[];
+      datesAndDeadlines?: string[];
+    }
+
+    const parsed = safeParseJson<ConvParsed>(response.text);
+
+    const data = {
+      summary: parsed?.summary || 'Tóm tắt cuộc trò chuyện thành công.',
+      keyPoints: Array.isArray(parsed?.keyPoints) ? parsed.keyPoints : [],
+      decisions: Array.isArray(parsed?.decisions) ? parsed.decisions : [],
+      actionItems: Array.isArray(parsed?.actionItems) ? parsed.actionItems : [],
+      datesAndDeadlines: Array.isArray(parsed?.datesAndDeadlines) ? parsed.datesAndDeadlines : [],
+    };
+
+    console.log('[Lovira API] conversation-summary completed successfully');
+    return res.json({ success: true, data });
   } catch (err: unknown) {
-    console.error('Conversation Summary API error:', err);
     const message = err instanceof Error ? err.message : 'Đã xảy ra lỗi khi tóm tắt cuộc trò chuyện.';
-    res.status(500).json({ error: message });
+    console.error('[Lovira API] Conversation summary error:', message);
+    const statusCode = message.includes('chưa được cấu hình') ? 401 : 500;
+    return res.status(statusCode).json({ success: false, error: message });
   }
 });
 
-// 4. Document Analysis Endpoint
+// POST /api/gemini/document-analysis
 app.post('/api/gemini/document-analysis', async (req: Request, res: Response) => {
+  console.log('[Lovira API] document-analysis request started');
+  res.setHeader('Content-Type', 'application/json');
   try {
     const { documentText, fileName, customApiKey } = req.body || {};
 
-    if (!documentText || !documentText.trim()) {
-      res.status(400).json({ error: 'Nội dung tài liệu không được để trống.' });
-      return;
+    if (!documentText || typeof documentText !== 'string' || !documentText.trim()) {
+      return res.status(400).json({ success: false, error: 'Nội dung tài liệu không được để trống.' });
     }
 
     const ai = getGenAIClient(customApiKey);
@@ -343,30 +453,58 @@ Trả về JSON gồm:
       },
     });
 
-    const parsed = JSON.parse(response.text || '{}');
-    res.json({ success: true, data: parsed });
+    interface DocParsed {
+      title?: string;
+      summary?: string;
+      keyPoints?: string[];
+      requirements?: string[];
+      actions?: string[];
+      importantDates?: string[];
+      contacts?: string[];
+      warnings?: string[];
+    }
+
+    const parsed = safeParseJson<DocParsed>(response.text);
+
+    const data = {
+      title: parsed?.title || fileName || 'Tài liệu',
+      summary: parsed?.summary || 'Đã phân tích xong nội dung tài liệu.',
+      keyPoints: Array.isArray(parsed?.keyPoints) ? parsed.keyPoints : [],
+      requirements: Array.isArray(parsed?.requirements) ? parsed.requirements : [],
+      actions: Array.isArray(parsed?.actions) ? parsed.actions : [],
+      importantDates: Array.isArray(parsed?.importantDates) ? parsed.importantDates : [],
+      contacts: Array.isArray(parsed?.contacts) ? parsed.contacts : [],
+      warnings: Array.isArray(parsed?.warnings) ? parsed.warnings : [],
+    };
+
+    console.log('[Lovira API] document-analysis completed successfully');
+    return res.json({ success: true, data });
   } catch (err: unknown) {
-    console.error('Document Analysis API error:', err);
     const message = err instanceof Error ? err.message : 'Đã xảy ra lỗi khi phân tích tài liệu.';
-    res.status(500).json({ error: message });
+    console.error('[Lovira API] Document analysis error:', message);
+    const statusCode = message.includes('chưa được cấu hình') ? 401 : 500;
+    return res.status(statusCode).json({ success: false, error: message });
   }
 });
 
-// 5. Document Q&A Endpoint
+// POST /api/gemini/document-qa
 app.post('/api/gemini/document-qa', async (req: Request, res: Response) => {
+  console.log('[Lovira API] document-qa request started');
+  res.setHeader('Content-Type', 'application/json');
   try {
     const { documentText, question, conversationHistory = [], customApiKey } = req.body || {};
 
-    if (!documentText || !question) {
-      res.status(400).json({ error: 'Nội dung tài liệu và câu hỏi là bắt buộc.' });
-      return;
+    if (!documentText || typeof documentText !== 'string' || !documentText.trim() || !question || typeof question !== 'string' || !question.trim()) {
+      return res.status(400).json({ success: false, error: 'Nội dung tài liệu và câu hỏi là bắt buộc.' });
     }
 
     const ai = getGenAIClient(customApiKey);
 
-    const historyFormatted = conversationHistory
-      .map((h: { role: string; content: string }) => `${h.role === 'user' ? 'Người dùng' : 'Lovira'}: ${h.content}`)
-      .join('\n');
+    const historyFormatted = Array.isArray(conversationHistory)
+      ? conversationHistory
+          .map((h: { role: string; content: string }) => `${h.role === 'user' ? 'Người dùng' : 'Lovira'}: ${h.content}`)
+          .join('\n')
+      : '';
 
     const prompt = `Dựa vào tài liệu bên dưới để trả lời câu hỏi của người dùng một cách chính xác, ngắn gọn và dễ hiểu.
 Nếu tài liệu KHÔNG chứa thông tin để trả lời, hãy lịch sự thông báo: "Tôi không tìm thấy thông tin này trong tài liệu." Không tự suy đoán hoặc sáng tạo thông tin ngoài tài liệu.
@@ -379,7 +517,7 @@ Tài liệu:
 ${documentText.slice(0, 30000)}
 """
 
-Câu hỏi hiện tại của người dùng: "${question}"
+Câu hỏi hiện tại của người dùng: "${question.trim()}"
 
 Trả lời bằng tiếng Việt thân thiện, rõ ràng:`;
 
@@ -390,22 +528,24 @@ Trả lời bằng tiếng Việt thân thiện, rõ ràng:`;
       },
     });
 
-    res.json({ success: true, data: { answer: response.text || 'Tôi không tìm thấy thông tin phù hợp trong tài liệu.' } });
+    console.log('[Lovira API] document-qa completed successfully');
+    return res.json({ success: true, data: { answer: response.text || 'Tôi không tìm thấy thông tin phù hợp trong tài liệu.' } });
   } catch (err: unknown) {
-    console.error('Document QA API error:', err);
     const message = err instanceof Error ? err.message : 'Đã xảy ra lỗi khi trả lời câu hỏi tài liệu.';
-    res.status(500).json({ error: message });
+    console.error('[Lovira API] Document QA error:', message);
+    const statusCode = message.includes('chưa được cấu hình') ? 401 : 500;
+    return res.status(statusCode).json({ success: false, error: message });
   }
 });
 
 // Global Express error handler
 app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
-  console.error('Unhandled server error:', err);
+  console.error('[Lovira API] Unhandled Express server error:', err);
   const message = err instanceof Error ? err.message : 'Máy chủ gặp sự cố xử lý yêu cầu.';
   res.status(500).json({ success: false, error: message });
 });
 
-// Vite Integration for dev & production
+// Vite Integration for local dev & production
 async function startServer() {
   if (process.env.NODE_ENV !== 'production' && process.env.VERCEL !== '1') {
     const { createServer: createViteServer } = await import('vite');
