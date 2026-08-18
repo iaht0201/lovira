@@ -23,27 +23,21 @@ export const Header: React.FC<HeaderProps> = ({
     onUpdateSettings({ fontScale: scaleStr });
   };
 
+  const isDark =
+    settings.theme === 'dark' ||
+    (settings.theme === 'system' &&
+      typeof window !== 'undefined' &&
+      window.matchMedia('(prefers-color-scheme: dark)').matches);
+
   const toggleTheme = () => {
-    const nextTheme = settings.theme === 'dark' ? 'light' : 'dark';
-    onUpdateSettings({ theme: nextTheme });
+    onUpdateSettings({ theme: isDark ? 'light' : 'dark' });
   };
 
   return (
     <header className="h-16 bg-surface border-b border-slate-200 dark:border-slate-800 px-4 lg:px-8 flex items-center justify-between z-20 shrink-0 sticky top-0 backdrop-blur-md">
-      {/* Brand Logo & Tagline */}
-      <div className="flex items-center gap-3">
-        <button
-          onClick={() => onNavigate('/')}
-          className="flex items-center gap-3 text-left focus:outline-none rounded-xl"
-        >
-          <div className="w-10 h-10 rounded-xl bg-primary-soft text-primary flex items-center justify-center shrink-0">
-            <HeartHandshake className="w-6 h-6 shrink-0" />
-          </div>
-          <div>
-            <span className="font-bold text-xl leading-none text-text-primary tracking-tight">Lovira</span>
-            <span className="text-xs text-text-secondary ml-2 font-medium hidden sm:inline">Love goes Viral</span>
-          </div>
-        </button>
+      {/* Left spacer / Mobile brand name */}
+      <div className="flex items-center gap-2">
+        <span className="font-bold text-lg text-text-primary md:hidden">Lovira</span>
       </div>
 
       {/* Quick Accessibility & User Controls */}
@@ -70,10 +64,10 @@ export const Header: React.FC<HeaderProps> = ({
         <button
           onClick={toggleTheme}
           aria-label="Đổi giao diện sáng/tối"
-          title={settings.theme === 'dark' ? 'Chuyển sang giao diện sáng' : 'Chuyển sang giao diện tối'}
+          title={isDark ? 'Chuyển sang giao diện sáng' : 'Chuyển sang giao diện tối'}
           className="w-10 h-10 rounded-xl bg-surface border border-slate-200 dark:border-slate-800 flex items-center justify-center text-text-secondary hover:text-text-primary transition-colors shrink-0"
         >
-          {settings.theme === 'dark' ? (
+          {isDark ? (
             <Sun className="w-5 h-5 text-amber-400 shrink-0" />
           ) : (
             <Moon className="w-5 h-5 shrink-0" />
