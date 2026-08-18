@@ -17,6 +17,7 @@ import { LoadingSpinner } from '../common/LoadingSpinner';
 import { VisionResult, UserProfile, AccessibilitySettings } from '../../types';
 import { analyzeVision } from '../../services/api';
 import { saveActivityHistory } from '../../lib/firebase';
+import { compressImageBase64 } from '../../lib/imageUtils';
 
 interface VisionViewProps {
   userProfile?: UserProfile | null;
@@ -61,13 +62,14 @@ export const VisionView: React.FC<VisionViewProps> = ({
     }
 
     const reader = new FileReader();
-    reader.onload = () => {
-      const base64 = reader.result as string;
-      setSelectedImage(base64);
+    reader.onload = async () => {
+      const rawBase64 = reader.result as string;
+      const compressed = await compressImageBase64(rawBase64, 1280, 0.8);
+      setSelectedImage(compressed);
       setResult(null);
       setFollowUpAnswers([]);
       setError(null);
-      runVisionAnalysis(base64, visionMode);
+      runVisionAnalysis(compressed, visionMode);
     };
     reader.readAsDataURL(file);
   };
@@ -87,8 +89,9 @@ export const VisionView: React.FC<VisionViewProps> = ({
     setLoading(true);
     setError(null);
     try {
+      const compressedImg = await compressImageBase64(base64Img, 1280, 0.8);
       const data = await analyzeVision(
-        base64Img,
+        compressedImg,
         mode,
         undefined,
         localStorage.getItem('lovira_custom_gemini_key') || undefined
