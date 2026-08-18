@@ -31,10 +31,9 @@ function getGenAIClient(customApiKey?: string) {
 
 // Fallback models order to ensure resilience during temporary high-demand spikes
 const FALLBACK_GEMINI_MODELS = [
-  'gemini-flash-latest',
-  'gemini-3.7-flash',
   'gemini-2.5-flash',
-  'gemini-3.1-flash-lite',
+  'gemini-2.5-flash-lite',
+  'gemini-2.5-pro',
 ];
 
 async function generateWithModelFallback(ai: GoogleGenAI, params: Omit<Parameters<GoogleGenAI['models']['generateContent']>[0], 'model'>) {
@@ -392,7 +391,7 @@ Trả lời bằng tiếng Việt thân thiện, rõ ràng:`;
       },
     });
 
-    res.json({ success: true, answer: response.text || 'Tôi không tìm thấy thông tin phù hợp trong tài liệu.' });
+    res.json({ success: true, data: { answer: response.text || 'Tôi không tìm thấy thông tin phù hợp trong tài liệu.' } });
   } catch (err: unknown) {
     console.error('Document QA API error:', err);
     const message = err instanceof Error ? err.message : 'Đã xảy ra lỗi khi trả lời câu hỏi tài liệu.';

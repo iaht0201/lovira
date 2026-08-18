@@ -1,15 +1,39 @@
 import { VisionResult, EasyReadResult, ConversationSummary, DocumentAnalysis } from '../types';
 
 async function fetchApi<T>(endpoint: string, body: Record<string, unknown>): Promise<T> {
-  const response = await fetch(endpoint, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(body),
-  });
+  let response: Response;
+  try {
+    response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    });
+  } catch (err) {
+    throw new Error('Không thể kết nối tới máy chủ. Vui lòng kiểm tra lại kết nối mạng.');
+  }
 
-  const json = await response.json();
+  const contentType = response.headers.get('content-type') || '';
+  let json: { success?: boolean; data?: T; error?: string } = {};
+
+  if (contentType.includes('application/json')) {
+    try {
+      json = await response.json();
+    } catch {
+      throw new Error(`Phản hồi từ máy chủ không hợp lệ (mã lỗi ${response.status}).`);
+    }
+  } else {
+    const rawText = await response.text();
+    console.error(`API response error (${response.status}):`, rawText);
+    if (!response.ok) {
+      if (rawText.includes('GEMINI_API_KEY')) {
+        throw new Error('Chưa cấu hình GEMINI_API_KEY trên máy chủ/Vercel.');
+      }
+      throw new Error(`Máy chủ gặp sự cố (${response.status}). Vui lòng thử lại sau giây lát.`);
+    }
+    throw new Error('Định dạng phản hồi từ máy chủ không hợp lệ.');
+  }
 
   if (!response.ok || !json.success) {
     throw new Error(json.error || 'Có lỗi xảy ra khi xử lý yêu cầu AI.');
@@ -72,21 +96,11 @@ export async function askDocumentQuestion(
   conversationHistory: Array<{ role: 'user' | 'assistant'; content: string }> = [],
   customApiKey?: string
 ): Promise<string> {
-  const response = await fetch('/api/gemini/document-qa', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      documentText,
-      question,
-      conversationHistory,
-      customApiKey,
-    }),
+  const res = await fetchApi<{ answer: string }>('/api/gemini/document-qa', {
+    documentText,
+    question,
+    conversationHistory,
+    customApiKey,
   });
-
-  const json = await response.json();
-  if (!response.ok || !json.success) {
-    throw new Error(json.error || 'Không thể trả lời câu hỏi tài liệu.');
-  }
-
-  return json.answer as string;
+  return res.answer || (res as unknown as string);
 }
