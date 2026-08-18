@@ -1,0 +1,6 @@
+{
+  "name": "Lovira",
+  "description": "AI lan tỏa sự thấu hiểu — Giúp mọi người tiếp cận thông tin theo cách phù hợp nhất.",
+  "requestFramePermissions": ["camera", "microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

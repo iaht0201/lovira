@@ -1,0 +1,31 @@
+{
+  "entities": {
+    "User": {
+      "collectionName": "users",
+      "path": "users/{userId}",
+      "description": "User profile and accessibility preferences",
+      "fields": {
+        "uid": { "type": "string", "description": "User ID", "required": true },
+        "isAnonymous": { "type": "boolean", "description": "Is user anonymous", "required": true },
+        "displayName": { "type": "string", "description": "User display name", "required": false },
+        "email": { "type": "string", "description": "User email address", "required": false },
+        "photoURL": { "type": "string", "description": "User photo URL", "required": false },
+        "settings": { "type": "map", "description": "User accessibility settings", "required": false },
+        "createdAt": { "type": "timestamp", "description": "Profile creation timestamp", "required": true },
+        "updatedAt": { "type": "timestamp", "description": "Profile last update timestamp", "required": true }
+      }
+    },
+    "ActivityHistory": {
+      "collectionName": "history",
+      "path": "users/{userId}/history/{historyId}",
+      "description": "User activity logs (vision, easy read, conversation, document)",
+      "fields": {
+        "type": { "type": "string", "description": "Activity type", "required": true },
+        "title": { "type": "string", "description": "Activity title", "required": true },
+        "preview": { "type": "string", "description": "Preview text", "required": false },
+        "createdAt": { "type": "timestamp", "description": "Creation timestamp", "required": true },
+        "data": { "type": "map", "description": "Structured activity payload", "required": false }
+      }
+    }
+  }
+}

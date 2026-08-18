@@ -1,0 +1,66 @@
+@import "tailwindcss";
+
+@layer utilities {
+  .font-scale-100 {
+    font-size: 100%;
+  }
+  .font-scale-125 {
+    font-size: 112.5%;
+  }
+  .font-scale-150 {
+    font-size: 125%;
+  }
+  .font-scale-175 {
+    font-size: 137.5%;
+  }
+}
+
+:root {
+  --bg-canvas: #F5F5F5;
+  --text-main: #1A1A1A;
+}
+
+body {
+  background-color: #F5F5F5;
+  color: #1A1A1A;
+  font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.dark body,
+.dark {
+  background-color: #0d0e12;
+  color: #f3f4f6;
+}
+
+.high-contrast {
+  --tw-border-opacity: 1 !important;
+  border-color: rgba(251, 191, 36, 0.9) !important;
+}
+
+.high-contrast button,
+.high-contrast input,
+.high-contrast select {
+  border-width: 2px !important;
+}
+
+.reduce-motion * {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+}
+
+/* Accessible clean focus ring defaults */
+:focus-visible {
+  outline: 2px solid #1a1a1a !important;
+  outline-offset: 2px !important;
+}
+
+.dark :focus-visible {
+  outline: 2px solid #f3f4f6 !important;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
