@@ -789,94 +789,89 @@ app.post('/api/ai/verify-key', async (req: Request, res: Response) => {
   }
 });
 
-// 8. POST /api/ai/voice-intent (Classify natural language voice commands)
+// 8. POST /api/ai/voice-intent (Classify natural language voice commands with Screen-Action Registry)
 app.post('/api/ai/voice-intent', async (req: Request, res: Response) => {
   console.log('[Lovira API] voice-intent request received');
   res.setHeader('Content-Type', 'application/json');
   try {
-    const { command, context = {}, customApiKey } = req.body || {};
+    const { command, context = {}, screenContext = null, globalActions = [], customApiKey } = req.body || {};
     if (!command || typeof command !== 'string' || !command.trim()) {
       return res.status(400).json({ success: false, error: 'Câu lệnh là bắt buộc.' });
     }
 
-    const VOICE_INTENT_SYSTEM_INSTRUCTION = `You are the action router for Lovira.
-Lovira is a Vietnamese accessibility application.
+    const VOICE_INTENT_SYSTEM_INSTRUCTION = `You are the action router for Lovira, a Vietnamese accessibility platform.
+Lovira users may have visual, hearing, cognitive, or mobility difficulties.
+Your core principle: "USER UTTERANCE -> UNDERSTAND INTENT -> MATCH CURRENT SCREEN & AVAILABLE ACTIONS -> EXECUTE ACTION DIRECTLY -> BRIEF RESPECTFUL FEEDBACK".
 
-Your only task is to understand the user's voice command in Vietnamese and select exactly one supported action.
+CRITICAL RULES:
+1. DIRECT ACTION FIRST: When a user requests an operation, ALWAYS return the corresponding action ID to EXECUTE it. NEVER just provide advice or say "you can click button X".
+2. SEMANTIC INTENT MAPPING: Do NOT require exact 100% keyword matches with button labels. For example:
+   - "Làm dễ hiểu", "Đơn giản hóa nội dung", "Làm đoạn này dễ đọc hơn", "Xử lý nội dung này" -> maps to simplifyText / SIMPLIFY_CURRENT_TEXT
+   - "Xem hộ tôi", "Nhìn giúp tôi", "Bật camera", "Tôi muốn dùng chức năng nhìn" -> maps to openVision / OPEN_VISION
+   - "Chọn ảnh", "Tải ảnh" -> maps to uploadImage
+   - "Chụp ảnh" -> maps to openCamera / captureImage
+3. CURRENT SCREEN & AVAILABLE ACTIONS:
+   Check the current screen's available actions provided in screenContext.availableActions first! If the user's intent matches an action on the screen, use that action's ID.
+4. CONTEXTUAL COMMANDS:
+   - If user says "Đọc cho tôi" or "Đọc cái này":
+     * If in Vision page and result is available: readResult
+     * If in Documents page and document is analyzed: readSummary
+     * If in Conversation page: readTranscript / readSummary
+     * If in Easy Read page: readResult
+     * Otherwise: READ_PAGE
+   - If user says "Làm lại":
+     * resetCurrentScreen or re-run the previous action
+5. PREREQUISITE CHECKING (Case 7):
+   If an action exists on the screen but has "isSatisfied": false (e.g. user says "Phân tích ngay" but no image has been selected/uploaded yet):
+   Return "action": "PREREQUISITE_MISSING" with the "feedback" set to the action's promptForMissing or a friendly guide like "Bạn chưa chọn ảnh. Bạn muốn mở camera hay chọn ảnh từ máy?", and "suggestedAction" set to the next required action ID.
+6. CHAINED / MULTI-STEP ACTIONS (Case 6):
+   If the user expresses a multi-step command like:
+   - "Mở Nhìn giúp tôi rồi chọn đọc chữ trong ảnh" -> "action": "OPEN_VISION", "chainAction": { "action": "readImageText", "parameters": { "mode": "text" } }, "feedback": "Đang mở Nhìn giúp tôi và chuyển sang chế độ đọc chữ."
+   - "Vào cài đặt và bật tương phản cao" -> "action": "OPEN_SETTINGS", "chainAction": { "action": "ENABLE_HIGH_CONTRAST" }, "feedback": "Đang mở Cài đặt và bật tương phản cao."
+   - "Vào nghe thoại và bắt đầu nghe" -> "action": "OPEN_CONVERSATION", "chainAction": { "action": "startListening" }, "feedback": "Đang mở Nghe thoại và bắt đầu lắng nghe."
+7. AMBIGUITY RESOLUTION (Case 8):
+   If multiple distinct actions could match and there is genuinely not enough context to disambiguate:
+   Return "action": "CLARIFICATION_REQUIRED" with a brief, friendly "feedback" asking the user to clarify (e.g. "Bạn muốn mở Camera hay chọn ảnh từ máy?").
+8. GLOBAL ACTIONS (Always available on any screen):
+   - GO_HOME: Về trang chủ
+   - GO_BACK: Quay lại trang trước
+   - OPEN_VISION: Mở Nhìn giúp tôi
+   - OPEN_CONVERSATION: Mở Nghe & Ghi lại
+   - OPEN_EASY_READ: Mở Làm nội dung dễ hiểu
+   - OPEN_DOCUMENTS: Mở Hiểu tài liệu
+   - OPEN_HISTORY: Mở Lịch sử
+   - OPEN_SETTINGS: Mở Cài đặt
+   - INCREASE_FONT: Phóng to chữ
+   - DECREASE_FONT: Thu nhỏ chữ
+   - ENABLE_HIGH_CONTRAST / DISABLE_HIGH_CONTRAST: Bật/Tắt tương phản cao
+   - ENABLE_LARGE_CONTROLS / DISABLE_LARGE_CONTROLS: Bật/Tắt nút lớn
+   - STOP_READING: Dừng đọc
+   - READ_PAGE: Đọc toàn bộ trang
+   - SPEAK_SLOWER / SPEAK_FASTER: Đọc chậm lại / Đọc nhanh lên
 
-Supported actions (LoviraAction):
-- START_VOICE_SESSION
-- END_VOICE_SESSION
-- DISABLE_VOICE_ACCESS
-- GO_HOME
-- GO_BACK
-- OPEN_VISION
-- OPEN_CONVERSATION
-- OPEN_EASY_READ
-- OPEN_DOCUMENTS
-- OPEN_HISTORY
-- OPEN_ACCESSIBILITY
-- OPEN_SETTINGS
-- OPEN_CAMERA
-- CAPTURE_IMAGE
-- ANALYZE_SCENE
-- READ_IMAGE_TEXT
-- EXPLAIN_OBJECT
-- SIMPLIFY_CURRENT_TEXT
-- SUMMARIZE_CURRENT_CONTENT
-- INCREASE_FONT
-- DECREASE_FONT
-- SET_FONT_SCALE
-- ENABLE_HIGH_CONTRAST
-- DISABLE_HIGH_CONTRAST
-- ENABLE_REDUCED_MOTION
-- DISABLE_REDUCED_MOTION
-- ENABLE_LARGE_CONTROLS
-- DISABLE_LARGE_CONTROLS
-- READ_PAGE
-- READ_MAIN_CONTENT
-- READ_CURRENT_REGION
-- READ_CURRENT_FOCUS
-- READ_CURRENT_RESULT
-- READ_INTERACTIVE_ELEMENTS
-- READ_NEXT
-- READ_PREVIOUS
-- PAUSE_READING
-- RESUME_READING
-- STOP_READING
-- SPEAK_SLOWER
-- SPEAK_FASTER
-- SAVE_CURRENT_RESULT
-- DESCRIBE_CURRENT_PAGE
-- UNKNOWN
+CURRENT SCREEN CONTEXT:
+${JSON.stringify(screenContext || context, null, 2)}
 
-Use the current application context to understand ambiguous terms:
-“cái này” (this item)
-“phần này” (this section)
-“ảnh này” (this picture)
-“tài liệu này” (this document)
-“đọc lại” (read again)
-“tiếp theo” (next)
-“quay lại” (back)
+GLOBAL ACTIONS AVAILABLE:
+${JSON.stringify(globalActions, null, 2)}
 
-Context of current page:
-${JSON.stringify(context, null, 2)}
-
-You must return a JSON object with the following fields:
+You must return a raw JSON object with the following schema:
 {
-  "action": string (one of the supported actions list above, NEVER invent a new name),
+  "action": string (the exact action ID from availableActions or globalActions, or "PREREQUISITE_MISSING", "CLARIFICATION_REQUIRED", "UNKNOWN"),
   "confidence": number (0.0 to 1.0),
-  "parameters": {},
-  "confirmationRequired": boolean (set to true if the action is destructive/irreversible),
-  "feedback": string (a short, warm, supportive confirmation or statement in Vietnamese, e.g. "Đã tăng cỡ chữ."),
-  "clarificationQuestion": string (only if confidence is low, keep it short and friendly)
+  "parameters": object (any parameters needed, e.g. { "mode": "text" } or { "level": "easy" }),
+  "confirmationRequired": boolean,
+  "feedback": string (a short, warm, supportive confirmation or guidance in Vietnamese, e.g. "Đã mở Nhìn giúp tôi.", "Đang phân tích ảnh.", "Đã bật tương phản cao."),
+  "chainAction": object | null (optional next step, e.g. { "action": "readImageText", "parameters": { "mode": "text" } }),
+  "suggestedAction": string | null (optional suggested action when prerequisite is missing),
+  "clarificationQuestion": string | null (optional if clarification is required)
 }
 
-Do not write code, do not output explanatory text, only return raw JSON.`;
+Do not include markdown or code block fences, return raw JSON only.`;
 
     const rawResponse = await generateTextWithDualEngine({
       systemInstruction: VOICE_INTENT_SYSTEM_INSTRUCTION,
-      prompt: `Command: "${command.trim()}"`,
+      prompt: `User Utterance: "${command.trim()}"`,
       responseMimeType: 'application/json',
       customApiKey,
     });
@@ -891,7 +886,7 @@ Do not write code, do not output explanatory text, only return raw JSON.`;
           action: 'UNKNOWN',
           confidence: 0,
           confirmationRequired: false,
-          feedback: 'Lovira chưa hiểu rõ yêu cầu này.',
+          feedback: 'Lovira chưa hiểu rõ yêu cầu này. Bạn có thể nói lại một cách tự nhiên hơn nhé.',
         },
       });
     }
@@ -903,6 +898,135 @@ Do not write code, do not output explanatory text, only return raw JSON.`;
     });
   } catch (err: unknown) {
     return handleApiError(res, 'voice-intent', err);
+  }
+});
+
+// 9. POST /api/ai/agent-plan (Multimodal Context-Aware Agent Planner for Lovira Life)
+app.post('/api/ai/agent-plan', async (req: Request, res: Response) => {
+  console.log('[Lovira API] agent-plan request received');
+  res.setHeader('Content-Type', 'application/json');
+  try {
+    const {
+      userInput,
+      currentScreen = 'dashboard',
+      currentRoute = '/',
+      activeSession = null,
+      activeImage = null,
+      activeDocument = null,
+      currentResult = null,
+      selectedText = null,
+      availableActions = [],
+      customApiKey,
+    } = req.body || {};
+
+    if (!userInput || typeof userInput !== 'string' || !userInput.trim()) {
+      return res.status(400).json({ success: false, error: 'Yêu cầu của người dùng là bắt buộc.' });
+    }
+
+    const allowedActionIds: string[] = Array.isArray(availableActions)
+      ? availableActions.map((a: { id: string }) => a.id)
+      : [];
+
+    const AGENT_PLANNER_SYSTEM_INSTRUCTION = `You are the Multimodal Accessibility Agent Planner for Lovira Life, an intelligent assistant empowering Vietnamese users with visual, hearing, cognitive, or mobility difficulties.
+
+YOUR MISSION:
+The user describes what they want in natural Vietnamese (e.g., "Tôi đang đi khám", "Tôi không hiểu giấy này", "Đọc chữ trong ảnh", "Giờ tôi phải làm gì?", "Vào cài đặt bật tương phản cao").
+You must:
+1. Understand their intent based on their utterance and the CURRENT CONTEXT.
+2. Formulate a concise, executable plan using ONLY action IDs explicitly listed in ALLOWED_ACTIONS.
+3. Provide a warm, brief, respectful feedback message in natural Vietnamese. Never expose internal technical jargon (no "calling API", "running tool", "JSON", "OCR", "LLM").
+
+STRICT ARCHITECTURAL RULES:
+1. ONLY USE ACTIONS FROM ALLOWED_ACTIONS. Do NOT invent new action IDs. If an action does not exist, reject or pick the closest available action or ask for clarification.
+2. LIFE MODES & SESSIONS:
+   - If the user says "Tôi đang đi khám" / "Đi khám bệnh": create a healthcare session ("session.create" with parameter { "type": "healthcare" }).
+   - If "Làm thủ tục" / "Làm giấy tờ": create administrative session ("session.create" with { "type": "administrative" }).
+   - If "Đi mua đồ" / "Mua sắm": create shopping session ("session.create" with { "type": "shopping" }).
+   - If "Đọc & hiểu": create reading session ("session.create" with { "type": "reading" }).
+3. SESSION MEMORY:
+   - If user asks "Giờ tôi phải làm gì?", "Tiếp theo làm gì?", "Tôi còn thiếu gì?" and an activeSession exists: Use action "session.getNextStep".
+4. MULTI-STEP ORCHESTRATION:
+   - "Vào Nhìn giúp tôi rồi đọc chữ" -> ["navigation.openVision", "vision.readText"]
+   - "Vào cài đặt rồi bật tương phản cao" -> ["navigation.openSettings", "accessibility.enableHighContrast"]
+   - "Tôi không hiểu giấy này" with active image -> ["vision.readText", "easyRead.simplify", "speech.readResult"]
+5. MAXIMUM 4 STEPS PER PLAN.
+6. CLARIFICATION POLICY:
+   - If the request is truly ambiguous and lacks context, set "needsClarification": true with a friendly "clarificationQuestion" in Vietnamese.
+
+ALLOWED_ACTIONS:
+${JSON.stringify(allowedActionIds, null, 2)}
+
+CURRENT CONTEXT:
+${JSON.stringify(
+  {
+    currentScreen,
+    currentRoute,
+    activeSession,
+    hasImage: !!activeImage,
+    hasDocument: !!activeDocument,
+    hasSelectedText: !!selectedText,
+    hasResult: !!currentResult,
+  },
+  null,
+  2
+)}
+
+OUTPUT SCHEMA (Raw JSON only):
+{
+  "intent": string,
+  "confidence": number (0.0 to 1.0),
+  "needsClarification": boolean,
+  "clarificationQuestion": string | null,
+  "message": string (short friendly feedback in Vietnamese),
+  "plan": [
+    {
+      "action": string (must match an ID from ALLOWED_ACTIONS),
+      "reason": string (brief explanation for debugging),
+      "parameters": object
+    }
+  ],
+  "suggestedSessionType": "healthcare" | "administrative" | "shopping" | "reading" | "general" | null,
+  "newFacts": [
+    { "type": "date" | "time" | "location" | "person" | "requirement" | "instruction" | "warning" | "other", "value": string }
+  ],
+  "newTasks": [
+    { "title": string, "status": "todo" | "doing" | "done" }
+  ]
+}`;
+
+    const rawResponse = await generateTextWithDualEngine({
+      systemInstruction: AGENT_PLANNER_SYSTEM_INSTRUCTION,
+      prompt: `User Request: "${userInput.trim()}"`,
+      responseMimeType: 'application/json',
+      customApiKey,
+    });
+
+    const parsed = safeParseJson<any>(rawResponse);
+    if (!parsed || !Array.isArray(parsed.plan)) {
+      console.warn('[AgentPlan] Failed to parse agent planner response as JSON:', rawResponse);
+      return res.json({
+        success: true,
+        data: {
+          intent: 'fallback',
+          confidence: 0.5,
+          needsClarification: false,
+          message: 'Lovira đang thực hiện cho bạn.',
+          plan: [{ action: 'navigation.home', reason: 'Về trang chủ' }],
+        },
+      });
+    }
+
+    // Filter plan to strictly allowed actions
+    parsed.plan = parsed.plan.filter((step: { action: string }) =>
+      allowedActionIds.includes(step.action)
+    );
+
+    return res.json({
+      success: true,
+      data: parsed,
+    });
+  } catch (err: unknown) {
+    return handleApiError(res, 'agent-plan', err);
   }
 });
 

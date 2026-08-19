@@ -19,6 +19,8 @@ import { DEMO_DOCUMENTS } from '../../constants';
 import { extractTextFromDocument, DocumentExtractResult } from '../../lib/documentProcessor';
 import { analyzeDocument, askDocumentQuestion } from '../../services/api';
 import { saveActivityHistory } from '../../lib/firebase';
+import { useRegisterScreenActions } from '../voice-access/ScreenActionRegistry';
+import { LoviraSpeechManager } from '../voice-access/SpeechManager';
 
 interface DocumentViewProps {
   userProfile?: UserProfile | null;
@@ -160,6 +162,99 @@ export const DocumentView: React.FC<DocumentViewProps> = ({
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
+
+  useRegisterScreenActions({
+    screenId: 'documents',
+    screenTitle: 'Hiểu tài liệu',
+    screenState: {
+      hasDocument: !!extractedDoc?.text,
+      hasAnalysis: !!analysis,
+      fileName: extractedDoc?.fileName,
+      isLoading: loading || extracting,
+    },
+    actions: [
+      {
+        id: 'loadDemo',
+        label: 'Tải tài liệu mẫu',
+        aliases: ['tải tài liệu mẫu', 'dùng tài liệu mẫu', 'tài liệu mẫu', 'xem mẫu tài liệu', 'ví dụ'],
+        description: 'Nạp tài liệu mẫu hành chính công để trải nghiệm thử',
+        handler: () => handleLoadDemo(DEMO_DOCUMENTS[0]),
+      },
+      {
+        id: 'reanalyze',
+        label: 'Phân tích lại tài liệu',
+        aliases: ['phân tích lại tài liệu', 'quét lại', 'chạy lại', 'phân tích lại'],
+        description: 'Phân tích lại tệp tài liệu hiện tại',
+        prerequisites: {
+          isSatisfied: !!extractedDoc?.text,
+          missingReason: 'Chưa có tài liệu nào để phân tích lại. Bạn hãy tải lên tệp PDF hoặc chọn tài liệu mẫu trước nhé.',
+        },
+        handler: () => {
+          if (extractedDoc?.text) {
+            runDocumentAnalysis(extractedDoc.text, extractedDoc.fileName);
+          }
+        },
+      },
+      {
+        id: 'readAnalysis',
+        label: 'Đọc tóm tắt tài liệu',
+        aliases: ['đọc tóm tắt tài liệu', 'đọc to phân tích', 'đọc kết quả tài liệu', 'đọc to', 'đọc tóm tắt'],
+        description: 'Đọc to nội dung phân tích tài liệu và các thủ tục cần chú ý',
+        prerequisites: {
+          isSatisfied: !!analysis,
+          missingReason: 'Chưa có kết quả phân tích tài liệu nào để đọc.',
+        },
+        handler: () => {
+          if (analysis) {
+            const text = `${analysis.title || 'Tài liệu'}. Tóm tắt: ${analysis.summary}. Yêu cầu hồ sơ: ${analysis.requirements.join('. ')}. Thời gian: ${analysis.importantDates.join('. ')}`;
+            LoviraSpeechManager.speak(text, { rate: settings.speechRate || 1.0 });
+          }
+        },
+      },
+      {
+        id: 'copyAnalysis',
+        label: 'Sao chép phân tích',
+        aliases: ['sao chép phân tích', 'copy kết quả tài liệu', 'sao chép'],
+        description: 'Sao chép nội dung tóm tắt và danh sách hồ sơ vào khay nhớ tạm',
+        prerequisites: {
+          isSatisfied: !!analysis,
+          missingReason: 'Chưa có kết quả phân tích nào để sao chép.',
+        },
+        handler: () => handleCopyAnalysis(),
+      },
+      {
+        id: 'askQuestion',
+        label: 'Hỏi về tài liệu',
+        aliases: ['hỏi về tài liệu', 'hỏi nội dung', 'tra cứu tài liệu'],
+        description: 'Đặt câu hỏi cụ thể về thông tin có trong tài liệu',
+        prerequisites: {
+          isSatisfied: !!extractedDoc?.text,
+          missingReason: 'Chưa có tài liệu nào để hỏi. Bạn hãy tải lên tệp tài liệu trước nhé.',
+        },
+        handler: (params) => {
+          if (params?.question) {
+            setQuestion(params.question);
+          }
+        },
+      },
+      {
+        id: 'clear',
+        label: 'Đóng tài liệu',
+        aliases: ['đóng tài liệu', 'xóa tài liệu', 'tải tài liệu khác', 'làm mới'],
+        description: 'Đóng tài liệu hiện tại để chọn tài liệu mới',
+        prerequisites: {
+          isSatisfied: !!extractedDoc,
+          missingReason: 'Chưa có tài liệu nào đang mở.',
+        },
+        handler: () => {
+          setExtractedDoc(null);
+          setAnalysis(null);
+          setQaHistory([]);
+          setError(null);
+        },
+      },
+    ],
+  });
 
   return (
     <div className="space-y-6">

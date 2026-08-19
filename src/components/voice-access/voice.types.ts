@@ -11,7 +11,7 @@ export type LoviraVoiceState =
   | 'recovering'
   | 'error';
 
-export type LoviraAction =
+export type BuiltInLoviraAction =
   | 'START_VOICE_SESSION'
   | 'END_VOICE_SESSION'
   | 'DISABLE_VOICE_ACCESS'
@@ -55,15 +55,27 @@ export type LoviraAction =
   | 'SPEAK_FASTER'
   | 'SAVE_CURRENT_RESULT'
   | 'DESCRIBE_CURRENT_PAGE'
+  | 'PREREQUISITE_MISSING'
+  | 'CLARIFICATION_REQUIRED'
   | 'UNKNOWN';
+
+export type LoviraAction = BuiltInLoviraAction | string;
+
+export interface ChainedAction {
+  action: LoviraAction;
+  parameters?: Record<string, unknown>;
+  feedback?: string;
+}
 
 export interface LoviraVoiceIntent {
   action: LoviraAction;
   confidence: number;
   parameters?: Record<string, unknown>;
-  confirmationRequired: boolean;
+  confirmationRequired?: boolean;
   feedback?: string;
   clarificationQuestion?: string;
+  chainAction?: ChainedAction;
+  suggestedAction?: string;
 }
 
 export interface LoviraContextType {
@@ -87,3 +99,4 @@ export interface LoviraContextType {
   voiceState: LoviraVoiceState;
   lastAction?: LoviraAction;
 }
+

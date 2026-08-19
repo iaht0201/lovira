@@ -7,8 +7,13 @@ interface ShortcutProps {
 }
 
 export const DoubleTapShortcutListener: React.FC<ShortcutProps> = ({ settings }) => {
-  const { activateSession, voiceState } = useVoiceAccess();
+  const { activateSession } = useVoiceAccess();
   const lastTapRef = useRef<number>(0);
+  const activateSessionRef = useRef(activateSession);
+
+  useEffect(() => {
+    activateSessionRef.current = activateSession;
+  }, [activateSession]);
 
   useEffect(() => {
     if (!settings.doubleTapShortcutEnabled || !settings.voiceAccessEnabled) return;
@@ -33,7 +38,7 @@ export const DoubleTapShortcutListener: React.FC<ShortcutProps> = ({ settings })
       if (now - lastTapRef.current < DOUBLE_TAP_DELAY) {
         console.log('[PWA Voice] Double tap gesture detected. Launching active voice session.');
         e.preventDefault();
-        activateSession();
+        activateSessionRef.current();
       }
       lastTapRef.current = now;
     };
@@ -54,7 +59,7 @@ export const DoubleTapShortcutListener: React.FC<ShortcutProps> = ({ settings })
       }
 
       console.log('[PWA Voice] Double click gesture detected. Launching active voice session.');
-      activateSession();
+      activateSessionRef.current();
     };
 
     window.addEventListener('touchend', handleDoubleTap, { passive: false });
@@ -64,7 +69,7 @@ export const DoubleTapShortcutListener: React.FC<ShortcutProps> = ({ settings })
       window.removeEventListener('touchend', handleDoubleTap);
       window.removeEventListener('dblclick', handleDoubleClick);
     };
-  }, [settings.doubleTapShortcutEnabled, settings.voiceAccessEnabled, voiceState]);
+  }, [settings.doubleTapShortcutEnabled, settings.voiceAccessEnabled]);
 
   return null;
 };

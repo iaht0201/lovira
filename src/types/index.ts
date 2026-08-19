@@ -100,3 +100,6 @@ export interface GeminiApiRequest {
   language?: LanguageCode;
   customApiKey?: string;
 }
+
+export * from '../agent/types';
+

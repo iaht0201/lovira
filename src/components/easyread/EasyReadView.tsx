@@ -15,6 +15,8 @@ import { EasyReadResult, UserProfile, AccessibilitySettings } from '../../types'
 import { SAMPLE_EASY_READ_TEXTS } from '../../constants';
 import { simplifyTextEasyRead } from '../../services/api';
 import { saveActivityHistory } from '../../lib/firebase';
+import { useRegisterScreenActions } from '../voice-access/ScreenActionRegistry';
+import { LoviraSpeechManager } from '../voice-access/SpeechManager';
 
 interface EasyReadViewProps {
   userProfile?: UserProfile | null;
@@ -89,6 +91,96 @@ export const EasyReadView: React.FC<EasyReadViewProps> = ({
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
+
+  useRegisterScreenActions({
+    screenId: 'easy-read',
+    screenTitle: 'Làm nội dung dễ hiểu',
+    screenState: {
+      hasInputText: !!inputText.trim(),
+      hasResult: !!result,
+      level,
+      isLoading: loading,
+    },
+    actions: [
+      {
+        id: 'simplify',
+        label: 'Làm dễ hiểu',
+        aliases: ['làm dễ hiểu', 'giản lược văn bản', 'đơn giản hóa', 'rút gọn', 'xử lý văn bản'],
+        description: 'Chuyển văn bản thành dạng dễ hiểu, câu ngắn, rõ nghĩa',
+        prerequisites: {
+          isSatisfied: !!inputText.trim(),
+          missingReason: 'Chưa có văn bản nào trong ô nhập liệu. Bạn hãy nhập hoặc dán văn bản trước nhé.',
+        },
+        handler: () => handleSimplify(),
+      },
+      {
+        id: 'setLevelEasy',
+        label: 'Mức Cực kỳ đơn giản',
+        aliases: ['cực kỳ đơn giản', 'dễ hiểu nhất', 'mức dễ nhất', 'đơn giản nhất'],
+        description: 'Đặt mức độ làm dễ hiểu sang cực kỳ đơn giản',
+        handler: () => setLevel('easy'),
+      },
+      {
+        id: 'setLevelStandard',
+        label: 'Mức Tiêu chuẩn',
+        aliases: ['mức tiêu chuẩn', 'tiêu chuẩn', 'dễ hiểu vừa'],
+        description: 'Đặt mức độ làm dễ hiểu sang tiêu chuẩn',
+        handler: () => setLevel('standard'),
+      },
+      {
+        id: 'setLevelStep',
+        label: 'Mức Từng bước',
+        aliases: ['từng bước', 'hướng dẫn từng bước', 'dạng các bước'],
+        description: 'Đặt mức độ làm dễ hiểu sang định dạng từng bước',
+        handler: () => setLevel('step'),
+      },
+      {
+        id: 'loadSample',
+        label: 'Dùng văn bản mẫu',
+        aliases: ['dùng văn bản mẫu', 'tải mẫu', 'ví dụ', 'văn bản mẫu'],
+        description: 'Nạp văn bản ví dụ mẫu vào ô nhập liệu',
+        handler: () => handleLoadSample(SAMPLE_EASY_READ_TEXTS[0]),
+      },
+      {
+        id: 'clear',
+        label: 'Xóa trắng',
+        aliases: ['xóa trắng', 'xóa văn bản', 'xóa hết', 'làm mới'],
+        description: 'Xóa sạch văn bản nhập và kết quả hiện tại',
+        prerequisites: {
+          isSatisfied: !!inputText.trim() || !!result,
+          missingReason: 'Ô nhập liệu đang trống.',
+        },
+        handler: () => handleClear(),
+      },
+      {
+        id: 'readResult',
+        label: 'Đọc kết quả dễ hiểu',
+        aliases: ['đọc kết quả dễ hiểu', 'đọc văn bản dễ hiểu', 'đọc kết quả', 'đọc to'],
+        description: 'Đọc to nội dung văn bản đã được làm dễ hiểu',
+        prerequisites: {
+          isSatisfied: !!result,
+          missingReason: 'Chưa có kết quả văn bản dễ hiểu nào để đọc.',
+        },
+        handler: () => {
+          if (result) {
+            const text = `${result.title || ''}. Tóm tắt: ${result.summary}. Nội dung dễ hiểu: ${result.simplifiedText}`;
+            LoviraSpeechManager.speak(text, { rate: settings.speechRate || 1.0 });
+          }
+        },
+      },
+      {
+        id: 'copyResult',
+        label: 'Sao chép kết quả',
+        aliases: ['sao chép kết quả', 'copy kết quả', 'sao chép văn bản'],
+        description: 'Sao chép nội dung văn bản dễ hiểu vào khay nhớ tạm',
+        prerequisites: {
+          isSatisfied: !!result,
+          missingReason: 'Chưa có kết quả nào để sao chép.',
+        },
+        handler: () => handleCopy(),
+      },
+    ],
+  });
 
   return (
     <div className="space-y-6">

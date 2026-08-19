@@ -5,6 +5,7 @@ import { LoviraSpeechManager } from './SpeechManager';
 import { LoviraMicCoordinator } from './MicrophoneCoordinator';
 import { LoviraReadingEngine } from './ReadingEngine';
 import { AccessibilitySettings, UserProfile } from '../../types';
+import { useScreenActionContext, GLOBAL_APP_ACTIONS } from './ScreenActionRegistry';
 
 interface VoiceAccessContextValue {
   voiceState: LoviraVoiceState;
@@ -43,6 +44,12 @@ export const VoiceAccessProvider: React.FC<ProviderProps> = ({
   onNavigate,
   userProfile,
 }) => {
+  const {
+    currentScreenInfo,
+    getAvailableActionsForAI,
+    executeAction: executeScreenAction,
+  } = useScreenActionContext();
+
   const [voiceState, setVoiceState] = useState<LoviraVoiceState>('disabled');
   const [lastAction, setLastAction] = useState<LoviraAction | undefined>(undefined);
   
@@ -172,12 +179,12 @@ export const VoiceAccessProvider: React.FC<ProviderProps> = ({
 
   // Central Action Executor mapping to real application commands
   const executeAction = async (intent: LoviraVoiceIntent) => {
-    const { action, feedback } = intent;
-    console.log(`[PWA Voice] Executing action: ${action}`);
+    const { action, feedback, parameters, chainAction } = intent;
+    console.log(`[PWA Voice] Executing action: ${action} with parameters:`, parameters);
     setLastAction(action);
 
     const finishWithFeedback = (fb: string, onDone?: () => void) => {
-      if (settings.spokenFeedbackEnabled) {
+      if (settings.spokenFeedbackEnabled && fb) {
         speakText(fb, () => {
           onDone?.();
           deactivateSession();
@@ -188,6 +195,36 @@ export const VoiceAccessProvider: React.FC<ProviderProps> = ({
       }
     };
 
+    // 1. Handle prerequisite missing (Case 7)
+    if (action === 'PREREQUISITE_MISSING') {
+      finishWithFeedback(feedback || 'Chưa đủ điều kiện để thực hiện hành động này.');
+      return;
+    }
+
+    // 2. Handle clarification required (Case 8)
+    if (action === 'CLARIFICATION_REQUIRED') {
+      finishWithFeedback(feedback || intent.clarificationQuestion || 'Bạn có thể nói rõ hơn thao tác mong muốn không?');
+      return;
+    }
+
+    // 3. Check if action is registered on the current screen (Case 2, 3, 4 screen actions)
+    if (currentScreenInfo) {
+      const isScreenAction = currentScreenInfo.actions.some(
+        (a) => a.id.toLowerCase() === action.toLowerCase()
+      );
+
+      if (isScreenAction) {
+        const res = await executeScreenAction(action, parameters);
+        if (res.success) {
+          finishWithFeedback(feedback || 'Đã thực hiện xong.');
+        } else {
+          finishWithFeedback(res.error || feedback || 'Không thể thực hiện hành động này.');
+        }
+        return;
+      }
+    }
+
+    // 4. Handle Global & Navigation Actions (Case 1, 6, 9, 10)
     switch (action) {
       case 'START_VOICE_SESSION':
         activateSession();
@@ -204,7 +241,7 @@ export const VoiceAccessProvider: React.FC<ProviderProps> = ({
 
       case 'GO_HOME':
         onNavigate('/');
-        finishWithFeedback(feedback || 'Đang chuyển về trang chủ.');
+        finishWithFeedback(feedback || 'Đã chuyển về trang chủ.');
         break;
 
       case 'GO_BACK':
@@ -214,82 +251,103 @@ export const VoiceAccessProvider: React.FC<ProviderProps> = ({
 
       case 'OPEN_VISION':
       case 'OPEN_CAMERA':
-        onNavigate('/vision?action=camera');
-        finishWithFeedback(feedback || 'Đang kích hoạt camera.');
+        onNavigate('/vision');
+        if (chainAction) {
+          setTimeout(() => {
+            executeScreenAction(chainAction.action as string, chainAction.parameters);
+          }, 450);
+        }
+        finishWithFeedback(feedback || 'Đã mở Nhìn giúp tôi.');
         break;
 
       case 'OPEN_CONVERSATION':
         onNavigate('/conversation');
-        finishWithFeedback(feedback || 'Đang mở nghe thoại.');
+        if (chainAction) {
+          setTimeout(() => {
+            executeScreenAction(chainAction.action as string, chainAction.parameters);
+          }, 450);
+        }
+        finishWithFeedback(feedback || 'Đã mở Nghe & Ghi lại.');
         break;
 
       case 'OPEN_EASY_READ':
         onNavigate('/easy-read');
-        finishWithFeedback(feedback || 'Đang mở làm nội dung dễ hiểu.');
+        if (chainAction) {
+          setTimeout(() => {
+            executeScreenAction(chainAction.action as string, chainAction.parameters);
+          }, 450);
+        }
+        finishWithFeedback(feedback || 'Đã mở Làm nội dung dễ hiểu.');
         break;
 
       case 'OPEN_DOCUMENTS':
         onNavigate('/documents');
-        finishWithFeedback(feedback || 'Đang mở Hiểu tài liệu.');
+        if (chainAction) {
+          setTimeout(() => {
+            executeScreenAction(chainAction.action as string, chainAction.parameters);
+          }, 450);
+        }
+        finishWithFeedback(feedback || 'Đã mở Hiểu tài liệu.');
         break;
 
       case 'OPEN_HISTORY':
         onNavigate('/history');
-        finishWithFeedback(feedback || 'Đang mở Lịch sử.');
+        finishWithFeedback(feedback || 'Đã mở Lịch sử.');
         break;
 
       case 'OPEN_ACCESSIBILITY':
-        onNavigate('/settings'); // settings page contains accessibility controls
-        finishWithFeedback(feedback || 'Đang mở cài đặt trợ năng.');
-        break;
-
       case 'OPEN_SETTINGS':
         onNavigate('/settings');
-        finishWithFeedback(feedback || 'Đang mở màn hình cài đặt.');
+        if (chainAction) {
+          setTimeout(() => {
+            executeAction({ action: chainAction.action as any, parameters: chainAction.parameters, confidence: 1.0 });
+          }, 450);
+        }
+        finishWithFeedback(feedback || 'Đã mở Cài đặt.');
         break;
 
       case 'INCREASE_FONT': {
         const nextScales: Record<string, string> = { '100': '125', '125': '150', '150': '175', '175': '175' };
         onUpdateSettings({ fontScale: nextScales[settings.fontScale] as any });
-        finishWithFeedback('Đã phóng to kích thước chữ.');
+        finishWithFeedback(feedback || 'Đã phóng to kích thước chữ.');
         break;
       }
 
       case 'DECREASE_FONT': {
         const prevScales: Record<string, string> = { '175': '150', '150': '125', '125': '100', '100': '100' };
         onUpdateSettings({ fontScale: prevScales[settings.fontScale] as any });
-        finishWithFeedback('Đã thu nhỏ kích thước chữ.');
+        finishWithFeedback(feedback || 'Đã thu nhỏ kích thước chữ.');
         break;
       }
 
       case 'ENABLE_HIGH_CONTRAST':
         onUpdateSettings({ highContrast: true });
-        finishWithFeedback('Đã bật tương phản cao.');
+        finishWithFeedback(feedback || 'Đã bật tương phản cao.');
         break;
 
       case 'DISABLE_HIGH_CONTRAST':
         onUpdateSettings({ highContrast: false });
-        finishWithFeedback('Đã tắt tương phản cao.');
+        finishWithFeedback(feedback || 'Đã tắt tương phản cao.');
         break;
 
       case 'ENABLE_REDUCED_MOTION':
         onUpdateSettings({ reducedMotion: true });
-        finishWithFeedback('Đã bật giảm chuyển động.');
+        finishWithFeedback(feedback || 'Đã bật giảm chuyển động.');
         break;
 
       case 'DISABLE_REDUCED_MOTION':
         onUpdateSettings({ reducedMotion: false });
-        finishWithFeedback('Đã tắt giảm chuyển động.');
+        finishWithFeedback(feedback || 'Đã tắt giảm chuyển động.');
         break;
 
       case 'ENABLE_LARGE_CONTROLS':
         onUpdateSettings({ largeControls: true });
-        finishWithFeedback('Đã kích hoạt chế độ nút bấm trợ năng lớn.');
+        finishWithFeedback(feedback || 'Đã kích hoạt chế độ nút lớn trợ năng.');
         break;
 
       case 'DISABLE_LARGE_CONTROLS':
         onUpdateSettings({ largeControls: false });
-        finishWithFeedback('Đã tắt chế độ nút bấm lớn.');
+        finishWithFeedback(feedback || 'Đã tắt chế độ nút lớn.');
         break;
 
       case 'STOP_READING':
@@ -300,14 +358,14 @@ export const VoiceAccessProvider: React.FC<ProviderProps> = ({
       case 'SPEAK_SLOWER': {
         const nextRate = Math.max(0.6, settings.speechRate - 0.15);
         onUpdateSettings({ speechRate: nextRate });
-        finishWithFeedback('Đã giảm tốc độ nói.');
+        finishWithFeedback(feedback || 'Đã giảm tốc độ đọc.');
         break;
       }
 
       case 'SPEAK_FASTER': {
         const nextRate = Math.min(2.0, settings.speechRate + 0.15);
         onUpdateSettings({ speechRate: nextRate });
-        finishWithFeedback('Đã tăng tốc độ nói.');
+        finishWithFeedback(feedback || 'Đã tăng tốc độ đọc.');
         break;
       }
 
@@ -355,31 +413,7 @@ export const VoiceAccessProvider: React.FC<ProviderProps> = ({
       case 'CAPTURE_IMAGE': {
         const event = new CustomEvent('lovira-voice-capture');
         document.dispatchEvent(event);
-        finishWithFeedback('Chụp ảnh thành công. Đang tiến hành phân tích.');
-        break;
-      }
-
-      case 'ANALYZE_SCENE':
-      case 'READ_IMAGE_TEXT':
-      case 'EXPLAIN_OBJECT': {
-        const event = new CustomEvent('lovira-voice-analyze', { detail: { action } });
-        document.dispatchEvent(event);
-        finishWithFeedback('Đang phân tích dữ liệu hình ảnh, vui lòng đợi một chút.');
-        break;
-      }
-
-      case 'SIMPLIFY_CURRENT_TEXT':
-      case 'SUMMARIZE_CURRENT_CONTENT': {
-        const event = new CustomEvent('lovira-voice-simplify', { detail: { action } });
-        document.dispatchEvent(event);
-        finishWithFeedback('Đang tiến hành giản lược văn bản hiện tại.');
-        break;
-      }
-
-      case 'SAVE_CURRENT_RESULT': {
-        const event = new CustomEvent('lovira-voice-save');
-        document.dispatchEvent(event);
-        deactivateSession();
+        finishWithFeedback(feedback || 'Đang chụp ảnh.');
         break;
       }
 
@@ -389,10 +423,11 @@ export const VoiceAccessProvider: React.FC<ProviderProps> = ({
     }
   };
 
-  // Call backend semantic router for non-deterministic requests
+  // Call backend semantic router for natural language requests
   const processSemanticVoiceCommand = async (command: string) => {
     setVoiceState('processing');
     try {
+      const screenContext = getAvailableActionsForAI();
       const response = await fetch('/api/ai/voice-intent', {
         method: 'POST',
         headers: {
@@ -402,6 +437,8 @@ export const VoiceAccessProvider: React.FC<ProviderProps> = ({
         body: JSON.stringify({
           command,
           context: contextRef.current,
+          screenContext,
+          globalActions: GLOBAL_APP_ACTIONS,
           customApiKey: getCustomGeminiKey(),
         }),
       });
@@ -423,7 +460,7 @@ export const VoiceAccessProvider: React.FC<ProviderProps> = ({
     } catch (err) {
       console.warn('[PWA Voice] Semantic route note:', err);
       if (settings.spokenFeedbackEnabled) {
-        speakText('Có sự cố kết nối máy chủ khi hiểu câu lệnh.', () => deactivateSession());
+        speakText('Có sự cố kết nối khi hiểu câu lệnh.', () => deactivateSession());
       } else {
         deactivateSession();
       }
@@ -442,8 +479,17 @@ export const VoiceAccessProvider: React.FC<ProviderProps> = ({
     // Stop recognition immediately since we captured the user's sentence
     pauseRecognition();
 
-    // Check deterministic local matcher
-    const localMatch = matchLocalIntent(command);
+    // Check fast local matcher with current screen available actions
+    const screenActions = currentScreenInfo?.actions.map((a) => ({
+      id: a.id,
+      label: a.label,
+      aliases: a.aliases,
+      isSatisfied: a.prerequisites ? a.prerequisites.isSatisfied : true,
+      missingReason: a.prerequisites?.missingReason,
+      promptForMissing: a.prerequisites?.promptForMissing,
+    }));
+
+    const localMatch = matchLocalIntent(command, screenActions);
     if (localMatch) {
       executeAction(localMatch);
     } else {

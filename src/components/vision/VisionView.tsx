@@ -16,6 +16,8 @@ import { VisionResult, UserProfile, AccessibilitySettings } from '../../types';
 import { analyzeVision, fetchApi } from '../../services/api';
 import { saveActivityHistory } from '../../lib/firebase';
 import { compressImageBase64 } from '../../lib/imageUtils';
+import { useRegisterScreenActions } from '../voice-access/ScreenActionRegistry';
+import { LoviraSpeechManager } from '../voice-access/SpeechManager';
 
 interface VisionViewProps {
   userProfile?: UserProfile | null;
@@ -170,6 +172,124 @@ export const VisionView: React.FC<VisionViewProps> = ({
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
+
+  useRegisterScreenActions({
+    screenId: 'vision',
+    screenTitle: 'Nhìn giúp tôi',
+    screenState: {
+      hasImage: !!selectedImage,
+      hasResult: !!result,
+      currentMode: visionMode,
+      isLoading: loading,
+    },
+    actions: [
+      {
+        id: 'openCamera',
+        label: 'Mở camera',
+        aliases: ['mở camera', 'bật máy ảnh', 'chụp hình', 'chụp ảnh'],
+        description: 'Mở cửa sổ camera để chụp ảnh môi trường xung quanh',
+        handler: () => setIsCameraOpen(true),
+      },
+      {
+        id: 'setModeScene',
+        label: 'Mô tả cảnh',
+        aliases: ['mô tả cảnh', 'mô tả khung cảnh', 'chế độ cảnh', 'xem cảnh'],
+        description: 'Chuyển sang chế độ mô tả tổng quan khung cảnh',
+        handler: () => handleModeChange('scene'),
+      },
+      {
+        id: 'setModeText',
+        label: 'Đọc văn bản',
+        aliases: ['đọc văn bản', 'đọc chữ trong ảnh', 'nhận diện chữ', 'đọc chữ', 'đọc text'],
+        description: 'Chuyển sang chế độ đọc chữ và quét văn bản trong ảnh',
+        handler: () => handleModeChange('text'),
+      },
+      {
+        id: 'setModeObject',
+        label: 'Nhận diện vật thể',
+        aliases: ['vật thể', 'nhận diện vật thể', 'nhận diện đồ vật', 'đây là cái gì'],
+        description: 'Chuyển sang chế độ định danh và phân tích các đồ vật trong ảnh',
+        handler: () => handleModeChange('object'),
+      },
+      {
+        id: 'setModeQuick',
+        label: 'Tóm tắt nhanh',
+        aliases: ['tóm tắt nhanh', 'tóm tắt ảnh', 'nói ngắn gọn'],
+        description: 'Chuyển sang chế độ tóm tắt nhanh gọn',
+        handler: () => handleModeChange('quick'),
+      },
+      {
+        id: 'reanalyze',
+        label: 'Phân tích lại',
+        aliases: ['phân tích lại', 'quét lại', 'chạy lại ảnh', 'thử lại'],
+        description: 'Thực hiện phân tích lại hình ảnh hiện tại',
+        prerequisites: {
+          isSatisfied: !!selectedImage,
+          missingReason: 'Bạn chưa có ảnh nào. Bạn muốn mở camera hay chọn ảnh từ máy?',
+          promptForMissing: 'openCamera',
+        },
+        handler: () => {
+          if (selectedImage) runVisionAnalysis(selectedImage, visionMode);
+        },
+      },
+      {
+        id: 'resetImage',
+        label: 'Chọn ảnh khác',
+        aliases: ['chọn ảnh khác', 'xóa ảnh', 'bỏ ảnh này', 'ảnh mới'],
+        description: 'Xóa ảnh hiện tại để chọn hoặc chụp ảnh mới',
+        prerequisites: {
+          isSatisfied: !!selectedImage,
+          missingReason: 'Chưa có ảnh nào đang được chọn.',
+        },
+        handler: () => {
+          setSelectedImage(null);
+          setResult(null);
+        },
+      },
+      {
+        id: 'readSummary',
+        label: 'Đọc kết quả',
+        aliases: ['đọc kết quả', 'đọc to kết quả', 'đọc nội dung', 'đọc tóm tắt'],
+        description: 'Đọc to kết quả phân tích hình ảnh',
+        prerequisites: {
+          isSatisfied: !!result,
+          missingReason: 'Chưa có kết quả phân tích ảnh. Bạn hãy chụp hoặc chọn một ảnh trước nhé.',
+        },
+        handler: () => {
+          if (result) {
+            const content = `${result.summary}. Chi tiết: ${result.details.join('. ')}`;
+            LoviraSpeechManager.speak(content, { rate: settings.speechRate || 1.0 });
+          }
+        },
+      },
+      {
+        id: 'copyResult',
+        label: 'Sao chép kết quả',
+        aliases: ['sao chép kết quả', 'copy kết quả', 'copy mô tả'],
+        description: 'Sao chép nội dung mô tả hình ảnh vào khay nhớ tạm',
+        prerequisites: {
+          isSatisfied: !!result,
+          missingReason: 'Chưa có kết quả nào để sao chép.',
+        },
+        handler: () => handleCopy(),
+      },
+      {
+        id: 'askQuestion',
+        label: 'Hỏi thêm về ảnh',
+        aliases: ['hỏi về ảnh', 'trong ảnh có', 'hỏi thêm'],
+        description: 'Đặt câu hỏi cụ thể về chi tiết trong ảnh hiện tại',
+        prerequisites: {
+          isSatisfied: !!selectedImage,
+          missingReason: 'Bạn chưa tải hoặc chụp ảnh nào để hỏi.',
+        },
+        handler: (params) => {
+          if (params?.question) {
+            setFollowUpQuestion(params.question);
+          }
+        },
+      },
+    ],
+  });
 
   return (
     <div className="space-y-6">

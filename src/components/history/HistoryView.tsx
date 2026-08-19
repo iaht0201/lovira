@@ -14,6 +14,7 @@ import {
 import { ActivityHistory, UserProfile } from '../../types';
 import { getActivityHistory, deleteActivityItem, clearActivityHistory } from '../../lib/firebase';
 import { ReadAloudButton } from '../common/ReadAloudButton';
+import { useRegisterScreenActions } from '../voice-access/ScreenActionRegistry';
 
 interface HistoryViewProps {
   userProfile?: UserProfile | null;
@@ -55,6 +56,76 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ userProfile }) => {
       setSelectedItem(null);
     }
   };
+
+  useRegisterScreenActions({
+    screenId: 'history',
+    screenTitle: 'Lịch sử hoạt động',
+    screenState: {
+      itemCount: items.length,
+      filterType,
+      searchQuery,
+      selectedItem: selectedItem ? selectedItem.title : null,
+    },
+    actions: [
+      {
+        id: 'filterAll',
+        label: 'Tất cả lịch sử',
+        aliases: ['tất cả', 'xem tất cả', 'toàn bộ'],
+        description: 'Hiển thị toàn bộ lịch sử các chức năng',
+        handler: () => setFilterType('all'),
+      },
+      {
+        id: 'filterVision',
+        label: 'Lọc Nhìn giúp tôi',
+        aliases: ['lọc ảnh', 'lọc nhìn giúp tôi', 'chỉ xem ảnh'],
+        description: 'Chỉ hiển thị các hoạt động phân tích hình ảnh',
+        handler: () => setFilterType('vision'),
+      },
+      {
+        id: 'filterConversation',
+        label: 'Lọc Nghe & ghi lại',
+        aliases: ['lọc cuộc trò chuyện', 'lọc nghe thoại', 'lọc ghi âm'],
+        description: 'Chỉ hiển thị các hoạt động ghi âm hội thoại',
+        handler: () => setFilterType('conversation'),
+      },
+      {
+        id: 'filterEasyRead',
+        label: 'Lọc Làm dễ hiểu',
+        aliases: ['lọc dễ hiểu', 'lọc văn bản dễ hiểu'],
+        description: 'Chỉ hiển thị các hoạt động làm dễ hiểu văn bản',
+        handler: () => setFilterType('easy-read'),
+      },
+      {
+        id: 'filterDocument',
+        label: 'Lọc Hiểu tài liệu',
+        aliases: ['lọc tài liệu', 'lọc file', 'lọc pdf'],
+        description: 'Chỉ hiển thị các hoạt động phân tích tài liệu',
+        handler: () => setFilterType('document'),
+      },
+      {
+        id: 'searchHistory',
+        label: 'Tìm kiếm lịch sử',
+        aliases: ['tìm kiếm', 'tìm trong lịch sử'],
+        description: 'Tìm kiếm hoạt động theo từ khóa',
+        handler: (params) => {
+          if (params?.query) {
+            setSearchQuery(params.query);
+          }
+        },
+      },
+      {
+        id: 'clearHistory',
+        label: 'Xóa toàn bộ lịch sử',
+        aliases: ['xóa lịch sử', 'xóa toàn bộ lịch sử', 'xóa hết lịch sử'],
+        description: 'Xóa sạch tất cả các mục trong lịch sử hoạt động',
+        prerequisites: {
+          isSatisfied: items.length > 0,
+          missingReason: 'Lịch sử hiện đang trống.',
+        },
+        handler: () => handleClearAll(),
+      },
+    ],
+  });
 
   const filteredItems = items.filter((item) => {
     const matchesType = filterType === 'all' || item.type === filterType;

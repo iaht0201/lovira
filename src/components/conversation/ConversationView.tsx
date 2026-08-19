@@ -22,6 +22,8 @@ import { LoadingSpinner } from '../common/LoadingSpinner';
 import { ConversationSummary, UserProfile, AccessibilitySettings } from '../../types';
 import { summarizeConversation } from '../../services/api';
 import { saveActivityHistory } from '../../lib/firebase';
+import { useRegisterScreenActions } from '../voice-access/ScreenActionRegistry';
+import { LoviraSpeechManager } from '../voice-access/SpeechManager';
 
 interface ConversationViewProps {
   userProfile?: UserProfile | null;
@@ -240,6 +242,120 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
+
+  useRegisterScreenActions({
+    screenId: 'conversation',
+    screenTitle: 'Nghe & ghi lại',
+    screenState: {
+      isListening,
+      isPaused,
+      hasContent: !!getFullContent(),
+      hasSummary: !!summary,
+      isLoading: loading,
+    },
+    actions: [
+      {
+        id: 'startListening',
+        label: 'Bắt đầu nghe',
+        aliases: ['bắt đầu nghe', 'bắt đầu ghi âm', 'ghi âm', 'thu âm', 'nghe thoại'],
+        description: 'Kích hoạt micro để nhận diện giọng nói và hiển thị phụ đề trực tiếp',
+        handler: () => {
+          if (!isListening) startListening();
+          else if (isPaused) resumeListening();
+        },
+      },
+      {
+        id: 'pauseListening',
+        label: 'Tạm dừng nghe',
+        aliases: ['tạm dừng nghe', 'tạm dừng', 'tạm dừng ghi âm'],
+        description: 'Tạm dừng nhận diện giọng nói',
+        prerequisites: {
+          isSatisfied: isListening && !isPaused,
+          missingReason: 'Micro chưa được bật hoặc đang tạm dừng.',
+        },
+        handler: () => pauseListening(),
+      },
+      {
+        id: 'resumeListening',
+        label: 'Tiếp tục nghe',
+        aliases: ['tiếp tục nghe', 'tiếp tục ghi âm', 'tiếp tục'],
+        description: 'Tiếp tục nhận diện giọng nói sau khi tạm dừng',
+        prerequisites: {
+          isSatisfied: isPaused,
+          missingReason: 'Cuộc trò chuyện không ở trạng thái tạm dừng.',
+        },
+        handler: () => resumeListening(),
+      },
+      {
+        id: 'stopListening',
+        label: 'Dừng nghe',
+        aliases: ['dừng nghe', 'dừng ghi âm', 'kết thúc nghe', 'tắt mic'],
+        description: 'Dừng hẳn việc nhận diện giọng nói',
+        prerequisites: {
+          isSatisfied: isListening,
+          missingReason: 'Micro hiện không đang ghi âm.',
+        },
+        handler: () => stopListening(),
+      },
+      {
+        id: 'summarize',
+        label: 'Tóm tắt cuộc trò chuyện',
+        aliases: ['tóm tắt cuộc trò chuyện', 'tóm tắt', 'phân tích', 'tổng hợp'],
+        description: 'Sử dụng AI để tóm tắt các ý chính, quyết định và việc cần làm',
+        prerequisites: {
+          isSatisfied: !!getFullContent(),
+          missingReason: 'Chưa có nội dung cuộc trò chuyện nào để tóm tắt. Bạn hãy bắt đầu ghi âm hoặc nhập văn bản trước nhé.',
+          promptForMissing: 'startListening',
+        },
+        handler: () => handleSummarize(),
+      },
+      {
+        id: 'clear',
+        label: 'Xóa trắng',
+        aliases: ['xóa trắng', 'xóa nội dung', 'làm mới', 'xóa hết'],
+        description: 'Xóa toàn bộ văn bản ghi âm và kết quả tóm tắt hiện tại',
+        prerequisites: {
+          isSatisfied: !!getFullContent() || !!summary,
+          missingReason: 'Nội dung đang trống.',
+        },
+        handler: () => handleClear(),
+      },
+      {
+        id: 'readSummary',
+        label: 'Đọc bản tóm tắt',
+        aliases: ['đọc bản tóm tắt', 'đọc tóm tắt', 'đọc kết quả', 'đọc to'],
+        description: 'Đọc to nội dung tóm tắt cuộc trò chuyện',
+        prerequisites: {
+          isSatisfied: !!summary,
+          missingReason: 'Chưa có bản tóm tắt nào. Hãy bấm hoặc nói "Tóm tắt" trước nhé.',
+        },
+        handler: () => {
+          if (summary) {
+            const text = `${summary.summary}. Ý chính: ${summary.keyPoints.join('. ')}. Việc cần làm: ${summary.actionItems.join('. ')}`;
+            LoviraSpeechManager.speak(text, { rate: settings.speechRate || 1.0 });
+          }
+        },
+      },
+      {
+        id: 'copyTranscript',
+        label: 'Sao chép văn bản',
+        aliases: ['sao chép văn bản', 'copy văn bản', 'sao chép cuộc trò chuyện'],
+        description: 'Sao chép toàn bộ nội dung lời thoại đã ghi âm vào khay nhớ tạm',
+        prerequisites: {
+          isSatisfied: !!getFullContent(),
+          missingReason: 'Chưa có nội dung nào để sao chép.',
+        },
+        handler: () => {
+          const content = getFullContent();
+          if (content) {
+            navigator.clipboard.writeText(content);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+          }
+        },
+      },
+    ],
+  });
 
   return (
     <div className="space-y-6">

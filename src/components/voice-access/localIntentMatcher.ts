@@ -1,36 +1,87 @@
-import { LoviraVoiceIntent, LoviraAction } from './voice.types';
+import { LoviraVoiceIntent } from './voice.types';
 
-export function matchLocalIntent(command: string): LoviraVoiceIntent | null {
-  const clean = command.toLowerCase().trim().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, '');
+function normalizeVietnamese(str: string): string {
+  return str
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?"']/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
 
-  // 1. Session commands
-  if (clean === 'chào lovira' || clean === 'chao lovira') {
-    return {
-      action: 'START_VOICE_SESSION',
-      confidence: 1.0,
-      confirmationRequired: false,
-      feedback: 'Chào bạn! Mình đang nghe, hãy nói yêu cầu của bạn.',
-    };
-  }
+export function matchLocalIntent(
+  command: string,
+  availableScreenActions?: Array<{
+    id: string;
+    label: string;
+    aliases?: string[];
+    isSatisfied?: boolean;
+    missingReason?: string;
+    promptForMissing?: string;
+  }>
+): LoviraVoiceIntent | null {
+  if (!command || !command.trim()) return null;
+  const clean = command.toLowerCase().trim().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?"']/g, '').replace(/\s+/g, ' ');
+  const norm = normalizeVietnamese(clean);
 
-  if (
-    clean === 'tạm biệt lovira' ||
-    clean === 'tam biet lovira' ||
-    clean === 'kết thúc phiên' ||
-    clean === 'ket thuc phien' ||
-    clean === 'dừng lovira' ||
-    clean === 'dung lovira'
-  ) {
+  // 1. Session control
+  if (norm === 'tam biet lovira' || norm === 'ket thuc phien' || norm === 'dung lovira' || norm === 'tat mic') {
     return {
       action: 'END_VOICE_SESSION',
       confidence: 1.0,
       confirmationRequired: false,
-      feedback: 'Tạm biệt bạn! Chúc bạn một ngày tốt lành.',
+      feedback: 'Tạm biệt bạn!',
     };
   }
 
-  // 2. Navigation
-  if (clean === 'về trang chủ' || clean === 've trang chu' || clean === 'trang chủ' || clean === 'trang chu') {
+  // 2. Immediate matches against current screen's registered interactive actions (Case 2 & Case 3 fast-path)
+  if (availableScreenActions && availableScreenActions.length > 0) {
+    for (const act of availableScreenActions) {
+      const labelNorm = normalizeVietnamese(act.label);
+      if (norm === labelNorm) {
+        if (act.isSatisfied === false) {
+          return {
+            action: 'PREREQUISITE_MISSING',
+            confidence: 0.98,
+            feedback: act.promptForMissing || act.missingReason || 'Chưa đủ điều kiện để thực hiện hành động này.',
+            suggestedAction: act.id,
+          };
+        }
+        return {
+          action: act.id,
+          confidence: 1.0,
+          confirmationRequired: false,
+          feedback: `Đã chọn ${act.label}.`,
+        };
+      }
+
+      if (act.aliases && act.aliases.length > 0) {
+        for (const alias of act.aliases) {
+          const aliasNorm = normalizeVietnamese(alias);
+          if (norm === aliasNorm || norm.startsWith(`${aliasNorm} `) || norm.endsWith(` ${aliasNorm}`)) {
+            if (act.isSatisfied === false) {
+              return {
+                action: 'PREREQUISITE_MISSING',
+                confidence: 0.95,
+                feedback: act.promptForMissing || act.missingReason || 'Chưa đủ điều kiện để thực hiện hành động này.',
+                suggestedAction: act.id,
+              };
+            }
+            return {
+              action: act.id,
+              confidence: 0.98,
+              confirmationRequired: false,
+              feedback: `Đã chọn ${act.label}.`,
+            };
+          }
+        }
+      }
+    }
+  }
+
+  // 3. Global Navigation
+  if (norm === 've trang chu' || norm === 'trang chu' || norm === 've home' || norm === 'man hinh chinh') {
     return {
       action: 'GO_HOME',
       confidence: 1.0,
@@ -39,7 +90,7 @@ export function matchLocalIntent(command: string): LoviraVoiceIntent | null {
     };
   }
 
-  if (clean === 'quay lại' || clean === 'quay lai') {
+  if (norm === 'quay lai' || norm === 'tro ve' || norm === 'trang truoc' || norm === 'lui lai') {
     return {
       action: 'GO_BACK',
       confidence: 1.0,
@@ -48,134 +99,169 @@ export function matchLocalIntent(command: string): LoviraVoiceIntent | null {
     };
   }
 
-  if (clean === 'mở nhìn giúp tôi' || clean === 'mo nhin giup toi' || clean === 'mở camera' || clean === 'mo camera') {
+  if (
+    norm === 'mo nhin giup toi' ||
+    norm === 'nhin giup toi' ||
+    norm === 'vao nhin giup toi' ||
+    norm === 'chon nhin giup toi' ||
+    norm === 'chuc nang nhin' ||
+    norm === 'mo camera' ||
+    norm === 'bat camera' ||
+    norm === 'toi muon dung chuc nang nhin'
+  ) {
     return {
-      action: 'OPEN_CAMERA',
+      action: 'OPEN_VISION',
       confidence: 1.0,
       confirmationRequired: false,
-      feedback: 'Đang mở màn hình nhìn giúp tôi và kích hoạt camera.',
+      feedback: 'Đã mở Nhìn giúp tôi.',
     };
   }
 
-  if (clean === 'mở phần nghe' || clean === 'mo phan nghe' || clean === 'ghi âm' || clean === 'ghi am') {
+  if (
+    norm === 'mo nghe va ghi lai' ||
+    norm === 'nghe va ghi lai' ||
+    norm === 'mo phan nghe' ||
+    norm === 'vao nghe thoai' ||
+    norm === 'mo ghi am' ||
+    norm === 'ghi am' ||
+    norm === 'tro ly dam thoai'
+  ) {
     return {
       action: 'OPEN_CONVERSATION',
       confidence: 1.0,
       confirmationRequired: false,
-      feedback: 'Đang mở màn hình nghe và ghi âm.',
+      feedback: 'Đã mở Nghe & Ghi lại.',
     };
   }
 
-  if (clean === 'mở easy read' || clean === 'mo easy read' || clean === 'mở làm dễ hiểu' || clean === 'mo lam de hieu') {
+  if (
+    norm === 'mo lam noi dung de hieu' ||
+    norm === 'lam noi dung de hieu' ||
+    norm === 'mo easy read' ||
+    norm === 'easy read' ||
+    norm === 'mo lam de hieu' ||
+    norm === 'lam de hieu'
+  ) {
     return {
       action: 'OPEN_EASY_READ',
       confidence: 1.0,
       confirmationRequired: false,
-      feedback: 'Đang mở màn hình làm nội dung dễ hiểu.',
+      feedback: 'Đã mở Làm nội dung dễ hiểu.',
     };
   }
 
-  if (clean === 'mở tài liệu' || clean === 'mo tai lieu' || clean === 'hiểu tài liệu' || clean === 'hieu tai lieu') {
+  if (
+    norm === 'mo hieu tai lieu' ||
+    norm === 'hieu tai lieu' ||
+    norm === 'mo tai lieu' ||
+    norm === 'tai lieu' ||
+    norm === 'doc pdf'
+  ) {
     return {
       action: 'OPEN_DOCUMENTS',
       confidence: 1.0,
       confirmationRequired: false,
-      feedback: 'Đang mở màn hình hiểu tài liệu.',
+      feedback: 'Đã mở Hiểu tài liệu.',
     };
   }
 
-  if (clean === 'mở lịch sử' || clean === 'mo lich su' || clean === 'lịch sử' || clean === 'lich su') {
+  if (norm === 'mo lich su' || norm === 'lich su' || norm === 'xem lich su') {
     return {
       action: 'OPEN_HISTORY',
       confidence: 1.0,
       confirmationRequired: false,
-      feedback: 'Đang mở màn hình lịch sử.',
+      feedback: 'Đã mở Lịch sử.',
     };
   }
 
-  if (clean === 'mở trợ năng' || clean === 'mo tro nang' || clean === 'trợ năng' || clean === 'tro nang') {
-    return {
-      action: 'OPEN_ACCESSIBILITY',
-      confidence: 1.0,
-      confirmationRequired: false,
-      feedback: 'Đang mở màn hình cấu hình trợ năng.',
-    };
-  }
-
-  if (clean === 'mở cài đặt' || clean === 'mo cai dat' || clean === 'cài đặt' || clean === 'cai dat') {
+  if (norm === 'mo cai dat' || norm === 'cai dat' || norm === 'thiet lap' || norm === 'mo tro nang' || norm === 'tro nang') {
     return {
       action: 'OPEN_SETTINGS',
       confidence: 1.0,
       confirmationRequired: false,
-      feedback: 'Đang mở màn hình cài đặt.',
+      feedback: 'Đã mở Cài đặt.',
     };
   }
 
-  // 3. Accessibility controls
-  if (clean === 'tăng chữ' || clean === 'tang chu' || clean === 'chữ to hơn' || clean === 'chu to hon') {
+  // 4. Accessibility controls
+  if (
+    norm === 'tang chu' ||
+    norm === 'phong to chu' ||
+    norm === 'chu to hon' ||
+    norm === 'cho chu to len' ||
+    norm === 'chu be qua'
+  ) {
     return {
       action: 'INCREASE_FONT',
       confidence: 1.0,
       confirmationRequired: false,
-      feedback: 'Đã tăng kích thước chữ.',
+      feedback: 'Đã phóng to chữ.',
     };
   }
 
-  if (clean === 'giảm chữ' || clean === 'giam chu' || clean === 'chữ nhỏ hơn' || clean === 'chu nho hon') {
+  if (
+    norm === 'giam chu' ||
+    norm === 'thu nho chu' ||
+    norm === 'chu nho hon' ||
+    norm === 'chu nho lai'
+  ) {
     return {
       action: 'DECREASE_FONT',
       confidence: 1.0,
       confirmationRequired: false,
-      feedback: 'Đã giảm kích thước chữ.',
+      feedback: 'Đã thu nhỏ chữ.',
     };
   }
 
-  if (clean === 'bật tương phản cao' || clean === 'bat tuong phan cao' || clean === 'tương phản cao' || clean === 'tuong phan cao') {
+  if (
+    norm === 'bat tuong phan cao' ||
+    norm === 'tuong phan cao' ||
+    norm === 'mau sac dam hon' ||
+    norm === 'dam vien'
+  ) {
     return {
       action: 'ENABLE_HIGH_CONTRAST',
       confidence: 1.0,
       confirmationRequired: false,
-      feedback: 'Đã kích hoạt chế độ tương phản cao.',
+      feedback: 'Đã bật tương phản cao.',
     };
   }
 
-  if (clean === 'tắt tương phản cao' || clean === 'tat tuong phan cao') {
+  if (norm === 'tat tuong phan cao' || norm === 'giao dien binh thuong') {
     return {
       action: 'DISABLE_HIGH_CONTRAST',
       confidence: 1.0,
       confirmationRequired: false,
-      feedback: 'Đã tắt chế độ tương phản cao.',
+      feedback: 'Đã tắt tương phản cao.',
     };
   }
 
-  if (clean === 'bật nút lớn' || clean === 'bat nut lon' || clean === 'nút lớn' || clean === 'nut lon') {
+  if (norm === 'bat nut lon' || norm === 'nut lon' || norm === 'nut to hon') {
     return {
       action: 'ENABLE_LARGE_CONTROLS',
       confidence: 1.0,
       confirmationRequired: false,
-      feedback: 'Đã kích hoạt chế độ nút lớn trợ năng.',
+      feedback: 'Đã bật nút lớn.',
     };
   }
 
-  if (clean === 'tắt nút lớn' || clean === 'tat nut lon') {
+  if (norm === 'tat nut lon' || norm === 'nut binh thuong') {
     return {
       action: 'DISABLE_LARGE_CONTROLS',
       confidence: 1.0,
       confirmationRequired: false,
-      feedback: 'Đã tắt chế độ nút lớn.',
+      feedback: 'Đã tắt nút lớn.',
     };
   }
 
-  // 4. Reading controls
+  // 5. Reading & Speech controls
   if (
-    clean === 'dừng đọc' ||
-    clean === 'dung doc' ||
-    clean === 'dừng' ||
-    clean === 'dung' ||
-    clean === 'im lặng' ||
-    clean === 'im lang' ||
-    clean === 'ngừng đọc' ||
-    clean === 'ngung doc'
+    norm === 'dung doc' ||
+    norm === 'dung noi' ||
+    norm === 'tat tieng' ||
+    norm === 'im lang' ||
+    norm === 'ngung doc' ||
+    norm === 'dung'
   ) {
     return {
       action: 'STOP_READING',
@@ -185,7 +271,16 @@ export function matchLocalIntent(command: string): LoviraVoiceIntent | null {
     };
   }
 
-  if (clean === 'nói chậm lại' || clean === 'noi cham lai' || clean === 'đọc chậm lại' || clean === 'doc cham lai') {
+  if (norm === 'doc trang nay' || norm === 'doc man hinh' || norm === 'doc toan bo trang') {
+    return {
+      action: 'READ_PAGE',
+      confidence: 1.0,
+      confirmationRequired: false,
+      feedback: 'Đang đọc nội dung trang hiện tại.',
+    };
+  }
+
+  if (norm === 'noi cham lai' || norm === 'doc cham lai' || norm === 'cham hon chut') {
     return {
       action: 'SPEAK_SLOWER',
       confidence: 1.0,
@@ -194,7 +289,7 @@ export function matchLocalIntent(command: string): LoviraVoiceIntent | null {
     };
   }
 
-  if (clean === 'nói nhanh hơn' || clean === 'noi nhanh hon' || clean === 'đọc nhanh hơn' || clean === 'doc nhanh hon') {
+  if (norm === 'noi nhanh hon' || norm === 'doc nhanh hon' || norm === 'nhanh hon chut') {
     return {
       action: 'SPEAK_FASTER',
       confidence: 1.0,
@@ -203,8 +298,7 @@ export function matchLocalIntent(command: string): LoviraVoiceIntent | null {
     };
   }
 
-  // 5. Context / Status
-  if (clean === 'tôi đang ở đâu' || clean === 'toi dang o dau' || clean === 'trang này là gì' || clean === 'trang nay la gi') {
+  if (norm === 'toi dang o dau' || norm === 'trang nay la gi' || norm === 'mo ta trang') {
     return {
       action: 'DESCRIBE_CURRENT_PAGE',
       confidence: 1.0,
@@ -212,14 +306,6 @@ export function matchLocalIntent(command: string): LoviraVoiceIntent | null {
     };
   }
 
-  if (clean === 'chụp' || clean === 'chup' || clean === 'chụp ảnh' || clean === 'chup anh') {
-    return {
-      action: 'CAPTURE_IMAGE',
-      confidence: 1.0,
-      confirmationRequired: false,
-      feedback: 'Đang tiến hành chụp ảnh.',
-    };
-  }
-
   return null;
 }
+

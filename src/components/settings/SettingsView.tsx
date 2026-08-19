@@ -18,6 +18,7 @@ import { AccessibilitySettings, UserProfile } from '../../types';
 import { DEFAULT_ACCESSIBILITY_SETTINGS } from '../../constants';
 import { speakText, stopSpeaking, getAvailableVietnameseVoices } from '../../lib/speech';
 import { linkGoogleAccount } from '../../lib/firebase';
+import { useRegisterScreenActions } from '../voice-access/ScreenActionRegistry';
 
 interface SettingsViewProps {
   settings: AccessibilitySettings;
@@ -163,6 +164,77 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       onUpdateSettings(DEFAULT_ACCESSIBILITY_SETTINGS);
     }
   };
+
+  useRegisterScreenActions({
+    screenId: 'settings',
+    screenTitle: 'Cài đặt & Trợ năng',
+    screenState: {
+      fontScale: settings.fontScale,
+      highContrast: settings.highContrast,
+      reducedMotion: settings.reducedMotion,
+      largeControls: settings.largeControls,
+      voiceAccessEnabled: settings.voiceAccessEnabled,
+      spokenFeedbackEnabled: settings.spokenFeedbackEnabled,
+      speechRate: settings.speechRate,
+    },
+    actions: [
+      {
+        id: 'increaseFont',
+        label: 'Tăng cỡ chữ',
+        aliases: ['tăng cỡ chữ', 'chữ to hơn', 'phóng to chữ'],
+        description: 'Tăng kích thước hiển thị chữ trên toàn bộ giao diện',
+        handler: () => {
+          const nextScales: Record<string, string> = { '100': '125', '125': '150', '150': '175', '175': '175' };
+          onUpdateSettings({ fontScale: nextScales[settings.fontScale] as any });
+        },
+      },
+      {
+        id: 'decreaseFont',
+        label: 'Giảm cỡ chữ',
+        aliases: ['giảm cỡ chữ', 'chữ nhỏ hơn', 'thu nhỏ chữ'],
+        description: 'Giảm kích thước hiển thị chữ trên toàn bộ giao diện',
+        handler: () => {
+          const prevScales: Record<string, string> = { '175': '150', '150': '125', '125': '100', '100': '100' };
+          onUpdateSettings({ fontScale: prevScales[settings.fontScale] as any });
+        },
+      },
+      {
+        id: 'toggleHighContrast',
+        label: 'Bật/Tắt tương phản cao',
+        aliases: ['tương phản cao', 'đổi tương phản'],
+        description: 'Bật hoặc tắt chế độ màu tương phản cao',
+        handler: () => onUpdateSettings({ highContrast: !settings.highContrast }),
+      },
+      {
+        id: 'toggleReducedMotion',
+        label: 'Bật/Tắt giảm chuyển động',
+        aliases: ['giảm chuyển động', 'tắt hiệu ứng chuyển động'],
+        description: 'Bật hoặc tắt hiệu ứng chuyển động',
+        handler: () => onUpdateSettings({ reducedMotion: !settings.reducedMotion }),
+      },
+      {
+        id: 'toggleLargeControls',
+        label: 'Bật/Tắt nút lớn trợ năng',
+        aliases: ['nút lớn', 'nút bấm to', 'chế độ nút lớn'],
+        description: 'Phóng to các nút bấm và vùng chạm trợ năng',
+        handler: () => onUpdateSettings({ largeControls: !settings.largeControls }),
+      },
+      {
+        id: 'testVoice',
+        label: 'Nghe thử giọng đọc',
+        aliases: ['nghe thử giọng đọc', 'thử giọng', 'đọc thử'],
+        description: 'Phát một đoạn văn bản mẫu để kiểm tra giọng đọc',
+        handler: () => handleTestVoice(),
+      },
+      {
+        id: 'resetSettings',
+        label: 'Khôi phục mặc định',
+        aliases: ['khôi phục mặc định', 'cài đặt gốc', 'đặt lại cài đặt'],
+        description: 'Đặt lại toàn bộ cài đặt trợ năng về mặc định ban đầu',
+        handler: () => handleResetSettings(),
+      },
+    ],
+  });
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
