@@ -29,6 +29,48 @@ interface ConversationViewProps {
   onNavigate: (route: string) => void;
 }
 
+function mergeTranscripts(prev: string, newText: string): string {
+  const current = prev.trim();
+  const incoming = newText.trim();
+  if (!incoming) return current;
+  if (!current) return incoming;
+
+  const currentLower = current.toLowerCase();
+  const incomingLower = incoming.toLowerCase();
+
+  // 1. Exact match or prev ends with incoming
+  if (currentLower.endsWith(incomingLower)) {
+    return current;
+  }
+
+  // 2. Incoming is a progressive expansion containing current at start ("Xin" -> "Xin chào" -> "Xin chào 123")
+  if (incomingLower.startsWith(currentLower)) {
+    return incoming;
+  }
+
+  // 3. Check word-level overlap
+  const currentWords = current.split(/\s+/);
+  const incomingWords = incoming.split(/\s+/);
+  const maxCheck = Math.min(currentWords.length, incomingWords.length);
+
+  let overlapCount = 0;
+  for (let k = maxCheck; k > 0; k--) {
+    const currentSuffix = currentWords.slice(currentWords.length - k).join(' ').toLowerCase();
+    const incomingPrefix = incomingWords.slice(0, k).join(' ').toLowerCase();
+    if (currentSuffix === incomingPrefix) {
+      overlapCount = k;
+      break;
+    }
+  }
+
+  if (overlapCount > 0) {
+    const nonOverlapping = incomingWords.slice(overlapCount).join(' ');
+    return nonOverlapping ? `${current} ${nonOverlapping}` : current;
+  }
+
+  return `${current} ${incoming}`;
+}
+
 export const ConversationView: React.FC<ConversationViewProps> = ({
   userProfile,
   settings,
@@ -70,12 +112,7 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
     const instance = createSpeechRecognitionInstance(
       (newText, isFinal) => {
         if (isFinal) {
-          setTranscript((prev) => {
-            const cleanNew = newText.trim();
-            if (!cleanNew) return prev;
-            if (prev.endsWith(cleanNew)) return prev;
-            return prev ? `${prev} ${cleanNew}` : cleanNew;
-          });
+          setTranscript((prev) => mergeTranscripts(prev, newText));
           setInterimText('');
         } else {
           setInterimText(newText);

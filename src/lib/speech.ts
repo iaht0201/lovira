@@ -133,25 +133,22 @@ export function createSpeechRecognitionInstance(
     recognition.interimResults = true;
     recognition.lang = 'vi-VN';
 
-    let lastFinalIndex = 0;
-
     recognition.onresult = (event: any) => {
       let interimTranscript = '';
       let newFinalTranscript = '';
 
-      for (let i = lastFinalIndex; i < event.results.length; ++i) {
+      for (let i = event.resultIndex; i < event.results.length; ++i) {
+        const transcript = event.results[i][0].transcript;
         if (event.results[i].isFinal) {
-          newFinalTranscript += event.results[i][0].transcript + ' ';
-          lastFinalIndex = i + 1;
+          newFinalTranscript += transcript + ' ';
         } else {
-          interimTranscript += event.results[i][0].transcript;
+          interimTranscript += transcript;
         }
       }
 
       if (newFinalTranscript.trim()) {
         onResult(newFinalTranscript.trim(), true);
-      }
-      if (interimTranscript.trim()) {
+      } else if (interimTranscript.trim()) {
         onResult(interimTranscript.trim(), false);
       }
     };
