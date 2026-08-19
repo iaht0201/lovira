@@ -26,6 +26,28 @@
         "createdAt": { "type": "timestamp", "description": "Creation timestamp", "required": true },
         "data": { "type": "map", "description": "Structured activity payload", "required": false }
       }
+    },
+    "LifeSession": {
+      "collectionName": "life_sessions",
+      "path": "users/{userId}/life_sessions/{sessionId}",
+      "description": "Lovira Life active and archived context sessions (tasks, facts, goals, plan steps)",
+      "fields": {
+        "id": { "type": "string", "description": "Session ID", "required": true },
+        "type": { "type": "string", "description": "Session type", "required": true },
+        "title": { "type": "string", "description": "Session title", "required": true },
+        "goal": { "type": "string", "description": "Session goal", "required": true },
+        "status": { "type": "string", "description": "Session status (active, paused, completed)", "required": true },
+        "currentStep": { "type": "string", "description": "Current step description", "required": false },
+        "nextRecommendedAction": { "type": "string", "description": "Recommended next action", "required": false },
+        "plan": { "type": "array", "description": "Plan steps", "required": false },
+        "completedSteps": { "type": "array", "description": "Completed plan steps", "required": false },
+        "importantFacts": { "type": "array", "description": "Important facts", "required": false },
+        "tasks": { "type": "array", "description": "Checklist tasks", "required": false },
+        "resources": { "type": "array", "description": "Attached resources", "required": false },
+        "conversationContext": { "type": "array", "description": "Conversation turns in session", "required": false },
+        "createdAt": { "type": "number", "description": "Creation timestamp", "required": true },
+        "updatedAt": { "type": "number", "description": "Last updated timestamp", "required": true }
+      }
     }
   }
 }

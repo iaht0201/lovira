@@ -10,6 +10,7 @@ import {
   ListOrdered,
 } from 'lucide-react';
 import { ReadAloudButton } from '../common/ReadAloudButton';
+import { VoiceInputButton } from '../common/VoiceInputButton';
 import { LoadingSpinner } from '../common/LoadingSpinner';
 import { EasyReadResult, UserProfile, AccessibilitySettings } from '../../types';
 import { SAMPLE_EASY_READ_TEXTS } from '../../constants';
@@ -255,12 +256,23 @@ export const EasyReadView: React.FC<EasyReadViewProps> = ({
           <div className="space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
               <h3 className="font-bold text-base text-text-primary">Văn bản gốc</h3>
-              <button
-                onClick={handleClear}
-                className="text-xs font-semibold text-text-secondary hover:text-rose-600 flex items-center gap-1"
-              >
-                <Trash2 className="w-3.5 h-3.5" /> Xóa
-              </button>
+              <div className="flex items-center gap-2">
+                <VoiceInputButton
+                  currentValue={inputText}
+                  onTranscript={(newText) => setInputText(newText)}
+                  promptMessage="Xin mời bạn đọc hoặc nói đoạn văn bản cần làm dễ hiểu nhé, tôi đang lắng nghe..."
+                  label="Lắng nghe & Tự nhập văn bản"
+                  size="sm"
+                  showGuidedPrompt={true}
+                />
+                <button
+                  type="button"
+                  onClick={handleClear}
+                  className="text-xs font-semibold text-text-secondary hover:text-rose-600 flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors"
+                >
+                  <Trash2 className="w-3.5 h-3.5" /> Xóa
+                </button>
+              </div>
             </div>
 
             <textarea

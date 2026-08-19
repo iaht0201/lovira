@@ -13,6 +13,7 @@ import {
   FileCheck,
 } from 'lucide-react';
 import { ReadAloudButton } from '../common/ReadAloudButton';
+import { VoiceInputButton } from '../common/VoiceInputButton';
 import { LoadingSpinner } from '../common/LoadingSpinner';
 import { DocumentAnalysis, UserProfile, AccessibilitySettings } from '../../types';
 import { DEMO_DOCUMENTS } from '../../constants';
@@ -443,7 +444,7 @@ export const DocumentView: React.FC<DocumentViewProps> = ({
                     </div>
                   )}
 
-                  <form onSubmit={handleAskQuestion} className="flex gap-2">
+                  <form onSubmit={handleAskQuestion} className="flex items-center gap-2">
                     <input
                       type="text"
                       value={question}
@@ -451,10 +452,18 @@ export const DocumentView: React.FC<DocumentViewProps> = ({
                       placeholder="Đặt câu hỏi về tài liệu..."
                       className="flex-1 px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-surface text-xs text-text-primary focus:border-primary"
                     />
+                    <VoiceInputButton
+                      currentValue={question}
+                      onTranscript={(newText) => setQuestion(newText)}
+                      promptMessage="Xin mời bạn nói câu hỏi cần tra cứu trong tài liệu này..."
+                      label="Nói câu hỏi tra cứu tài liệu"
+                      size="sm"
+                      showGuidedPrompt={true}
+                    />
                     <button
                       type="submit"
                       disabled={qaLoading || !question.trim()}
-                      className="px-4 py-2 rounded-xl bg-primary text-white font-semibold text-xs hover:bg-primary-hover disabled:opacity-50"
+                      className="px-4 py-2 rounded-xl bg-primary text-white font-semibold text-xs hover:bg-primary-hover disabled:opacity-50 flex items-center justify-center shrink-0"
                     >
                       <Send className="w-4 h-4" />
                     </button>

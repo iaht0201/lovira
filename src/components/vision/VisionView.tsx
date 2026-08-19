@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { CameraModal } from './CameraModal';
 import { ReadAloudButton } from '../common/ReadAloudButton';
+import { VoiceInputButton } from '../common/VoiceInputButton';
 import { LoadingSpinner } from '../common/LoadingSpinner';
 import { VisionResult, UserProfile, AccessibilitySettings } from '../../types';
 import { analyzeVision, fetchApi } from '../../services/api';
@@ -480,10 +481,18 @@ export const VisionView: React.FC<VisionViewProps> = ({
                 placeholder="Hỏi thêm về ảnh này (Ví dụ: Trên bàn có chìa khóa không?)..."
                 className="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-surface text-sm text-text-primary focus:border-primary"
               />
+              <VoiceInputButton
+                currentValue={followUpQuestion}
+                onTranscript={(newText) => setFollowUpQuestion(newText)}
+                promptMessage="Xin mời bạn hỏi điều bạn cần biết thêm về bức ảnh này nhé..."
+                label="Hỏi thêm về ảnh bằng giọng nói"
+                size="md"
+                showGuidedPrompt={true}
+              />
               <button
                 type="submit"
                 disabled={!selectedImage || !followUpQuestion.trim() || followUpLoading}
-                className="px-5 py-2.5 rounded-xl bg-primary text-white font-semibold text-sm hover:bg-primary-hover disabled:opacity-50"
+                className="px-5 py-2.5 rounded-xl bg-primary text-white font-semibold text-sm hover:bg-primary-hover disabled:opacity-50 flex items-center justify-center shrink-0"
               >
                 Gửi
               </button>

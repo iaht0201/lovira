@@ -16,6 +16,8 @@ import { speakText, stopSpeaking } from '../lib/speech';
 import { AccessibilitySettings } from '../types';
 import { LoviraMicCoordinator } from '../components/voice-access/MicrophoneCoordinator';
 
+import { auth } from '../lib/firebase';
+
 interface AgentContextType {
   agentState: AgentState;
   statusMessage: string;
@@ -36,6 +38,7 @@ interface AgentContextType {
   completeSession: () => void;
   resumeSession: (sessionId: string) => void;
   clearSession: () => void;
+  deleteSession: (sessionId: string) => void;
   toggleTask: (taskId: string) => void;
   addFact: (fact: Omit<ImportantFact, 'id' | 'createdAt'>) => void;
   addTask: (task: Omit<SessionTask, 'id' | 'createdAt'>) => void;
@@ -79,12 +82,17 @@ export const AgentProvider: React.FC<AgentProviderProps> = ({
 
   const { executeAction: executeScreenAction, currentScreenInfo } = useScreenActionContext();
 
-  // Subscribe to SessionManager updates
+  // Subscribe to SessionManager updates and sync cloud sessions
   useEffect(() => {
     const unsub = SessionManager.subscribe((sess) => {
       setActiveSession(sess);
       setAllSessions(SessionManager.getLocalSessions());
     });
+
+    if (auth?.currentUser?.uid) {
+      SessionManager.syncCloudSessions(auth.currentUser.uid);
+    }
+
     return unsub;
   }, []);
 
@@ -366,6 +374,7 @@ export const AgentProvider: React.FC<AgentProviderProps> = ({
     onNavigate('/session');
   };
   const clearSession = () => SessionManager.clearActiveSession();
+  const deleteSession = (id: string) => SessionManager.deleteSession(id);
   const toggleTask = (taskId: string) => SessionManager.toggleTask(taskId);
   const addFact = (fact: Omit<ImportantFact, 'id' | 'createdAt'>) => SessionManager.addFact(fact);
   const addTask = (task: Omit<SessionTask, 'id' | 'createdAt'>) => SessionManager.addTask(task);
@@ -392,6 +401,7 @@ export const AgentProvider: React.FC<AgentProviderProps> = ({
         completeSession,
         resumeSession,
         clearSession,
+        deleteSession,
         toggleTask,
         addFact,
         addTask,

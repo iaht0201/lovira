@@ -155,6 +155,55 @@ export class IntentResolver {
       };
     }
 
+    // 1. Lovira Life direct activation (Highest Priority for Life Mode)
+    if (
+      text === 'lovira life' ||
+      text === 'lovira live' ||
+      text === 'bật lovira life' ||
+      text === 'mở lovira life' ||
+      text === 'chế độ lovira life' ||
+      text === 'chế độ đời sống' ||
+      text === 'chế độ cuộc sống' ||
+      text === 'phiên đời sống' ||
+      text === 'phiên làm việc' ||
+      text === 'mở phiên làm việc' ||
+      text === 'xem phiên làm việc' ||
+      text === 'lovira' ||
+      text === 'life' ||
+      text.includes('lovira life') ||
+      text.includes('chế độ lovira')
+    ) {
+      if (context.activeSession) {
+        return {
+          source: 'deterministic',
+          intent: 'open_lovira_life_active',
+          confidence: 1.0,
+          needsClarification: false,
+          feedback: `Đang mở phiên Lovira Life "${context.activeSession.title}" của bạn.`,
+          plan: [
+            {
+              action: 'navigation.openSession',
+              reason: 'Mở phiên làm việc Lovira Life đang hoạt động',
+            },
+          ],
+        };
+      } else {
+        return {
+          source: 'deterministic',
+          intent: 'open_lovira_life_new',
+          confidence: 1.0,
+          needsClarification: false,
+          feedback: 'Chào bạn! Chế độ Lovira Life đã sẵn sàng. Bạn muốn đi khám bệnh, làm thủ tục hành chính, mua sắm hay đọc tài liệu?',
+          plan: [
+            {
+              action: 'navigation.openSession',
+              reason: 'Mở màn hình chọn tình huống Lovira Life',
+            },
+          ],
+        };
+      }
+    }
+
     // 1. Session Memory questions
     if (
       text === 'giờ tôi phải làm gì' ||

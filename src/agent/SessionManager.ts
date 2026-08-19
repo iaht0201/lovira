@@ -353,6 +353,52 @@ export class SessionManager {
     }
   }
 
+  public static async syncCloudSessions(uid: string): Promise<LifeSession[]> {
+    if (!firebaseInitialized || !db || !uid) {
+      return this.getLocalSessions();
+    }
+
+    try {
+      const sessionsCol = collection(db, 'users', uid, 'life_sessions');
+      const q = query(sessionsCol, orderBy('updatedAt', 'desc'));
+      const snap = await getDocs(q);
+      const cloudSessions: LifeSession[] = [];
+      snap.forEach((docSnap) => {
+        const data = docSnap.data() as LifeSession;
+        cloudSessions.push(data);
+      });
+
+      if (cloudSessions.length > 0) {
+        // Merge cloud with local sessions (cloud prioritized by updatedAt)
+        const local = this.getLocalSessions();
+        const map = new Map<string, LifeSession>();
+        local.forEach((s) => map.set(s.id, s));
+        cloudSessions.forEach((s) => map.set(s.id, s));
+
+        const merged = Array.from(map.values()).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+        localStorage.setItem(LOCAL_SESSIONS_KEY, JSON.stringify(merged.slice(0, 50)));
+
+        const activeId = localStorage.getItem(LOCAL_ACTIVE_SESSION_ID_KEY);
+        if (activeId && map.has(activeId)) {
+          this.activeSession = map.get(activeId)!;
+        } else if (!this.activeSession) {
+          const active = merged.find((s) => s.status === 'active');
+          if (active) {
+            this.activeSession = active;
+            localStorage.setItem(LOCAL_ACTIVE_SESSION_ID_KEY, active.id);
+          }
+        }
+
+        this.notifyListeners();
+        return merged;
+      }
+    } catch (e) {
+      console.warn('[SessionManager] Cloud session sync error:', e);
+    }
+
+    return this.getLocalSessions();
+  }
+
   public static async saveSession(session: LifeSession): Promise<void> {
     // 1. Local Storage
     try {
@@ -381,6 +427,11 @@ export class SessionManager {
       const all = this.getLocalSessions();
       const filtered = all.filter((s) => s.id !== sessionId);
       localStorage.setItem(LOCAL_SESSIONS_KEY, JSON.stringify(filtered));
+      if (this.activeSession?.id === sessionId) {
+        this.activeSession = null;
+        localStorage.removeItem(LOCAL_ACTIVE_SESSION_ID_KEY);
+        this.notifyListeners();
+      }
     } catch {
       // ignore
     }

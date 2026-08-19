@@ -91,10 +91,23 @@ export const CORE_AGENT_ACTIONS: AgentActionDefinition[] = [
   },
   {
     id: 'navigation.openSession',
-    label: 'Xem phiên làm việc hiện tại',
-    description: 'Mở màn hình chi tiết của phiên đời sống đang thực hiện',
+    label: 'Mở chế độ Lovira Life / Xem phiên làm việc',
+    description: 'Mở màn hình chi tiết của phiên đời sống đang thực hiện hoặc chọn tình huống Lovira Life',
     category: 'navigation',
-    aliases: ['xem phiên hiện tại', 'phiên làm việc', 'nhiệm vụ hiện tại', 'mở phiên'],
+    aliases: [
+      'lovira life',
+      'lovira live',
+      'bật lovira life',
+      'mở lovira life',
+      'chế độ lovira life',
+      'chế độ cuộc sống',
+      'chế độ đời sống',
+      'phiên đời sống',
+      'xem phiên hiện tại',
+      'phiên làm việc',
+      'nhiệm vụ hiện tại',
+      'mở phiên',
+    ],
   },
 
   // ==================== VISION ====================

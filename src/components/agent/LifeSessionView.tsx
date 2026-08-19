@@ -25,6 +25,7 @@ import { LIFE_MODE_CONFIGS } from '../../agent/SessionManager';
 import { speakText } from '../../lib/speech';
 import { useRegisterScreenActions } from '../voice-access/ScreenActionRegistry';
 import { AccessibilitySettings } from '../../types';
+import { VoiceInputButton } from '../common/VoiceInputButton';
 
 interface LifeSessionViewProps {
   settings: AccessibilitySettings;
@@ -37,9 +38,12 @@ export const LifeSessionView: React.FC<LifeSessionViewProps> = ({
 }) => {
   const {
     activeSession,
+    allSessions,
     pauseSession,
     completeSession,
+    resumeSession,
     clearSession,
+    deleteSession,
     toggleTask,
     addFact,
     addTask,
@@ -117,30 +121,102 @@ export const LifeSessionView: React.FC<LifeSessionViewProps> = ({
 
   if (!activeSession) {
     return (
-      <div className="max-w-2xl mx-auto text-center py-16 space-y-6">
-        <div className="w-16 h-16 rounded-3xl bg-primary/10 text-primary flex items-center justify-center mx-auto">
-          <Sparkles className="w-8 h-8 shrink-0" />
+      <div className="max-w-3xl mx-auto py-8 space-y-8">
+        <div className="text-center space-y-4">
+          <div className="w-16 h-16 rounded-3xl bg-primary/10 text-primary flex items-center justify-center mx-auto">
+            <Sparkles className="w-8 h-8 shrink-0" />
+          </div>
+          <div>
+            <h2 className="text-2xl font-bold text-text-primary">Chưa có phiên làm việc nào đang mở</h2>
+            <p className="text-sm text-text-secondary mt-2 max-w-md mx-auto leading-relaxed">
+              Lovira Life giúp bạn lưu lại toàn bộ hành trình đi khám, làm thủ tục hành chính, mua sắm hoặc đọc tài liệu một cách liền mạch.
+            </p>
+          </div>
+          <div className="flex flex-wrap justify-center gap-3">
+            <button
+              onClick={() => setIsLifeModalOpen(true)}
+              className="px-5 py-3 rounded-2xl bg-primary text-white font-semibold hover:bg-primary-hover shadow-md flex items-center gap-2 text-sm"
+            >
+              <Plus className="w-4 h-4" /> Bắt đầu tình huống mới
+            </button>
+            <button
+              onClick={() => onNavigate('/')}
+              className="px-5 py-3 rounded-2xl bg-surface border border-slate-200 dark:border-slate-800 text-text-primary font-semibold hover:bg-surface-subtle text-sm"
+            >
+              Về trang chủ
+            </button>
+          </div>
         </div>
-        <div>
-          <h2 className="text-2xl font-bold text-text-primary">Chưa có phiên làm việc nào đang mở</h2>
-          <p className="text-sm text-text-secondary mt-2 max-w-md mx-auto leading-relaxed">
-            Lovira Life giúp bạn theo dõi từng bước khi đi khám, làm thủ tục hành chính, mua sắm hoặc đọc tài liệu.
-          </p>
-        </div>
-        <div className="flex flex-wrap justify-center gap-3">
-          <button
-            onClick={() => setIsLifeModalOpen(true)}
-            className="px-5 py-3 rounded-2xl bg-primary text-white font-semibold hover:bg-primary-hover shadow-md flex items-center gap-2 text-sm"
-          >
-            <Plus className="w-4 h-4" /> Bắt đầu tình huống mới
-          </button>
-          <button
-            onClick={() => onNavigate('/')}
-            className="px-5 py-3 rounded-2xl bg-surface border border-slate-200 dark:border-slate-800 text-text-primary font-semibold hover:bg-surface-subtle text-sm"
-          >
-            Về trang chủ
-          </button>
-        </div>
+
+        {/* Persisted Sessions List */}
+        {allSessions.length > 0 && (
+          <div className="bg-surface border border-slate-200 dark:border-slate-800 rounded-3xl p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-bold text-text-primary flex items-center gap-2">
+                <FileText className="w-4 h-4 text-primary" />
+                <span>Các phiên Lovira Life đã lưu ({allSessions.length})</span>
+              </h3>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {allSessions.map((sess) => (
+                <div
+                  key={sess.id}
+                  className="p-4 rounded-2xl bg-surface-subtle border border-slate-200 dark:border-slate-800 flex flex-col justify-between gap-3 hover:border-primary/50 transition-colors"
+                >
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary">
+                        {LIFE_MODE_CONFIGS[sess.type]?.title || 'Đời sống'}
+                      </span>
+                      <span
+                        className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${
+                          sess.status === 'completed'
+                            ? 'bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300'
+                            : sess.status === 'active'
+                            ? 'bg-blue-100 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300'
+                            : 'bg-amber-100 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300'
+                        }`}
+                      >
+                        {sess.status === 'completed' ? 'Hoàn thành' : sess.status === 'active' ? 'Đang mở' : 'Tạm dừng'}
+                      </span>
+                    </div>
+                    <h4 className="text-sm font-bold text-text-primary mt-1">{sess.title}</h4>
+                    <p className="text-xs text-text-secondary line-clamp-2">{sess.goal}</p>
+                    <div className="flex items-center gap-3 text-[11px] text-text-secondary pt-1">
+                      <span>{sess.importantFacts.length} thông tin</span>
+                      <span>•</span>
+                      <span>
+                        {sess.tasks.filter((t) => t.status === 'done').length}/{sess.tasks.length} việc đã xong
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-200/50 dark:border-slate-800/50">
+                    <button
+                      onClick={() => resumeSession(sess.id)}
+                      className="px-3.5 py-1.5 rounded-xl bg-primary text-white text-xs font-semibold hover:bg-primary-hover flex items-center gap-1.5"
+                    >
+                      <Play className="w-3.5 h-3.5 fill-current" />
+                      <span>Tiếp tục phiên</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (window.confirm(`Xóa phiên "${sess.title}"?`)) {
+                          deleteSession(sess.id);
+                        }
+                      }}
+                      className="p-1.5 rounded-lg text-text-secondary hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/20"
+                      title="Xóa phiên"
+                      aria-label={`Xóa phiên ${sess.title}`}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -312,11 +388,11 @@ export const LifeSessionView: React.FC<LifeSessionViewProps> = ({
 
           {isAddingFact && (
             <form onSubmit={handleAddFactSubmit} className="p-3 rounded-2xl bg-surface-subtle space-y-2.5">
-              <div className="flex gap-2">
+              <div className="flex flex-col sm:flex-row gap-2">
                 <select
                   value={newFactType}
                   onChange={(e) => setNewFactType(e.target.value as any)}
-                  className="px-2.5 py-1.5 rounded-xl bg-surface border border-slate-200 dark:border-slate-700 text-xs text-text-primary"
+                  className="px-2.5 py-1.5 rounded-xl bg-surface border border-slate-200 dark:border-slate-700 text-xs text-text-primary shrink-0"
                 >
                   <option value="location">Địa điểm / Phòng</option>
                   <option value="date">Ngày / Giờ</option>
@@ -325,14 +401,24 @@ export const LifeSessionView: React.FC<LifeSessionViewProps> = ({
                   <option value="requirement">Hồ sơ cần</option>
                   <option value="other">Khác</option>
                 </select>
-                <input
-                  type="text"
-                  value={newFactValue}
-                  onChange={(e) => setNewFactValue(e.target.value)}
-                  placeholder="Ví dụ: Phòng 4, Số 126, Tái khám 25/08..."
-                  className="flex-1 px-3 py-1.5 rounded-xl bg-surface border border-slate-200 dark:border-slate-700 text-xs text-text-primary focus:outline-none focus:ring-1 focus:ring-primary"
-                  autoFocus
-                />
+                <div className="flex-1 flex items-center gap-1.5">
+                  <input
+                    type="text"
+                    value={newFactValue}
+                    onChange={(e) => setNewFactValue(e.target.value)}
+                    placeholder="Ví dụ: Phòng 4, Số 126, Tái khám 25/08..."
+                    className="flex-1 px-3 py-1.5 rounded-xl bg-surface border border-slate-200 dark:border-slate-700 text-xs text-text-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                    autoFocus
+                  />
+                  <VoiceInputButton
+                    currentValue={newFactValue}
+                    onTranscript={(newText) => setNewFactValue(newText)}
+                    promptMessage="Bạn hãy nói thông tin cần lưu như số phòng, số thứ tự, ngày hẹn hoặc dặn dò..."
+                    label="Nói thông tin cần lưu"
+                    size="sm"
+                    showGuidedPrompt={true}
+                  />
+                </div>
               </div>
               <div className="flex justify-end gap-2">
                 <button
@@ -398,14 +484,24 @@ export const LifeSessionView: React.FC<LifeSessionViewProps> = ({
 
           {isAddingTask && (
             <form onSubmit={handleAddTaskSubmit} className="p-3 rounded-2xl bg-surface-subtle space-y-2.5">
-              <input
-                type="text"
-                value={newTaskTitle}
-                onChange={(e) => setNewTaskTitle(e.target.value)}
-                placeholder="Nhập việc cần làm..."
-                className="w-full px-3 py-1.5 rounded-xl bg-surface border border-slate-200 dark:border-slate-700 text-xs text-text-primary focus:outline-none focus:ring-1 focus:ring-primary"
-                autoFocus
-              />
+              <div className="flex items-center gap-1.5">
+                <input
+                  type="text"
+                  value={newTaskTitle}
+                  onChange={(e) => setNewTaskTitle(e.target.value)}
+                  placeholder="Nhập việc cần làm..."
+                  className="flex-1 px-3 py-1.5 rounded-xl bg-surface border border-slate-200 dark:border-slate-700 text-xs text-text-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                  autoFocus
+                />
+                <VoiceInputButton
+                  currentValue={newTaskTitle}
+                  onTranscript={(newText) => setNewTaskTitle(newText)}
+                  promptMessage="Bạn hãy nói việc cần làm nhé..."
+                  label="Nói việc cần làm"
+                  size="sm"
+                  showGuidedPrompt={true}
+                />
+              </div>
               <div className="flex justify-end gap-2">
                 <button
                   type="button"
@@ -480,13 +576,21 @@ export const LifeSessionView: React.FC<LifeSessionViewProps> = ({
           </button>
         </div>
 
-        <form onSubmit={handleChatSubmit} className="flex gap-2 pt-1">
+        <form onSubmit={handleChatSubmit} className="flex items-center gap-2 pt-1">
           <input
             type="text"
             value={chatPrompt}
             onChange={(e) => setChatPrompt(e.target.value)}
-            placeholder="Hỏi bất kỳ điều gì về phiên này..."
+            placeholder="Hỏi bất kỳ điều gì về phiên này (Ví dụ: Giờ tôi phải làm gì?)..."
             className="flex-1 px-4 py-2.5 rounded-2xl bg-surface-subtle border border-slate-200 dark:border-slate-700 text-xs text-text-primary focus:outline-none focus:ring-2 focus:ring-primary"
+          />
+          <VoiceInputButton
+            currentValue={chatPrompt}
+            onTranscript={(newText) => setChatPrompt(newText)}
+            promptMessage="Bạn cần Lovira trợ giúp điều gì trong phiên làm việc này? Tôi đang lắng nghe..."
+            label="Nói câu hỏi hoặc dặn dò cho phiên"
+            size="md"
+            showGuidedPrompt={true}
           />
           <button
             type="submit"

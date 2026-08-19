@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   X,
   HeartPulse,
@@ -10,10 +10,12 @@ import {
   Clock,
   Play,
   Trash2,
+  Send,
 } from 'lucide-react';
 import { useAgent } from '../../agent/AgentController';
 import { LifeSessionType } from '../../agent/types';
 import { LIFE_MODE_CONFIGS } from '../../agent/SessionManager';
+import { VoiceInputButton } from '../common/VoiceInputButton';
 
 interface LifeScenarioPickerProps {
   isOpen: boolean;
@@ -27,6 +29,7 @@ export const LifeScenarioPicker: React.FC<LifeScenarioPickerProps> = ({
   onNavigate,
 }) => {
   const { createSession, allSessions, resumeSession, clearSession } = useAgent();
+  const [customGoal, setCustomGoal] = useState('');
 
   if (!isOpen) return null;
 
@@ -147,7 +150,7 @@ export const LifeScenarioPicker: React.FC<LifeScenarioPickerProps> = ({
         {/* 5 Scenario Cards Grid */}
         <div className="space-y-3">
           <h4 className="text-xs font-bold text-text-secondary uppercase tracking-wider">
-            Bắt đầu nhiệm vụ mới
+            Bắt đầu tình huống mẫu
           </h4>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
             {scenarios.map((sc) => (
@@ -167,6 +170,47 @@ export const LifeScenarioPicker: React.FC<LifeScenarioPickerProps> = ({
               </button>
             ))}
           </div>
+        </div>
+
+        {/* Custom Goal Voice Input */}
+        <div className="pt-2 border-t border-slate-200 dark:border-slate-800 space-y-2">
+          <h4 className="text-xs font-bold text-text-secondary uppercase tracking-wider flex items-center gap-1.5">
+            <Sparkles className="w-3.5 h-3.5 text-primary" /> Hoặc nói / tự nhập tình huống của riêng bạn
+          </h4>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (customGoal.trim()) {
+                createSession('general', customGoal.trim(), `Hỗ trợ: ${customGoal.trim()}`);
+                onClose();
+              }
+            }}
+            className="flex items-center gap-2"
+          >
+            <input
+              type="text"
+              value={customGoal}
+              onChange={(e) => setCustomGoal(e.target.value)}
+              placeholder="Ví dụ: Tôi muốn chuẩn bị đi làm lại thẻ ngân hàng..."
+              className="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-surface-subtle text-xs text-text-primary focus:border-primary"
+            />
+            <VoiceInputButton
+              currentValue={customGoal}
+              onTranscript={(newText) => setCustomGoal(newText)}
+              promptMessage="Xin mời bạn nói mục tiêu hoặc việc bạn cần làm trong tình huống này..."
+              label="Nói tình huống của bạn"
+              size="md"
+              showGuidedPrompt={true}
+            />
+            <button
+              type="submit"
+              disabled={!customGoal.trim()}
+              className="px-4 py-2.5 rounded-xl bg-primary text-white text-xs font-semibold hover:bg-primary-hover disabled:opacity-50 flex items-center gap-1 shrink-0"
+            >
+              <span>Bắt đầu</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          </form>
         </div>
       </div>
     </div>
