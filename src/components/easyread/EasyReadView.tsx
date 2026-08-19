@@ -97,9 +97,41 @@ export const EasyReadView: React.FC<EasyReadViewProps> = ({
           <h2 className="text-2xl font-bold text-text-primary">Làm nội dung dễ hiểu</h2>
           <p className="text-sm text-text-secondary mt-1">Chuyển các văn bản hành chính, thông báo phức tạp thành dạng dễ đọc, câu ngắn, rõ nghĩa.</p>
         </div>
+      </div>
+
+      {/* Level Selector & Mobile Workspace Tabs */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+        {/* Mobile Tab Switcher (Visible on Mobile < lg) */}
+        <div className="flex lg:hidden bg-surface border border-slate-200 dark:border-slate-800 p-1 rounded-xl">
+          <button
+            type="button"
+            onClick={() => setActiveMobileTab('input')}
+            className={`flex-1 py-2 text-xs font-bold rounded-lg transition-colors ${
+              activeMobileTab === 'input'
+                ? 'bg-primary text-white'
+                : 'text-text-secondary hover:text-text-primary'
+            }`}
+          >
+            Văn bản gốc
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveMobileTab('result')}
+            className={`flex-1 py-2 text-xs font-bold rounded-lg transition-colors relative ${
+              activeMobileTab === 'result'
+                ? 'bg-primary text-white'
+                : 'text-text-secondary hover:text-text-primary'
+            }`}
+          >
+            Nội dung dễ hiểu
+            {result && activeMobileTab !== 'result' && (
+              <span className="absolute top-1 right-2 w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+            )}
+          </button>
+        </div>
 
         {/* Level Selector */}
-        <div className="flex bg-surface border border-slate-200 dark:border-slate-800 p-1 rounded-xl">
+        <div className="flex bg-surface border border-slate-200 dark:border-slate-800 p-1 rounded-xl shrink-0">
           {[
             { id: 'standard', label: 'Tiêu chuẩn' },
             { id: 'easy', label: 'Dễ hiểu' },
@@ -108,7 +140,7 @@ export const EasyReadView: React.FC<EasyReadViewProps> = ({
             <button
               key={l.id}
               onClick={() => setLevel(l.id as any)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+              className={`flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
                 level === l.id
                   ? 'bg-primary-soft text-primary font-bold'
                   : 'text-text-secondary hover:text-text-primary font-semibold'
@@ -121,9 +153,13 @@ export const EasyReadView: React.FC<EasyReadViewProps> = ({
       </div>
 
       {/* Main Grid Workspace */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
         {/* Left Column: Input */}
-        <div className="space-y-4 bg-surface border border-slate-200 dark:border-slate-800 p-6 rounded-2xl flex flex-col justify-between min-h-[500px]">
+        <div
+          className={`space-y-4 bg-surface border border-slate-200 dark:border-slate-800 p-5 sm:p-6 rounded-2xl flex flex-col justify-between min-h-[450px] ${
+            activeMobileTab === 'input' ? 'block' : 'hidden lg:flex'
+          }`}
+        >
           <div className="space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
               <h3 className="font-bold text-base text-text-primary">Văn bản gốc</h3>
@@ -136,11 +172,11 @@ export const EasyReadView: React.FC<EasyReadViewProps> = ({
             </div>
 
             <textarea
-              rows={9}
+              rows={8}
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
               placeholder="Dán văn bản phức tạp, hợp đồng, thông báo hành chính hoặc bài hướng dẫn vào đây..."
-              className="w-full p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-surface text-sm text-text-primary focus:border-primary leading-relaxed"
+              className="w-full p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-surface text-sm text-text-primary focus:border-primary leading-relaxed break-words-safe"
             ></textarea>
 
             {/* Samples */}
@@ -153,7 +189,7 @@ export const EasyReadView: React.FC<EasyReadViewProps> = ({
                   <button
                     key={idx}
                     onClick={() => handleLoadSample(sample)}
-                    className="px-3 py-1.5 rounded-lg bg-surface-subtle hover:bg-slate-200 dark:hover:bg-slate-800 text-xs text-text-primary font-medium text-left truncate border border-slate-200 dark:border-slate-800"
+                    className="px-3 py-1.5 rounded-lg bg-surface-subtle hover:bg-slate-200 dark:hover:bg-slate-800 text-xs text-text-primary font-medium text-left border border-slate-200 dark:border-slate-800 break-words-safe"
                   >
                     {sample.title}
                   </button>
@@ -175,7 +211,11 @@ export const EasyReadView: React.FC<EasyReadViewProps> = ({
         </div>
 
         {/* Right Column: Result */}
-        <div className="bg-surface border border-slate-200 dark:border-slate-800 p-6 rounded-2xl flex flex-col justify-between min-h-[500px]">
+        <div
+          className={`bg-surface border border-slate-200 dark:border-slate-800 p-5 sm:p-6 rounded-2xl flex flex-col justify-between min-h-[450px] ${
+            activeMobileTab === 'result' ? 'block' : 'hidden lg:flex'
+          }`}
+        >
           {loading ? (
             <LoadingSpinner message="Lovira đang chuyển văn bản sang dạng dễ hiểu..." />
           ) : error ? (
@@ -184,12 +224,12 @@ export const EasyReadView: React.FC<EasyReadViewProps> = ({
             </div>
           ) : result ? (
             <div className="space-y-6">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
-                <h3 className="font-bold text-base text-text-primary">Nội dung Dễ hiểu (Easy Read)</h3>
+              <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-100 dark:border-slate-800">
+                <h3 className="font-bold text-base text-text-primary">Nội dung dễ hiểu</h3>
                 <div className="flex items-center gap-2">
                   <ReadAloudButton
                     text={`${result.title || ''}. ${result.summary}. ${result.simplifiedText}`}
-                    speechRate={settings.speechRate}
+                    settings={settings}
                     size="sm"
                   />
                   <button
@@ -203,10 +243,10 @@ export const EasyReadView: React.FC<EasyReadViewProps> = ({
               </div>
 
               {result.title && (
-                <h4 className="text-lg font-bold text-text-primary">{result.title}</h4>
+                <h4 className="text-base sm:text-lg font-bold text-text-primary break-words-safe">{result.title}</h4>
               )}
 
-              <div className="p-3.5 rounded-xl bg-surface-subtle text-sm text-text-primary leading-relaxed">
+              <div className="p-3.5 rounded-xl bg-surface-subtle text-sm text-text-primary leading-relaxed break-words-safe">
                 <strong>Tóm tắt:</strong> {result.summary}
               </div>
 
@@ -217,7 +257,7 @@ export const EasyReadView: React.FC<EasyReadViewProps> = ({
                   </h4>
                   <ol className="space-y-2 text-sm text-text-primary font-medium">
                     {result.steps.map((st, i) => (
-                      <li key={i} className="flex items-start gap-2">
+                      <li key={i} className="flex items-start gap-2 break-words-safe">
                         <span className="w-5 h-5 rounded-full bg-primary text-white text-xs flex items-center justify-center shrink-0 font-bold mt-0.5">
                           {i + 1}
                         </span>
@@ -230,7 +270,7 @@ export const EasyReadView: React.FC<EasyReadViewProps> = ({
 
               <div className="space-y-2">
                 <h4 className="text-xs font-bold text-text-secondary uppercase tracking-wider">Nội dung chi tiết</h4>
-                <div className="p-4 rounded-xl bg-surface-subtle text-sm leading-relaxed text-text-primary whitespace-pre-wrap">
+                <div className="p-4 rounded-xl bg-surface-subtle text-sm leading-relaxed text-text-primary whitespace-pre-wrap break-words-safe">
                   {result.simplifiedText}
                 </div>
               </div>
@@ -242,7 +282,7 @@ export const EasyReadView: React.FC<EasyReadViewProps> = ({
                   </h4>
                   <div className="space-y-1.5">
                     {result.difficultTerms.map((item, idx) => (
-                      <div key={idx} className="p-2.5 rounded-lg bg-surface-subtle text-xs border border-slate-100 dark:border-slate-800">
+                      <div key={idx} className="p-2.5 rounded-lg bg-surface-subtle text-xs border border-slate-100 dark:border-slate-800 break-words-safe">
                         <span className="font-bold text-primary">{item.term}:</span>{' '}
                         <span className="text-text-primary">{item.explanation}</span>
                       </div>
@@ -254,10 +294,10 @@ export const EasyReadView: React.FC<EasyReadViewProps> = ({
           ) : (
             <div className="space-y-4">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
-                <h3 className="font-bold text-base text-text-primary">Nội dung Dễ hiểu (Easy Read)</h3>
+                <h3 className="font-bold text-base text-text-primary">Nội dung dễ hiểu</h3>
               </div>
               <div className="p-8 text-center text-text-secondary text-sm">
-                Dán văn bản bên trái và nhấn "Làm dễ hiểu ngay" để xem kết quả tại đây.
+                Dán văn bản và nhấn "Làm dễ hiểu ngay" để xem kết quả tại đây.
               </div>
             </div>
           )}

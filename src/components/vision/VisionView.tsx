@@ -13,7 +13,7 @@ import { CameraModal } from './CameraModal';
 import { ReadAloudButton } from '../common/ReadAloudButton';
 import { LoadingSpinner } from '../common/LoadingSpinner';
 import { VisionResult, UserProfile, AccessibilitySettings } from '../../types';
-import { analyzeVision } from '../../services/api';
+import { analyzeVision, fetchApi } from '../../services/api';
 import { saveActivityHistory } from '../../lib/firebase';
 import { compressImageBase64 } from '../../lib/imageUtils';
 
@@ -137,20 +137,27 @@ export const VisionView: React.FC<VisionViewProps> = ({
     setFollowUpLoading(true);
 
     try {
-      const res = await fetch('/api/gemini/document-qa', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          documentText: `Thôn tin phân tích ảnh: ${JSON.stringify(result)}`,
-          question: q,
-          customApiKey: localStorage.getItem('lovira_custom_gemini_key') || undefined,
-        }),
+      const data = await analyzeVision(
+        selectedImage,
+        'scene',
+        undefined,
+        localStorage.getItem('lovira_custom_gemini_key') || undefined
+      );
+      
+      const res = await fetchApi<{ answer: string }>('/api/gemini/document-qa', {
+        documentText: `Phân tích chi tiết hình ảnh: ${data.summary}. Chi tiết nhận diện: ${data.details.join(', ')}. Chữ nhận diện được: ${data.detectedText.join(' ')}`,
+        question: q,
+        customApiKey: localStorage.getItem('lovira_custom_gemini_key') || undefined,
       });
-      const data = await res.json();
-      const answer = data.answer || 'Tôi chưa tìm thấy thông tin này trong ảnh.';
+
+      const answer = res.answer || 'Chưa tìm thấy thông tin phù hợp trong ảnh.';
       setFollowUpAnswers((prev) => [...prev, { q, a: answer }]);
     } catch (err) {
       console.error('Followup error:', err);
+      setFollowUpAnswers((prev) => [
+        ...prev,
+        { q, a: 'Lovira chưa thể trả lời câu hỏi này. Vui lòng thử lại.' },
+      ]);
     } finally {
       setFollowUpLoading(false);
     }

@@ -122,4 +122,28 @@ body {
   }
 }
 
+/* Large Controls (Accessibility Mode) */
+.large-controls button,
+.large-controls a,
+.large-controls input,
+.large-controls select,
+.large-controls textarea {
+  min-height: 48px !important;
+  padding-top: 0.75rem !important;
+  padding-bottom: 0.75rem !important;
+  font-size: 1.05rem !important;
+}
+
+.large-controls button svg,
+.large-controls a svg {
+  width: 1.35rem !important;
+  height: 1.35rem !important;
+}
+
+/* Universal mobile overflow & text wrapping safety */
+.break-words-safe {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
 

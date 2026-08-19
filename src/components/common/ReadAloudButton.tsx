@@ -1,10 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { Volume2, VolumeX, Pause, Play } from 'lucide-react';
 import { speakText, stopSpeaking, isSpeechSynthesisSupported, isUserInteracted } from '../../lib/speech';
+import { AccessibilitySettings } from '../../types';
 
 interface ReadAloudButtonProps {
   text: string;
   speechRate?: number;
+  voiceVariant?: string;
+  voiceURI?: string;
+  settings?: AccessibilitySettings;
   label?: string;
   size?: 'sm' | 'md' | 'lg';
   className?: string;
@@ -12,7 +16,10 @@ interface ReadAloudButtonProps {
 
 export const ReadAloudButton: React.FC<ReadAloudButtonProps> = ({
   text,
-  speechRate = 1.0,
+  speechRate,
+  voiceVariant,
+  voiceURI,
+  settings,
   label = 'Đọc thành tiếng',
   size = 'md',
   className = '',
@@ -28,6 +35,10 @@ export const ReadAloudButton: React.FC<ReadAloudButtonProps> = ({
   if (!isSupported) {
     return null;
   }
+
+  const activeRate = speechRate ?? settings?.speechRate ?? 1.0;
+  const activeVoiceVariant = voiceVariant ?? settings?.voiceVariant ?? 'female1';
+  const activeVoiceURI = voiceURI ?? settings?.voiceURI ?? '';
 
   const handleToggle = () => {
     if (!text || !text.trim()) return;
@@ -48,7 +59,9 @@ export const ReadAloudButton: React.FC<ReadAloudButtonProps> = ({
       setIsPaused(false);
 
       const success = speakText(text, {
-        rate: speechRate,
+        rate: activeRate,
+        voiceVariant: activeVoiceVariant,
+        voiceURI: activeVoiceURI,
         onEnd: () => {
           setIsPlaying(false);
           setIsPaused(false);

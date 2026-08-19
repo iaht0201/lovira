@@ -115,7 +115,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             }}
             className="w-full flex items-center justify-between px-4 py-2.5 rounded-xl bg-primary text-white font-semibold hover:bg-primary-hover transition-colors text-sm"
           >
-            <span>Bắt đầu</span>
+            <span>Mở camera & ảnh</span>
             <ArrowRight className="w-4 h-4 shrink-0" />
           </button>
         </div>
@@ -135,7 +135,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             onClick={() => onNavigate('/conversation')}
             className="w-full flex items-center justify-between px-4 py-2.5 rounded-xl bg-teal text-white font-semibold hover:bg-teal-hover transition-colors text-sm"
           >
-            <span>Bắt đầu</span>
+            <span>Bắt đầu nghe</span>
             <ArrowRight className="w-4 h-4 shrink-0" />
           </button>
         </div>
@@ -155,7 +155,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             onClick={() => onNavigate('/easy-read')}
             className="w-full flex items-center justify-between px-4 py-2.5 rounded-xl bg-coral text-white font-semibold hover:bg-coral-hover transition-colors text-sm"
           >
-            <span>Bắt đầu</span>
+            <span>Dán văn bản</span>
             <ArrowRight className="w-4 h-4 shrink-0" />
           </button>
         </div>
@@ -175,7 +175,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             onClick={() => onNavigate('/documents')}
             className="w-full flex items-center justify-between px-4 py-2.5 rounded-xl bg-blue-600 text-white font-semibold hover:bg-blue-700 transition-colors text-sm"
           >
-            <span>Bắt đầu</span>
+            <span>Chọn tài liệu</span>
             <ArrowRight className="w-4 h-4 shrink-0" />
           </button>
         </div>
@@ -283,59 +283,32 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               );
             })
           ) : (
-            <>
-              <div
-                onClick={() => onNavigate('/easy-read')}
-                className="p-4 rounded-xl bg-surface border border-slate-200 dark:border-slate-800 flex items-start gap-3 hover:border-slate-300 cursor-pointer transition-colors"
-              >
-                <span className="p-2 rounded-lg bg-rose-50 text-coral dark:bg-rose-950/40 shrink-0">
-                  <FileText className="w-4 h-4 shrink-0" />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="font-semibold text-sm text-text-primary truncate">Đoạn văn cần làm dễ hiểu</p>
-                  <p className="text-xs text-text-secondary mt-0.5">Easy Read • 12 phút trước</p>
-                </div>
+            <div className="col-span-full p-6 rounded-2xl bg-surface border border-slate-200 dark:border-slate-800 text-center space-y-3">
+              <p className="font-bold text-sm text-text-primary">Chưa có hoạt động nào được lưu</p>
+              <p className="text-xs text-text-secondary max-w-md mx-auto">
+                Kết quả bạn thực hiện và chọn lưu sẽ tự động xuất hiện ở đây.
+              </p>
+              <div className="flex flex-wrap justify-center gap-2 pt-1">
+                <button
+                  onClick={() => onNavigate('/vision')}
+                  className="px-3.5 py-2 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 text-xs font-semibold hover:bg-indigo-100 transition-colors"
+                >
+                  Thử Nhìn giúp tôi
+                </button>
+                <button
+                  onClick={() => onNavigate('/easy-read')}
+                  className="px-3.5 py-2 rounded-xl bg-rose-50 dark:bg-rose-950/50 text-coral dark:text-rose-300 text-xs font-semibold hover:bg-rose-100 transition-colors"
+                >
+                  Thử Easy Read
+                </button>
+                <button
+                  onClick={() => onNavigate('/conversation')}
+                  className="px-3.5 py-2 rounded-xl bg-teal-50 dark:bg-teal-950/50 text-teal dark:text-teal-300 text-xs font-semibold hover:bg-teal-100 transition-colors"
+                >
+                  Thử Nghe & ghi lại
+                </button>
               </div>
-
-              <div
-                onClick={() => onNavigate('/documents')}
-                className="p-4 rounded-xl bg-surface border border-slate-200 dark:border-slate-800 flex items-start gap-3 hover:border-slate-300 cursor-pointer transition-colors"
-              >
-                <span className="p-2 rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-950/40 shrink-0">
-                  <Paperclip className="w-4 h-4 shrink-0" />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="font-semibold text-sm text-text-primary truncate">Tài liệu: Quy định mới.pdf</p>
-                  <p className="text-xs text-text-secondary mt-0.5">Hiểu tài liệu • 1 giờ trước</p>
-                </div>
-              </div>
-
-              <div
-                onClick={() => onNavigate('/conversation')}
-                className="p-4 rounded-xl bg-surface border border-slate-200 dark:border-slate-800 flex items-start gap-3 hover:border-slate-300 cursor-pointer transition-colors"
-              >
-                <span className="p-2 rounded-lg bg-teal-50 text-teal dark:bg-teal-950/40 shrink-0">
-                  <Mic className="w-4 h-4 shrink-0" />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="font-semibold text-sm text-text-primary truncate">Cuộc trò chuyện hôm nay</p>
-                  <p className="text-xs text-text-secondary mt-0.5">Nghe & ghi lại • 3 giờ trước</p>
-                </div>
-              </div>
-
-              <div
-                onClick={() => onNavigate('/vision')}
-                className="p-4 rounded-xl bg-surface border border-slate-200 dark:border-slate-800 flex items-start gap-3 hover:border-slate-300 cursor-pointer transition-colors"
-              >
-                <span className="p-2 rounded-lg bg-indigo-50 text-indigo-600 dark:bg-indigo-950/40 shrink-0">
-                  <ImageIcon className="w-4 h-4 shrink-0" />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="font-semibold text-sm text-text-primary truncate">Ảnh chụp biển báo</p>
-                  <p className="text-xs text-text-secondary mt-0.5">Nhìn giúp tôi • 5 giờ trước</p>
-                </div>
-              </div>
-            </>
+            </div>
           )}
         </div>
       </section>

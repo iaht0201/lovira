@@ -50,6 +50,11 @@ export const DocumentView: React.FC<DocumentViewProps> = ({
   };
 
   const processDocumentFile = async (file: File) => {
+    if (file.size > 10 * 1024 * 1024) {
+      setError('Tệp quá lớn. Lovira hỗ trợ tài liệu dung lượng tối đa 10MB (khoảng 30 trang).');
+      return;
+    }
+
     setExtracting(true);
     setError(null);
     setAnalysis(null);
@@ -182,8 +187,10 @@ export const DocumentView: React.FC<DocumentViewProps> = ({
               <Upload className="w-6 h-6 shrink-0" />
             </div>
             <div>
-              <p className="font-bold text-sm text-text-primary">Tải lên tài liệu PDF, DOCX hoặc TXT</p>
-              <p className="text-xs text-text-secondary mt-1">Lovira sẽ trích xuất văn bản, giản lược ý chính và trả lời thắc mắc.</p>
+              <p className="font-bold text-sm text-text-primary">Tải lên tài liệu PDF, DOCX, TXT hoặc ảnh quét</p>
+              <p className="text-xs text-text-secondary mt-1">
+                Tối đa 10MB (khoảng 30 trang). Lovira sẽ trích xuất văn bản, giản lược ý chính và trả lời thắc mắc.
+              </p>
             </div>
             <label className="px-4 py-2.5 rounded-xl bg-primary text-white text-xs font-semibold hover:bg-primary-hover shadow-xs cursor-pointer">
               Chọn tệp từ máy
@@ -268,7 +275,7 @@ export const DocumentView: React.FC<DocumentViewProps> = ({
                   <div className="flex items-center gap-2">
                     <ReadAloudButton
                       text={`${analysis.title || ''}. ${analysis.summary}`}
-                      speechRate={settings.speechRate}
+                      settings={settings}
                       size="sm"
                     />
                     <button

@@ -137,12 +137,34 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ userProfile }) => {
 
       {/* List Grid */}
       {filteredItems.length === 0 ? (
-        <div className="bg-surface p-12 rounded-2xl border border-slate-200 dark:border-slate-800 text-center space-y-2">
-          <HistoryIcon className="w-8 h-8 text-text-secondary mx-auto" />
-          <p className="text-sm font-bold text-text-primary">Chưa có lịch sử hoạt động</p>
-          <p className="text-xs text-text-secondary max-w-sm mx-auto">
-            Trải nghiệm các tính năng của Lovira để nội dung tự động được lưu lại tại đây.
-          </p>
+        <div className="bg-surface p-12 rounded-2xl border border-slate-200 dark:border-slate-800 text-center space-y-4">
+          <HistoryIcon className="w-10 h-10 text-text-secondary mx-auto opacity-60" />
+          <div className="space-y-1">
+            <p className="text-sm font-bold text-text-primary">Chưa có lịch sử hoạt động</p>
+            <p className="text-xs text-text-secondary max-w-sm mx-auto">
+              Trải nghiệm các tính năng của Lovira để kết quả xử lý tự động được lưu lại tại đây.
+            </p>
+          </div>
+          <div className="flex flex-wrap justify-center gap-2 pt-2">
+            <a
+              href="#/vision"
+              className="px-3.5 py-2 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 text-xs font-semibold hover:bg-indigo-100 transition-colors"
+            >
+              Thử Nhìn giúp tôi
+            </a>
+            <a
+              href="#/easy-read"
+              className="px-3.5 py-2 rounded-xl bg-rose-50 dark:bg-rose-950/50 text-coral dark:text-rose-300 text-xs font-semibold hover:bg-rose-100 transition-colors"
+            >
+              Thử Easy Read
+            </a>
+            <a
+              href="#/conversation"
+              className="px-3.5 py-2 rounded-xl bg-teal-50 dark:bg-teal-950/50 text-teal dark:text-teal-300 text-xs font-semibold hover:bg-teal-100 transition-colors"
+            >
+              Thử Nghe & ghi lại
+            </a>
+          </div>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

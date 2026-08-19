@@ -11,6 +11,8 @@ export const DEFAULT_ACCESSIBILITY_SETTINGS: AccessibilitySettings = {
   preferredLanguage: 'vi',
   theme: 'system',
   speechRate: 1.0,
+  voiceVariant: 'female1',
+  voiceURI: '',
 };
 
 export const APP_NAME = 'Lovira';

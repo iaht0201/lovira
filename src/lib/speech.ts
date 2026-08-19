@@ -18,11 +18,25 @@ export function isSpeechSynthesisSupported(): boolean {
   return typeof window !== 'undefined' && 'speechSynthesis' in window;
 }
 
+export function getAvailableVietnameseVoices(): SpeechSynthesisVoice[] {
+  if (!isSpeechSynthesisSupported()) return [];
+  const voices = window.speechSynthesis.getVoices();
+  return voices.filter(
+    (v) =>
+      v.lang.toLowerCase().includes('vi') ||
+      v.name.toLowerCase().includes('vietnam') ||
+      v.name.toLowerCase().includes('vietnamese')
+  );
+}
+
 export function speakText(
   text: string,
   options?: {
     rate?: number;
+    pitch?: number;
     lang?: string;
+    voiceURI?: string;
+    voiceVariant?: 'female1' | 'male1' | 'female2' | string;
     onEnd?: () => void;
     onError?: (err: unknown) => void;
   }
@@ -39,6 +53,17 @@ export function speakText(
     utterance.lang = options?.lang || 'vi-VN';
     utterance.rate = options?.rate || 1.0;
 
+    // Pitch adjustment based on selected Vietnamese voice variant
+    let computedPitch = options?.pitch ?? 1.0;
+    if (options?.voiceVariant === 'male1') {
+      computedPitch = 0.82; // Warm male/deeper tone pitch
+    } else if (options?.voiceVariant === 'female2') {
+      computedPitch = 1.25; // Bright female tone pitch
+    } else if (options?.voiceVariant === 'female1') {
+      computedPitch = 1.0; // Standard natural female tone pitch
+    }
+    utterance.pitch = computedPitch;
+
     if (options?.onEnd) {
       utterance.onend = () => options.onEnd?.();
     }
@@ -46,11 +71,25 @@ export function speakText(
       utterance.onerror = (e) => options.onError?.(e);
     }
 
-    // Attempt to pick a Vietnamese voice if available
     const voices = window.speechSynthesis.getVoices();
-    const viVoice = voices.find((v) => v.lang.includes('vi') || v.lang.includes('VI'));
-    if (viVoice) {
-      utterance.voice = viVoice;
+    const viVoices = voices.filter(
+      (v) =>
+        v.lang.toLowerCase().includes('vi') ||
+        v.name.toLowerCase().includes('vietnam') ||
+        v.name.toLowerCase().includes('vietnamese')
+    );
+
+    if (options?.voiceURI) {
+      const selectedVoice = voices.find((v) => v.voiceURI === options.voiceURI);
+      if (selectedVoice) {
+        utterance.voice = selectedVoice;
+      }
+    } else if (viVoices.length > 0) {
+      if (options?.voiceVariant === 'male1' && viVoices.length > 1) {
+        utterance.voice = viVoices[1] || viVoices[0];
+      } else {
+        utterance.voice = viVoices[0];
+      }
     }
 
     window.speechSynthesis.speak(utterance);
@@ -94,22 +133,26 @@ export function createSpeechRecognitionInstance(
     recognition.interimResults = true;
     recognition.lang = 'vi-VN';
 
+    let lastFinalIndex = 0;
+
     recognition.onresult = (event: any) => {
       let interimTranscript = '';
-      let finalTranscript = '';
+      let newFinalTranscript = '';
 
-      for (let i = event.resultIndex; i < event.results.length; ++i) {
+      for (let i = lastFinalIndex; i < event.results.length; ++i) {
         if (event.results[i].isFinal) {
-          finalTranscript += event.results[i][0].transcript;
+          newFinalTranscript += event.results[i][0].transcript + ' ';
+          lastFinalIndex = i + 1;
         } else {
           interimTranscript += event.results[i][0].transcript;
         }
       }
 
-      if (finalTranscript) {
-        onResult(finalTranscript, true);
-      } else if (interimTranscript) {
-        onResult(interimTranscript, false);
+      if (newFinalTranscript.trim()) {
+        onResult(newFinalTranscript.trim(), true);
+      }
+      if (interimTranscript.trim()) {
+        onResult(interimTranscript.trim(), false);
       }
     };
 

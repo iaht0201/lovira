@@ -1,6 +1,7 @@
 import express, { Request, Response, NextFunction } from 'express';
 import dotenv from 'dotenv';
 import { GoogleGenAI, Type } from '@google/genai';
+import { z } from 'zod';
 
 dotenv.config();
 
@@ -9,6 +10,23 @@ const app = express();
 // Body parsing with safe limits
 app.use(express.json({ limit: '20mb' }));
 app.use(express.urlencoded({ extended: true, limit: '20mb' }));
+
+// Auth guard middleware for /api/gemini/*
+app.use('/api/gemini', (req: Request, res: Response, next: NextFunction) => {
+  res.setHeader('Content-Type', 'application/json');
+  const authHeader = req.headers.authorization;
+  const clientHeader = req.headers['x-lovira-client'];
+
+  if (!authHeader && !clientHeader) {
+    return res.status(401).json({
+      success: false,
+      error: 'Yêu cầu chưa được xác thực. Vui lòng kết nối từ ứng dụng Lovira.',
+      category: 'auth',
+      code: 'UNAUTHENTICATED'
+    });
+  }
+  next();
+});
 
 // Environment validation
 function hasGeminiConfig(): boolean {
@@ -213,51 +231,33 @@ async function generateWithModelFallback(
   let lastErrorNorm: NormalizedGeminiError | null = null;
   let primaryNonNotFoundError: NormalizedGeminiError | null = null;
 
-  // Add overall 20-second timeout to prevent server invocation timeout (504 HTML page)
-  const timeoutPromise = new Promise<never>((_, reject) => {
-    setTimeout(() => {
-      reject({
-        status: 504,
-        code: 'GATEWAY_TIMEOUT',
-        message: 'Dịch vụ AI xử lý quá thời gian cho phép (Timeout 20 giây). Vui lòng thử lại với dữ liệu ngắn hơn.',
-        category: 'transient',
-        isRetryable: true,
-        originalMessage: 'Backend processing timeout reached (20s).',
-      } as NormalizedGeminiError);
-    }, 20000);
-  });
+  for (const modelName of FALLBACK_GEMINI_MODELS) {
+    try {
+      const result = await ai.models.generateContent({
+        ...params,
+        model: modelName,
+      });
+      return result;
+    } catch (err: unknown) {
+      const norm = normalizeGeminiError(err);
+      lastErrorNorm = norm;
 
-  const generatePromise = (async () => {
-    for (const modelName of FALLBACK_GEMINI_MODELS) {
-      try {
-        const result = await ai.models.generateContent({
-          ...params,
-          model: modelName,
-        });
-        return result;
-      } catch (err: unknown) {
-        const norm = normalizeGeminiError(err);
-        lastErrorNorm = norm;
-
-        if (norm.category !== 'model_not_found' && !primaryNonNotFoundError) {
-          primaryNonNotFoundError = norm;
-        }
-
-        // Non-retryable errors throw immediately
-        if (norm.category === 'auth' || norm.category === 'invalid_argument' || norm.category === 'quota') {
-          console.error(`[Lovira API] Non-retryable error on model ${modelName} (${norm.category}): ${norm.message}`);
-          throw norm;
-        }
-
-        // Fast fallback to next model immediately without long cumulative delay
-        console.warn(`[Lovira API] Model ${modelName} unavailable (${norm.category}, status ${norm.status}). Falling back to next model...`);
+      if (norm.category !== 'model_not_found' && !primaryNonNotFoundError) {
+        primaryNonNotFoundError = norm;
       }
+
+      // Non-retryable errors throw immediately
+      if (norm.category === 'auth' || norm.category === 'invalid_argument' || norm.category === 'quota') {
+        console.error(`[Lovira API] Non-retryable error on model ${modelName} (${norm.category}): ${norm.message}`);
+        throw norm;
+      }
+
+      // Fast fallback to next model immediately
+      console.warn(`[Lovira API] Model ${modelName} unavailable (${norm.category}, status ${norm.status}). Falling back to next model...`);
     }
+  }
 
-    throw primaryNonNotFoundError || lastErrorNorm || normalizeGeminiError(new Error('Tất cả các mô hình AI đều không thể phản hồi.'));
-  })();
-
-  return Promise.race([generatePromise, timeoutPromise]);
+  throw primaryNonNotFoundError || lastErrorNorm || normalizeGeminiError(new Error('Tất cả các mô hình AI đều không thể phản hồi.'));
 }
 
 function handleApiError(res: Response, endpointName: string, err: unknown) {

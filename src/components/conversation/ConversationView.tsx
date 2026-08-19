@@ -70,7 +70,12 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
     const instance = createSpeechRecognitionInstance(
       (newText, isFinal) => {
         if (isFinal) {
-          setTranscript((prev) => (prev ? prev + ' ' + newText : newText));
+          setTranscript((prev) => {
+            const cleanNew = newText.trim();
+            if (!cleanNew) return prev;
+            if (prev.endsWith(cleanNew)) return prev;
+            return prev ? `${prev} ${cleanNew}` : cleanNew;
+          });
           setInterimText('');
         } else {
           setInterimText(newText);
@@ -346,7 +351,7 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
                 <div className="flex items-center gap-2">
                   <ReadAloudButton
                     text={`${summary.summary}. ${summary.keyPoints.join('. ')}`}
-                    speechRate={settings.speechRate}
+                    settings={settings}
                     size="sm"
                   />
                   <button
