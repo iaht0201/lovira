@@ -114,10 +114,16 @@ export function isSpeechRecognitionSupported(): boolean {
   return Boolean(SpeechRecognition);
 }
 
+export interface SpeechRecognitionOptions {
+  continuous?: boolean;
+  lang?: string;
+}
+
 export function createSpeechRecognitionInstance(
   onResult: (transcript: string, isFinal: boolean) => void,
   onError?: (error: string) => void,
-  onEnd?: () => void
+  onEnd?: () => void,
+  options?: SpeechRecognitionOptions
 ): unknown | null {
   if (typeof window === 'undefined') return null;
 
@@ -129,9 +135,9 @@ export function createSpeechRecognitionInstance(
 
   try {
     const recognition = new SpeechRecognition();
-    recognition.continuous = true;
+    recognition.continuous = options?.continuous ?? true;
     recognition.interimResults = true;
-    recognition.lang = 'vi-VN';
+    recognition.lang = options?.lang || 'vi-VN';
 
     recognition.onresult = (event: any) => {
       let interimTranscript = '';

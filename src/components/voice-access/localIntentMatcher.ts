@@ -25,17 +25,45 @@ export function matchLocalIntent(
   const clean = command.toLowerCase().trim().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?"']/g, '').replace(/\s+/g, ' ');
   const norm = normalizeVietnamese(clean);
 
-  // 1. Session control
-  if (norm === 'tam biet lovira' || norm === 'ket thuc phien' || norm === 'dung lovira' || norm === 'tat mic') {
+  // 1. Session control & Stop commands
+  if (
+    norm === 'tam biet lovira' ||
+    norm === 'ket thuc phien' ||
+    norm === 'dung lovira' ||
+    norm === 'tat mic' ||
+    norm === 'tat voice access' ||
+    norm === 'dong phien'
+  ) {
     return {
       action: 'END_VOICE_SESSION',
       confidence: 1.0,
       confirmationRequired: false,
-      feedback: 'Tạm biệt bạn!',
+      feedback: 'Tạm biệt bạn! Lovira sẽ ở đây khi bạn cần.',
     };
   }
 
-  // 2. Immediate matches against current screen's registered interactive actions (Case 2 & Case 3 fast-path)
+  if (
+    norm === 'dung' ||
+    norm === 'dung lai' ||
+    norm === 'ngung' ||
+    norm === 'ngung lai' ||
+    norm === 'tat' ||
+    norm === 'thoi' ||
+    norm === 'huy' ||
+    norm === 'huy viec nay' ||
+    norm === 'dung doc' ||
+    norm === 'dung doc nua' ||
+    norm === 'ngung doc'
+  ) {
+    return {
+      action: 'speech.stop',
+      confidence: 1.0,
+      confirmationRequired: false,
+      feedback: 'Đã dừng thao tác.',
+    };
+  }
+
+  // 2. Immediate matches against current screen's registered interactive actions
   if (availableScreenActions && availableScreenActions.length > 0) {
     for (const act of availableScreenActions) {
       const labelNorm = normalizeVietnamese(act.label);
@@ -81,24 +109,25 @@ export function matchLocalIntent(
   }
 
   // 3. Global Navigation
-  if (norm === 've trang chu' || norm === 'trang chu' || norm === 've home' || norm === 'man hinh chinh') {
+  if (norm === 've trang chu' || norm === 'trang chu' || norm === 've home' || norm === 'man hinh chinh' || norm === 'tro ve trang chu') {
     return {
-      action: 'GO_HOME',
+      action: 'navigation.home',
       confidence: 1.0,
       confirmationRequired: false,
-      feedback: 'Đang chuyển về trang chủ.',
+      feedback: 'Được rồi, Lovira đã đưa bạn về Trang chủ. Nhiệm vụ đang làm vẫn được giữ.',
     };
   }
 
-  if (norm === 'quay lai' || norm === 'tro ve' || norm === 'trang truoc' || norm === 'lui lai') {
+  if (norm === 'quay lai' || norm === 'tro ve' || norm === 'trang truoc' || norm === 'lui lai' || norm === 'quay ve truoc') {
     return {
-      action: 'GO_BACK',
+      action: 'navigation.back',
       confidence: 1.0,
       confirmationRequired: false,
-      feedback: 'Đang quay lại trang trước.',
+      feedback: 'Lovira đang quay lại màn hình trước. Nội dung bạn đã nhập vẫn được giữ.',
     };
   }
 
+  // Vision
   if (
     norm === 'mo nhin giup toi' ||
     norm === 'nhin giup toi' ||
@@ -107,16 +136,21 @@ export function matchLocalIntent(
     norm === 'chuc nang nhin' ||
     norm === 'mo camera' ||
     norm === 'bat camera' ||
-    norm === 'toi muon dung chuc nang nhin'
+    norm === 'xem giup toi' ||
+    norm === 'toi muon dung chuc nang nhin' ||
+    norm === 'xem giup toi cai nay' ||
+    norm === 'toi nhin khong ro' ||
+    norm === 'coi cai nay la gi'
   ) {
     return {
-      action: 'OPEN_VISION',
+      action: 'navigation.openVision',
       confidence: 1.0,
       confirmationRequired: false,
-      feedback: 'Đã mở Nhìn giúp tôi.',
+      feedback: 'Lovira đã mở Nhìn giúp tôi. Bạn có thể chụp ảnh hoặc chọn ảnh có sẵn trong máy.',
     };
   }
 
+  // Conversation
   if (
     norm === 'mo nghe va ghi lai' ||
     norm === 'nghe va ghi lai' ||
@@ -124,177 +158,272 @@ export function matchLocalIntent(
     norm === 'vao nghe thoai' ||
     norm === 'mo ghi am' ||
     norm === 'ghi am' ||
-    norm === 'tro ly dam thoai'
+    norm === 'tro ly dam thoai' ||
+    norm === 'toi khong nghe kip'
   ) {
     return {
-      action: 'OPEN_CONVERSATION',
+      action: 'navigation.openConversation',
       confidence: 1.0,
       confirmationRequired: false,
-      feedback: 'Đã mở Nghe & Ghi lại.',
+      feedback: 'Lovira đã mở Nghe & ghi lại. Khi sẵn sàng, bạn có thể bấm hoặc nói "Bắt đầu nghe".',
     };
   }
 
+  // Easy Read
   if (
     norm === 'mo lam noi dung de hieu' ||
     norm === 'lam noi dung de hieu' ||
     norm === 'mo easy read' ||
     norm === 'easy read' ||
     norm === 'mo lam de hieu' ||
-    norm === 'lam de hieu'
+    norm === 'lam de hieu' ||
+    norm === 'toi muon lam doan nay de hieu' ||
+    norm === 'van ban nay kho qua' ||
+    norm === 'lam doan nay bot kho'
   ) {
     return {
-      action: 'OPEN_EASY_READ',
+      action: 'navigation.openEasyRead',
       confidence: 1.0,
       confirmationRequired: false,
-      feedback: 'Đã mở Làm nội dung dễ hiểu.',
+      feedback: 'Lovira đã mở Làm nội dung dễ hiểu. Bạn có thể dán văn bản hoặc chọn tài liệu đang có.',
     };
   }
 
+  // Documents
   if (
     norm === 'mo hieu tai lieu' ||
     norm === 'hieu tai lieu' ||
     norm === 'mo tai lieu' ||
     norm === 'tai lieu' ||
-    norm === 'doc pdf'
+    norm === 'doc pdf' ||
+    norm === 'toi co mot file pdf' ||
+    norm === 'chon tai lieu'
   ) {
     return {
-      action: 'OPEN_DOCUMENTS',
+      action: 'navigation.openDocuments',
       confidence: 1.0,
       confirmationRequired: false,
-      feedback: 'Đã mở Hiểu tài liệu.',
+      feedback: 'Lovira đã mở Hiểu tài liệu. Bạn có thể chọn PDF, DOCX hoặc TXT để bắt đầu.',
     };
   }
 
-  if (norm === 'mo lich su' || norm === 'lich su' || norm === 'xem lich su') {
+  // History
+  if (
+    norm === 'mo lich su' ||
+    norm === 'lich su' ||
+    norm === 'xem lich su' ||
+    norm === 'nhat ky' ||
+    norm === 'xem lai cai truoc' ||
+    norm === 'toi muon xem lai viec hom qua'
+  ) {
     return {
-      action: 'OPEN_HISTORY',
+      action: 'navigation.openHistory',
       confidence: 1.0,
       confirmationRequired: false,
-      feedback: 'Đã mở Lịch sử.',
+      feedback: 'Lovira đã mở Lịch sử. Bạn có thể tìm theo tên, loại hoạt động hoặc thời gian.',
     };
   }
 
-  if (norm === 'mo cai dat' || norm === 'cai dat' || norm === 'thiet lap' || norm === 'mo tro nang' || norm === 'tro nang') {
+  // Settings
+  if (
+    norm === 'mo cai dat' ||
+    norm === 'cai dat' ||
+    norm === 'tro nang' ||
+    norm === 'tuy chinh' ||
+    norm === 'mo tro nang' ||
+    norm === 'vao cai dat'
+  ) {
     return {
-      action: 'OPEN_SETTINGS',
+      action: 'navigation.openSettings',
       confidence: 1.0,
       confirmationRequired: false,
-      feedback: 'Đã mở Cài đặt.',
+      feedback: 'Lovira đã mở Cài đặt & Trợ năng.',
     };
   }
 
-  // 4. Accessibility controls
+  // Life Session triggers
+  if (
+    norm === 'toi dang di kham' ||
+    norm === 'di kham' ||
+    norm === 'di kham benh' ||
+    norm === 'kham benh'
+  ) {
+    return {
+      action: 'session.create',
+      parameters: { type: 'healthcare' },
+      confidence: 1.0,
+      confirmationRequired: false,
+      feedback: 'Lovira đã tạo phiên Đi khám để cùng bạn ghi nhớ thông tin quan trọng. Bạn có thể chụp phiếu khám hoặc ghi lại lời dặn bác sĩ.',
+    };
+  }
+
+  if (
+    norm === 'toi dang lam thu tuc' ||
+    norm === 'lam thu tuc' ||
+    norm === 'lam giay to' ||
+    norm === 'thu tuc hanh chinh'
+  ) {
+    return {
+      action: 'session.create',
+      parameters: { type: 'administrative' },
+      confidence: 1.0,
+      confirmationRequired: false,
+      feedback: 'Lovira đã tạo phiên Làm thủ tục. Bạn có thể gửi giấy tờ; Lovira sẽ giúp tìm hồ sơ cần chuẩn bị và thời hạn quan trọng.',
+    };
+  }
+
+  if (
+    norm === 'toi di mua do' ||
+    norm === 'di mua do' ||
+    norm === 'mua sam' ||
+    norm === 'di sieu thi'
+  ) {
+    return {
+      action: 'session.create',
+      parameters: { type: 'shopping' },
+      confidence: 1.0,
+      confirmationRequired: false,
+      feedback: 'Lovira đã tạo phiên Đi mua đồ. Bạn có thể chụp nhãn sản phẩm để đọc tên, giá và hạn dùng.',
+    };
+  }
+
+  if (
+    norm === 'gio toi lam gi' ||
+    norm === 'gio toi phai lam gi' ||
+    norm === 'buoc tiep theo' ||
+    norm === 'tiep theo' ||
+    norm === 'con gi khong'
+  ) {
+    return {
+      action: 'session.getNextStep',
+      confidence: 1.0,
+      confirmationRequired: false,
+      feedback: 'Lovira đang kiểm tra bước tiếp theo trong phiên của bạn.',
+    };
+  }
+
+  // 4. Accessibility & UI Adjustments
   if (
     norm === 'tang chu' ||
+    norm === 'tang co chu' ||
     norm === 'phong to chu' ||
+    norm === 'chu lon hon' ||
     norm === 'chu to hon' ||
-    norm === 'cho chu to len' ||
-    norm === 'chu be qua'
+    norm === 'cho chu lon hon mot chut'
   ) {
     return {
-      action: 'INCREASE_FONT',
+      action: 'accessibility.increaseFont',
       confidence: 1.0,
       confirmationRequired: false,
-      feedback: 'Đã phóng to chữ.',
+      feedback: 'Lovira đã tăng cỡ chữ lên một mức.',
     };
   }
 
   if (
     norm === 'giam chu' ||
+    norm === 'giam co chu' ||
     norm === 'thu nho chu' ||
-    norm === 'chu nho hon' ||
-    norm === 'chu nho lai'
+    norm === 'chu nho hon'
   ) {
     return {
-      action: 'DECREASE_FONT',
+      action: 'accessibility.decreaseFont',
       confidence: 1.0,
       confirmationRequired: false,
-      feedback: 'Đã thu nhỏ chữ.',
+      feedback: 'Lovira đã giảm cỡ chữ xuống một mức.',
     };
   }
 
   if (
     norm === 'bat tuong phan cao' ||
     norm === 'tuong phan cao' ||
-    norm === 'mau sac dam hon' ||
-    norm === 'dam vien'
+    norm === 'bat tuong phan' ||
+    norm === 'nen toi chu vang' ||
+    norm === 'doi sang nen de nhin hon'
   ) {
     return {
-      action: 'ENABLE_HIGH_CONTRAST',
+      action: 'accessibility.enableHighContrast',
       confidence: 1.0,
       confirmationRequired: false,
-      feedback: 'Đã bật tương phản cao.',
+      feedback: 'Lovira đã bật tương phản cao để chữ và điều khiển nổi bật hơn.',
     };
   }
 
-  if (norm === 'tat tuong phan cao' || norm === 'giao dien binh thuong') {
+  if (norm === 'tat tuong phan cao' || norm === 'tat tuong phan' || norm === 'tuong phan binh thuong') {
     return {
-      action: 'DISABLE_HIGH_CONTRAST',
+      action: 'accessibility.disableHighContrast',
       confidence: 1.0,
       confirmationRequired: false,
-      feedback: 'Đã tắt tương phản cao.',
+      feedback: 'Lovira đã trở về độ tương phản thông thường.',
     };
   }
 
-  if (norm === 'bat nut lon' || norm === 'nut lon' || norm === 'nut to hon') {
+  if (norm === 'bat nut lon' || norm === 'nut lon' || norm === 'nut to') {
     return {
-      action: 'ENABLE_LARGE_CONTROLS',
+      action: 'accessibility.enableLargeControls',
       confidence: 1.0,
       confirmationRequired: false,
-      feedback: 'Đã bật nút lớn.',
+      feedback: 'Lovira đã tăng kích thước vùng bấm cho các nút điều khiển.',
     };
   }
 
   if (norm === 'tat nut lon' || norm === 'nut binh thuong') {
     return {
-      action: 'DISABLE_LARGE_CONTROLS',
+      action: 'accessibility.disableLargeControls',
       confidence: 1.0,
       confirmationRequired: false,
-      feedback: 'Đã tắt nút lớn.',
+      feedback: 'Lovira đã trở về kích thước nút bấm tiêu chuẩn.',
     };
   }
 
-  // 5. Reading & Speech controls
+  if (norm === 'giam chuyen dong' || norm === 'tat chuyen dong' || norm === 'tat hieu ung') {
+    return {
+      action: 'accessibility.enableReducedMotion',
+      confidence: 1.0,
+      confirmationRequired: false,
+      feedback: 'Lovira đã giảm các hiệu ứng chuyển động không cần thiết.',
+    };
+  }
+
+  // 5. Speech Reading Controls
   if (
-    norm === 'dung doc' ||
-    norm === 'dung noi' ||
-    norm === 'tat tieng' ||
-    norm === 'im lang' ||
-    norm === 'ngung doc' ||
-    norm === 'dung'
+    norm === 'doc cham hon' ||
+    norm === 'doc cham lai' ||
+    norm === 'noi cham hon' ||
+    norm === 'noi cham lai' ||
+    norm === 'noi lai cham thoi'
   ) {
     return {
-      action: 'STOP_READING',
+      action: 'speech.slower',
       confidence: 1.0,
       confirmationRequired: false,
-      feedback: 'Đã dừng đọc.',
+      feedback: 'Lovira đã giảm tốc độ đọc.',
     };
   }
 
-  if (norm === 'doc trang nay' || norm === 'doc man hinh' || norm === 'doc toan bo trang') {
+  if (norm === 'doc nhanh hon' || norm === 'doc nhanh len' || norm === 'noi nhanh hon') {
     return {
-      action: 'READ_PAGE',
+      action: 'speech.faster',
       confidence: 1.0,
       confirmationRequired: false,
-      feedback: 'Đang đọc nội dung trang hiện tại.',
+      feedback: 'Lovira đã tăng tốc độ đọc.',
     };
   }
 
-  if (norm === 'noi cham lai' || norm === 'doc cham lai' || norm === 'cham hon chut') {
+  if (norm === 'doc to' || norm === 'doc trang nay' || norm === 'doc man hinh' || norm === 'doc toan bo') {
     return {
-      action: 'SPEAK_SLOWER',
+      action: 'speech.readCurrent',
       confidence: 1.0,
       confirmationRequired: false,
-      feedback: 'Đã giảm tốc độ đọc.',
+      feedback: 'Lovira sẽ đọc nội dung hiển thị trên màn hình.',
     };
   }
 
-  if (norm === 'noi nhanh hon' || norm === 'doc nhanh hon' || norm === 'nhanh hon chut') {
+  if (norm === 'doc lai' || norm === 'noi lai' || norm === 'doc lai ket qua') {
     return {
-      action: 'SPEAK_FASTER',
+      action: 'speech.readResult',
       confidence: 1.0,
       confirmationRequired: false,
-      feedback: 'Đã tăng tốc độ đọc.',
+      feedback: 'Lovira sẽ đọc lại kết quả gần nhất.',
     };
   }
 
@@ -303,6 +432,7 @@ export function matchLocalIntent(
       action: 'DESCRIBE_CURRENT_PAGE',
       confidence: 1.0,
       confirmationRequired: false,
+      feedback: 'Lovira sẽ mô tả vị trí và các thành phần trên trang này.',
     };
   }
 

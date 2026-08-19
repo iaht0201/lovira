@@ -40,7 +40,7 @@ export const LIFE_MODE_CONFIGS: Record<
     defaultGoal: 'Hoàn thành buổi khám, nắm rõ chỉ dẫn phòng khám, số thứ tự và dặn dò của bác sĩ',
     recommendedTools: ['vision', 'document', 'conversation', 'speech'],
     suggestedTasks: ['Quét phiếu khám hoặc số thứ tự', 'Đến phòng khám được chỉ định', 'Nghe và ghi lại lời dặn của bác sĩ'],
-    initialWelcome: 'Tôi đã khởi tạo phiên Đi khám bệnh. Bạn có thể chụp phiếu khám, hóa đơn thuốc hoặc bật micro khi gặp bác sĩ để tôi hỗ trợ nhé.',
+    initialWelcome: 'Lovira đã tạo phiên Đi khám để cùng bạn ghi nhớ thông tin quan trọng. Bạn có thể cho Lovira xem phiếu khám, ghi lại lời dặn hoặc hỏi "Giờ tôi làm gì?".',
   },
   administrative: {
     title: 'Làm thủ tục hành chính',
@@ -48,7 +48,7 @@ export const LIFE_MODE_CONFIGS: Record<
     defaultGoal: 'Chuẩn bị đầy đủ giấy tờ, nắm rõ thời hạn và các bước nộp hồ sơ công',
     recommendedTools: ['document', 'vision', 'easyRead', 'speech'],
     suggestedTasks: ['Xem danh sách giấy tờ cần chuẩn bị', 'Kiểm tra thời hạn nộp', 'Giản lược các quy định khó hiểu'],
-    initialWelcome: 'Tôi đã tạo phiên Làm thủ tục. Hãy chụp giấy tờ hoặc tải tệp tài liệu để tôi trích xuất danh sách hồ sơ cần có cho bạn.',
+    initialWelcome: 'Lovira đã tạo phiên Làm thủ tục. Bạn có thể gửi giấy tờ hoặc thông báo; Lovira sẽ giúp tìm hồ sơ cần chuẩn bị và thời hạn quan trọng.',
   },
   shopping: {
     title: 'Đi mua đồ & siêu thị',
@@ -56,7 +56,7 @@ export const LIFE_MODE_CONFIGS: Record<
     defaultGoal: 'Xem nhãn sản phẩm, giá cả, hạn sử dụng và thành phần cần lưu ý',
     recommendedTools: ['vision', 'speech', 'easyRead'],
     suggestedTasks: ['Đọc tên và hạn sử dụng sản phẩm', 'Kiểm tra cảnh báo dị ứng hoặc thành phần', 'Xem giá niêm yết'],
-    initialWelcome: 'Tôi đã sẵn sàng cùng bạn đi mua sắm. Hãy đưa camera trước bao bì để tôi đọc nhãn và hạn dùng cho bạn.',
+    initialWelcome: 'Lovira đã tạo phiên Đi mua đồ. Bạn có thể chụp nhãn sản phẩm để đọc tên, giá, hạn dùng hoặc thông tin cần chú ý.',
   },
   reading: {
     title: 'Đọc & hiểu tài liệu',
@@ -64,7 +64,7 @@ export const LIFE_MODE_CONFIGS: Record<
     defaultGoal: 'Hiểu cặn kẽ nội dung văn bản, thông báo hoặc hợp đồng phức tạp',
     recommendedTools: ['document', 'easyRead', 'speech'],
     suggestedTasks: ['Đọc to nội dung', 'Giản lược đoạn khó hiểu', 'Trích xuất thông tin quan trọng'],
-    initialWelcome: 'Phiên Đọc & hiểu đã sẵn sàng. Bạn có thể nạp văn bản hoặc tài liệu để tôi tóm tắt và giải thích dễ hiểu.',
+    initialWelcome: 'Lovira đã tạo phiên Đọc và hiểu. Bạn có thể chụp ảnh, chọn tài liệu hoặc dán văn bản; Lovira sẽ giúp giải thích theo cách dễ tiếp nhận hơn.',
   },
   general: {
     title: 'Hỗ trợ việc hàng ngày',
@@ -72,7 +72,7 @@ export const LIFE_MODE_CONFIGS: Record<
     defaultGoal: 'Đồng hành và hỗ trợ bất kỳ nhu cầu tiếp cận thông tin nào',
     recommendedTools: ['vision', 'conversation', 'easyRead', 'document', 'speech'],
     suggestedTasks: ['Nói cho Lovira biết bạn cần trợ giúp việc gì'],
-    initialWelcome: 'Tôi đã mở phiên hỗ trợ. Bạn muốn Lovira nhìn giúp, nghe giúp hay giải thích điều gì?',
+    initialWelcome: 'Lovira đã tạo một phiên hỗ trợ chung để giữ thông tin cho bạn. Hãy kể thêm điều bạn muốn hoàn thành, Lovira sẽ đề xuất bước đầu tiên.',
   },
 };
 

@@ -224,148 +224,194 @@ export const VoiceAccessProvider: React.FC<ProviderProps> = ({
       }
     }
 
-    // 4. Handle Global & Navigation Actions (Case 1, 6, 9, 10)
+    // 4. Handle Global & Navigation Actions (Support both canonical and legacy IDs)
     switch (action) {
       case 'START_VOICE_SESSION':
+      case 'agent.startListening':
         activateSession();
         break;
 
       case 'END_VOICE_SESSION':
+      case 'agent.stopListening':
         deactivateSession();
         break;
 
       case 'DISABLE_VOICE_ACCESS':
+      case 'accessibility.disableVoiceAccess':
         onUpdateSettings({ voiceAccessEnabled: false });
         finishWithFeedback('Đã tắt chế độ điều khiển bằng giọng nói.');
         break;
 
       case 'GO_HOME':
+      case 'navigation.home':
         onNavigate('/');
-        finishWithFeedback(feedback || 'Đã chuyển về trang chủ.');
+        finishWithFeedback(feedback || 'Được rồi, Lovira đã đưa bạn về Trang chủ. Nhiệm vụ đang làm vẫn được giữ.');
         break;
 
       case 'GO_BACK':
+      case 'navigation.back':
         window.history.back();
-        finishWithFeedback(feedback || 'Đang quay lại trang trước.');
+        finishWithFeedback(feedback || 'Lovira đang quay lại màn hình trước.');
         break;
 
       case 'OPEN_VISION':
       case 'OPEN_CAMERA':
+      case 'navigation.openVision':
         onNavigate('/vision');
         if (chainAction) {
           setTimeout(() => {
             executeScreenAction(chainAction.action as string, chainAction.parameters);
           }, 450);
         }
-        finishWithFeedback(feedback || 'Đã mở Nhìn giúp tôi.');
+        finishWithFeedback(feedback || 'Lovira đã mở Nhìn giúp tôi.');
         break;
 
       case 'OPEN_CONVERSATION':
+      case 'navigation.openConversation':
         onNavigate('/conversation');
         if (chainAction) {
           setTimeout(() => {
             executeScreenAction(chainAction.action as string, chainAction.parameters);
           }, 450);
         }
-        finishWithFeedback(feedback || 'Đã mở Nghe & Ghi lại.');
+        finishWithFeedback(feedback || 'Lovira đã mở Nghe & ghi lại.');
         break;
 
       case 'OPEN_EASY_READ':
+      case 'navigation.openEasyRead':
         onNavigate('/easy-read');
         if (chainAction) {
           setTimeout(() => {
             executeScreenAction(chainAction.action as string, chainAction.parameters);
           }, 450);
         }
-        finishWithFeedback(feedback || 'Đã mở Làm nội dung dễ hiểu.');
+        finishWithFeedback(feedback || 'Lovira đã mở Làm nội dung dễ hiểu.');
         break;
 
       case 'OPEN_DOCUMENTS':
+      case 'navigation.openDocuments':
+      case 'navigation.openDocument':
         onNavigate('/documents');
         if (chainAction) {
           setTimeout(() => {
             executeScreenAction(chainAction.action as string, chainAction.parameters);
           }, 450);
         }
-        finishWithFeedback(feedback || 'Đã mở Hiểu tài liệu.');
+        finishWithFeedback(feedback || 'Lovira đã mở Hiểu tài liệu.');
         break;
 
       case 'OPEN_HISTORY':
+      case 'navigation.openHistory':
         onNavigate('/history');
-        finishWithFeedback(feedback || 'Đã mở Lịch sử.');
+        finishWithFeedback(feedback || 'Lovira đã mở Lịch sử.');
         break;
 
       case 'OPEN_ACCESSIBILITY':
       case 'OPEN_SETTINGS':
+      case 'navigation.openSettings':
         onNavigate('/settings');
         if (chainAction) {
           setTimeout(() => {
             executeAction({ action: chainAction.action as any, parameters: chainAction.parameters, confidence: 1.0 });
           }, 450);
         }
-        finishWithFeedback(feedback || 'Đã mở Cài đặt.');
+        finishWithFeedback(feedback || 'Lovira đã mở Cài đặt & Trợ năng.');
         break;
 
-      case 'INCREASE_FONT': {
-        const nextScales: Record<string, string> = { '100': '125', '125': '150', '150': '175', '175': '175' };
-        onUpdateSettings({ fontScale: nextScales[settings.fontScale] as any });
-        finishWithFeedback(feedback || 'Đã phóng to kích thước chữ.');
+      case 'OPEN_SESSION':
+      case 'navigation.openSession':
+      case 'session.open':
+        onNavigate('/session');
+        finishWithFeedback(feedback || 'Lovira đã mở chi tiết phiên làm việc.');
+        break;
+
+      case 'session.create': {
+        const type = (parameters?.type as string) || 'general';
+        const event = new CustomEvent('lovira-create-session', { detail: { type } });
+        document.dispatchEvent(event);
+        onNavigate('/session');
+        finishWithFeedback(feedback || 'Lovira đã tạo phiên đời sống mới cho bạn.');
         break;
       }
 
-      case 'DECREASE_FONT': {
+      case 'session.getNextStep': {
+        const event = new CustomEvent('lovira-get-next-step');
+        document.dispatchEvent(event);
+        finishWithFeedback(feedback || 'Lovira đang kiểm tra bước tiếp theo trong phiên của bạn.');
+        break;
+      }
+
+      case 'INCREASE_FONT':
+      case 'accessibility.increaseFont': {
+        const nextScales: Record<string, string> = { '100': '125', '125': '150', '150': '175', '175': '175' };
+        onUpdateSettings({ fontScale: nextScales[settings.fontScale] as any });
+        finishWithFeedback(feedback || 'Lovira đã tăng cỡ chữ lên một mức.');
+        break;
+      }
+
+      case 'DECREASE_FONT':
+      case 'accessibility.decreaseFont': {
         const prevScales: Record<string, string> = { '175': '150', '150': '125', '125': '100', '100': '100' };
         onUpdateSettings({ fontScale: prevScales[settings.fontScale] as any });
-        finishWithFeedback(feedback || 'Đã thu nhỏ kích thước chữ.');
+        finishWithFeedback(feedback || 'Lovira đã giảm cỡ chữ xuống một mức.');
         break;
       }
 
       case 'ENABLE_HIGH_CONTRAST':
+      case 'accessibility.enableHighContrast':
         onUpdateSettings({ highContrast: true });
-        finishWithFeedback(feedback || 'Đã bật tương phản cao.');
+        finishWithFeedback(feedback || 'Lovira đã bật tương phản cao.');
         break;
 
       case 'DISABLE_HIGH_CONTRAST':
+      case 'accessibility.disableHighContrast':
         onUpdateSettings({ highContrast: false });
-        finishWithFeedback(feedback || 'Đã tắt tương phản cao.');
+        finishWithFeedback(feedback || 'Lovira đã trở về độ tương phản thông thường.');
         break;
 
       case 'ENABLE_REDUCED_MOTION':
+      case 'accessibility.enableReducedMotion':
         onUpdateSettings({ reducedMotion: true });
-        finishWithFeedback(feedback || 'Đã bật giảm chuyển động.');
+        finishWithFeedback(feedback || 'Lovira đã bật giảm chuyển động.');
         break;
 
       case 'DISABLE_REDUCED_MOTION':
+      case 'accessibility.disableReducedMotion':
         onUpdateSettings({ reducedMotion: false });
-        finishWithFeedback(feedback || 'Đã tắt giảm chuyển động.');
+        finishWithFeedback(feedback || 'Lovira đã tắt giảm chuyển động.');
         break;
 
       case 'ENABLE_LARGE_CONTROLS':
+      case 'accessibility.enableLargeControls':
         onUpdateSettings({ largeControls: true });
-        finishWithFeedback(feedback || 'Đã kích hoạt chế độ nút lớn trợ năng.');
+        finishWithFeedback(feedback || 'Lovira đã kích hoạt chế độ nút lớn trợ năng.');
         break;
 
       case 'DISABLE_LARGE_CONTROLS':
+      case 'accessibility.disableLargeControls':
         onUpdateSettings({ largeControls: false });
-        finishWithFeedback(feedback || 'Đã tắt chế độ nút lớn.');
+        finishWithFeedback(feedback || 'Lovira đã trở về kích thước nút bấm tiêu chuẩn.');
         break;
 
       case 'STOP_READING':
+      case 'speech.stop':
         stopSpeaking();
         deactivateSession();
         break;
 
-      case 'SPEAK_SLOWER': {
+      case 'SPEAK_SLOWER':
+      case 'speech.slower': {
         const nextRate = Math.max(0.6, settings.speechRate - 0.15);
         onUpdateSettings({ speechRate: nextRate });
-        finishWithFeedback(feedback || 'Đã giảm tốc độ đọc.');
+        finishWithFeedback(feedback || 'Lovira đã giảm tốc độ đọc.');
         break;
       }
 
-      case 'SPEAK_FASTER': {
+      case 'SPEAK_FASTER':
+      case 'speech.faster': {
         const nextRate = Math.min(2.0, settings.speechRate + 0.15);
         onUpdateSettings({ speechRate: nextRate });
-        finishWithFeedback(feedback || 'Đã tăng tốc độ đọc.');
+        finishWithFeedback(feedback || 'Lovira đã tăng tốc độ đọc.');
         break;
       }
 
@@ -376,7 +422,14 @@ export const VoiceAccessProvider: React.FC<ProviderProps> = ({
       }
 
       case 'READ_PAGE':
+      case 'speech.readCurrent':
         LoviraReadingEngine.readPage(currentRoute, getSpeechRate(), getVoiceURI());
+        deactivateSession();
+        break;
+
+      case 'READ_CURRENT_RESULT':
+      case 'speech.readResult':
+        LoviraReadingEngine.readCurrentResult(getSpeechRate(), getVoiceURI());
         deactivateSession();
         break;
 
@@ -400,17 +453,13 @@ export const VoiceAccessProvider: React.FC<ProviderProps> = ({
         deactivateSession();
         break;
 
-      case 'READ_CURRENT_RESULT':
-        LoviraReadingEngine.readCurrentResult(getSpeechRate(), getVoiceURI());
-        deactivateSession();
-        break;
-
       case 'READ_INTERACTIVE_ELEMENTS':
         LoviraReadingEngine.readInteractiveElements(getSpeechRate(), getVoiceURI());
         deactivateSession();
         break;
 
-      case 'CAPTURE_IMAGE': {
+      case 'CAPTURE_IMAGE':
+      case 'vision.capture': {
         const event = new CustomEvent('lovira-voice-capture');
         document.dispatchEvent(event);
         finishWithFeedback(feedback || 'Đang chụp ảnh.');
@@ -526,10 +575,13 @@ export const VoiceAccessProvider: React.FC<ProviderProps> = ({
     }
 
     const recognition = new SpeechRecognition();
-    recognition.continuous = false; // Capture single sentence per 2-click session
-    recognition.interimResults = false;
+    recognition.continuous = true;
+    recognition.interimResults = true;
     recognition.lang = 'vi-VN';
     recognition.maxAlternatives = 1;
+
+    let recognizedBuffer = '';
+    let quickSilenceTimer: any = null;
 
     recognition.onstart = () => {
       console.log('[PWA Voice] Active listening session started.');
@@ -537,9 +589,40 @@ export const VoiceAccessProvider: React.FC<ProviderProps> = ({
     };
 
     recognition.onresult = (event: any) => {
-      const lastResultIndex = event.results.length - 1;
-      const text = event.results[lastResultIndex][0].transcript;
-      handleRecognizedText(text);
+      let interimText = '';
+      let finalText = '';
+
+      for (let i = event.resultIndex; i < event.results.length; ++i) {
+        const tr = event.results[i][0].transcript;
+        if (event.results[i].isFinal) {
+          finalText += tr + ' ';
+        } else {
+          interimText += tr;
+        }
+      }
+
+      const activeText = (finalText || interimText).trim();
+      if (activeText) {
+        recognizedBuffer = activeText;
+        if (silenceTimeoutRef.current) clearTimeout(silenceTimeoutRef.current);
+        if (quickSilenceTimer) clearTimeout(quickSilenceTimer);
+
+        if (finalText.trim()) {
+          // Fast commit 800ms after final segment
+          quickSilenceTimer = setTimeout(() => {
+            if (recognizedBuffer) {
+              handleRecognizedText(recognizedBuffer);
+            }
+          }, 800);
+        } else {
+          // Fast commit 1200ms after user pauses speaking
+          quickSilenceTimer = setTimeout(() => {
+            if (recognizedBuffer) {
+              handleRecognizedText(recognizedBuffer);
+            }
+          }, 1200);
+        }
+      }
     };
 
     recognition.onerror = (event: any) => {

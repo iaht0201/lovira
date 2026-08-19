@@ -37,11 +37,32 @@ export const VoiceInputButton: React.FC<VoiceInputButtonProps> = ({
 
   const recognitionRef = useRef<any>(null);
   const currentValueRef = useRef(currentValue);
+  const silenceTimerRef = useRef<any>(null);
+  const interimBufferRef = useRef<string>('');
   currentValueRef.current = currentValue;
 
+  const clearSilenceTimers = useCallback(() => {
+    if (silenceTimerRef.current) {
+      clearTimeout(silenceTimerRef.current);
+      silenceTimerRef.current = null;
+    }
+  }, []);
+
   const stopDictation = useCallback(() => {
+    clearSilenceTimers();
     setIsListening(false);
     setIsPrompting(false);
+
+    // If there's uncommitted interim text when stopping, append it cleanly
+    if (interimBufferRef.current.trim()) {
+      const trimmed = interimBufferRef.current.trim();
+      const prev = currentValueRef.current;
+      const separator = prev.length > 0 && !prev.endsWith(' ') && !prev.endsWith('\n') ? ' ' : '';
+      const combined = prev + separator + trimmed;
+      onTranscript(combined, 'replace');
+      interimBufferRef.current = '';
+    }
+
     setInterimText('');
     LoviraMicCoordinator.releaseMic('AGENT_COMMAND');
 
@@ -56,7 +77,7 @@ export const VoiceInputButton: React.FC<VoiceInputButtonProps> = ({
       }
       recognitionRef.current = null;
     }
-  }, []);
+  }, [clearSilenceTimers, onTranscript]);
 
   useEffect(() => {
     return () => {
@@ -67,6 +88,8 @@ export const VoiceInputButton: React.FC<VoiceInputButtonProps> = ({
   const startDictation = useCallback(() => {
     setErrorMessage(null);
     stopSpeaking();
+    clearSilenceTimers();
+    interimBufferRef.current = '';
 
     const micGranted = LoviraMicCoordinator.requestMic('AGENT_COMMAND');
     if (!micGranted) {
@@ -77,9 +100,16 @@ export const VoiceInputButton: React.FC<VoiceInputButtonProps> = ({
     setIsListening(true);
     setInterimText('');
 
+    // Safety timeout: If user doesn't say anything for 6 seconds after opening mic, auto-stop
+    silenceTimerRef.current = setTimeout(() => {
+      stopDictation();
+    }, 6000);
+
     const instance = createSpeechRecognitionInstance(
       (transcriptText, isFinal) => {
         if (!transcriptText) return;
+
+        clearSilenceTimers();
 
         if (isFinal) {
           const trimmed = transcriptText.trim();
@@ -88,10 +118,22 @@ export const VoiceInputButton: React.FC<VoiceInputButtonProps> = ({
             const separator = prev.length > 0 && !prev.endsWith(' ') && !prev.endsWith('\n') ? ' ' : '';
             const combined = prev + separator + trimmed;
             onTranscript(combined, 'replace');
+            interimBufferRef.current = '';
           }
           setInterimText('');
+
+          // Auto-stop gracefully 1.0s after receiving final sentence
+          silenceTimerRef.current = setTimeout(() => {
+            stopDictation();
+          }, 1000);
         } else {
+          interimBufferRef.current = transcriptText;
           setInterimText(transcriptText);
+
+          // If user pauses for 1.8s while in interim, automatically commit and finish
+          silenceTimerRef.current = setTimeout(() => {
+            stopDictation();
+          }, 1800);
         }
       },
       (error) => {
