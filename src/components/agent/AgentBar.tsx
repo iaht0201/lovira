@@ -59,7 +59,7 @@ export const AgentBar: React.FC<AgentBarProps> = ({ settings, onNavigate }) => {
   };
 
   return (
-    <div className="fixed bottom-16 sm:bottom-4 left-1/2 -translate-x-1/2 z-40 w-full max-w-2xl px-4 pointer-events-none">
+    <div className="fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom,0px))] md:bottom-4 left-1/2 -translate-x-1/2 z-40 w-full max-w-2xl px-4 pointer-events-none">
       <div
         className={`pointer-events-auto bg-surface/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-200/80 dark:border-slate-800/80 shadow-xl rounded-2xl p-3 transition-all duration-300 ${
           agentState === 'listening' ? 'ring-2 ring-primary ring-offset-2 dark:ring-offset-slate-900' : ''

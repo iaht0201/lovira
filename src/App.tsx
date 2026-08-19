@@ -48,7 +48,7 @@ function AppContent({
 
   return (
     <div
-      className={`h-screen flex overflow-hidden bg-canvas text-text-primary ${
+      className={`h-screen h-[100dvh] flex overflow-hidden bg-canvas text-text-primary ${
         settings.reducedMotion ? 'reduce-motion' : ''
       } ${settings.largeControls ? 'large-controls' : ''}`}
     >

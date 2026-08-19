@@ -108,8 +108,17 @@ export function matchLocalIntent(
     }
   }
 
-  // 3. Global Navigation
-  if (norm === 've trang chu' || norm === 'trang chu' || norm === 've home' || norm === 'man hinh chinh' || norm === 'tro ve trang chu') {
+  // 3. Global Navigation & Router Switching
+  if (
+    norm === 've trang chu' ||
+    norm === 'trang chu' ||
+    norm === 've home' ||
+    norm === 'man hinh chinh' ||
+    norm === 'tro ve trang chu' ||
+    norm === 'chuyen sang trang chu' ||
+    norm === 'chuyen qua trang chu' ||
+    norm === 'vao trang chu'
+  ) {
     return {
       action: 'navigation.home',
       confidence: 1.0,
@@ -118,7 +127,14 @@ export function matchLocalIntent(
     };
   }
 
-  if (norm === 'quay lai' || norm === 'tro ve' || norm === 'trang truoc' || norm === 'lui lai' || norm === 'quay ve truoc') {
+  if (
+    norm === 'quay lai' ||
+    norm === 'tro ve' ||
+    norm === 'trang truoc' ||
+    norm === 'lui lai' ||
+    norm === 'quay ve truoc' ||
+    norm === 'lui ve'
+  ) {
     return {
       action: 'navigation.back',
       confidence: 1.0,
@@ -164,7 +180,7 @@ export function matchLocalIntent(
     };
   }
 
-  // Vision
+  // Vision Navigation
   if (
     norm === 'mo nhin giup toi' ||
     norm === 'nhin giup toi' ||
@@ -176,7 +192,13 @@ export function matchLocalIntent(
     norm === 'xem giup toi' ||
     norm === 'toi muon dung chuc nang nhin' ||
     norm === 'xem giup toi cai nay' ||
-    norm === 'coi cai nay la gi'
+    norm === 'coi cai nay la gi' ||
+    norm === 'chuyen sang nhin' ||
+    norm === 'chuyen qua nhin' ||
+    norm === 'chuyen sang vision' ||
+    norm === 'chuyen qua vision' ||
+    norm === 'vao vision' ||
+    norm === 'mo vision'
   ) {
     return {
       action: 'navigation.openVision',
@@ -186,7 +208,7 @@ export function matchLocalIntent(
     };
   }
 
-  // Conversation
+  // Conversation Navigation
   if (
     norm === 'mo nghe va ghi lai' ||
     norm === 'nghe va ghi lai' ||
@@ -195,7 +217,12 @@ export function matchLocalIntent(
     norm === 'mo ghi am' ||
     norm === 'ghi am' ||
     norm === 'tro ly dam thoai' ||
-    norm === 'toi khong nghe kip'
+    norm === 'toi khong nghe kip' ||
+    norm === 'chuyen sang nghe' ||
+    norm === 'chuyen qua nghe' ||
+    norm === 'vao phan nghe' ||
+    norm === 'mo conversation' ||
+    norm === 'chuyen sang conversation'
   ) {
     return {
       action: 'navigation.openConversation',
@@ -205,7 +232,7 @@ export function matchLocalIntent(
     };
   }
 
-  // Easy Read
+  // Easy Read Navigation
   if (
     norm === 'mo lam noi dung de hieu' ||
     norm === 'lam noi dung de hieu' ||
@@ -215,7 +242,11 @@ export function matchLocalIntent(
     norm === 'lam de hieu' ||
     norm === 'toi muon lam doan nay de hieu' ||
     norm === 'van ban nay kho qua' ||
-    norm === 'lam doan nay bot kho'
+    norm === 'lam doan nay bot kho' ||
+    norm === 'chuyen sang lam de hieu' ||
+    norm === 'chuyen qua de hieu' ||
+    norm === 'vao de hieu' ||
+    norm === 'chuyen sang easy read'
   ) {
     return {
       action: 'navigation.openEasyRead',
@@ -225,7 +256,7 @@ export function matchLocalIntent(
     };
   }
 
-  // Documents
+  // Documents Navigation
   if (
     norm === 'mo hieu tai lieu' ||
     norm === 'hieu tai lieu' ||
@@ -233,7 +264,12 @@ export function matchLocalIntent(
     norm === 'tai lieu' ||
     norm === 'doc pdf' ||
     norm === 'toi co mot file pdf' ||
-    norm === 'chon tai lieu'
+    norm === 'chon tai lieu' ||
+    norm === 'chuyen sang tai lieu' ||
+    norm === 'chuyen qua tai lieu' ||
+    norm === 'vao tai lieu' ||
+    norm === 'mo documents' ||
+    norm === 'chuyen sang documents'
   ) {
     return {
       action: 'navigation.openDocuments',
@@ -243,14 +279,17 @@ export function matchLocalIntent(
     };
   }
 
-  // History
+  // History Navigation
   if (
     norm === 'mo lich su' ||
     norm === 'lich su' ||
     norm === 'xem lich su' ||
     norm === 'nhat ky' ||
     norm === 'xem lai cai truoc' ||
-    norm === 'toi muon xem lai viec hom qua'
+    norm === 'toi muon xem lai viec hom qua' ||
+    norm === 'chuyen sang lich su' ||
+    norm === 'chuyen qua lich su' ||
+    norm === 'vao lich su'
   ) {
     return {
       action: 'navigation.openHistory',
@@ -260,20 +299,44 @@ export function matchLocalIntent(
     };
   }
 
-  // Settings
+  // Settings Navigation
   if (
     norm === 'mo cai dat' ||
     norm === 'cai dat' ||
     norm === 'tro nang' ||
     norm === 'tuy chinh' ||
     norm === 'mo tro nang' ||
-    norm === 'vao cai dat'
+    norm === 'vao cai dat' ||
+    norm === 'chuyen sang cai dat' ||
+    norm === 'chuyen qua cai dat' ||
+    norm === 'mo settings'
   ) {
     return {
       action: 'navigation.openSettings',
       confidence: 1.0,
       confirmationRequired: false,
       feedback: 'Lovira đã mở Cài đặt & Trợ năng.',
+    };
+  }
+
+  // Lovira Life / Session Navigation
+  if (
+    norm === 'mo lovira life' ||
+    norm === 'lovira life' ||
+    norm === 'lovira live' ||
+    norm === 'bat lovira life' ||
+    norm === 'chuc nang lovira life' ||
+    norm === 'che do doi song' ||
+    norm === 'phien lam viec' ||
+    norm === 'mo phien lam viec' ||
+    norm === 'chuyen sang session' ||
+    norm === 'chuyen sang lovira life'
+  ) {
+    return {
+      action: 'navigation.openSession',
+      confidence: 1.0,
+      confirmationRequired: false,
+      feedback: 'Lovira đã mở màn hình Lovira Life.',
     };
   }
 

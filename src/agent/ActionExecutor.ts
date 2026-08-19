@@ -195,36 +195,82 @@ export class ActionExecutor {
       return { success: true, actionId: step.action, feedback: 'Đã hủy thao tác.' };
     }
 
-    // 1. Navigation Actions
-    if (actionId.startsWith('navigation.')) {
+    // 1. Navigation Actions (with broad alias and case-tolerance)
+    if (
+      actionId.startsWith('navigation.') ||
+      actionId.startsWith('open_') ||
+      actionId === 'home' ||
+      actionId === 'back'
+    ) {
       switch (actionId) {
         case 'navigation.home':
+        case 'navigation.openhome':
+        case 'open_home':
+        case 'home':
           callbacks.onNavigate('/');
           return { success: true, actionId: step.action, feedback: 'Đã về trang chủ.' };
+
         case 'navigation.back':
+        case 'open_back':
+        case 'back':
           if (typeof window !== 'undefined') window.history.back();
           return { success: true, actionId: step.action, feedback: 'Đã quay lại.' };
+
         case 'navigation.openvision':
+        case 'navigation.vision':
+        case 'open_vision':
+        case 'vision':
           callbacks.onNavigate('/vision');
           return { success: true, actionId: step.action, feedback: 'Đã mở Nhìn giúp tôi.' };
+
         case 'navigation.openconversation':
+        case 'navigation.conversation':
+        case 'open_conversation':
+        case 'conversation':
           callbacks.onNavigate('/conversation');
           return { success: true, actionId: step.action, feedback: 'Đã mở Nghe & ghi lại.' };
+
         case 'navigation.openeasyread':
+        case 'navigation.easyread':
+        case 'open_easy_read':
+        case 'easyread':
           callbacks.onNavigate('/easy-read');
           return { success: true, actionId: step.action, feedback: 'Đã mở Làm nội dung dễ hiểu.' };
+
         case 'navigation.opendocument':
+        case 'navigation.opendocuments':
+        case 'navigation.document':
+        case 'navigation.documents':
+        case 'open_document':
+        case 'open_documents':
+        case 'documents':
           callbacks.onNavigate('/documents');
           return { success: true, actionId: step.action, feedback: 'Đã mở Hiểu tài liệu.' };
+
         case 'navigation.openhistory':
+        case 'navigation.history':
+        case 'open_history':
+        case 'history':
           callbacks.onNavigate('/history');
           return { success: true, actionId: step.action, feedback: 'Đã mở Lịch sử.' };
+
         case 'navigation.opensettings':
+        case 'navigation.settings':
+        case 'open_settings':
+        case 'settings':
           callbacks.onNavigate('/settings');
           return { success: true, actionId: step.action, feedback: 'Đã mở Cài đặt.' };
+
         case 'navigation.opensession':
+        case 'navigation.opensessions':
+        case 'navigation.session':
+        case 'navigation.sessions':
+        case 'open_session':
+        case 'open_sessions':
+        case 'session':
           callbacks.onNavigate('/session');
-          return { success: true, actionId: step.action, feedback: 'Đã mở phiên làm việc.' };
+          return { success: true, actionId: step.action, feedback: 'Đã mở phiên làm việc Lovira Life.' };
+
         default:
           return { success: false, actionId: step.action, error: 'Chưa hỗ trợ điều hướng này.' };
       }
@@ -305,12 +351,17 @@ export class ActionExecutor {
         case 'session.create': {
           const type = (params.type as LifeSessionType) || 'general';
           const session = SessionManager.createSession(type, params.title as string, params.goal as string);
+          callbacks.onNavigate('/session');
           return {
             success: true,
             actionId: step.action,
             result: session,
             feedback: `Đã khởi tạo phiên: ${session.title}`,
           };
+        }
+        case 'session.open': {
+          callbacks.onNavigate('/session');
+          return { success: true, actionId: step.action, feedback: 'Đã mở phiên làm việc Lovira Life.' };
         }
         case 'session.getnextstep': {
           const advice = SessionManager.getNextStepAdvice();
@@ -325,6 +376,13 @@ export class ActionExecutor {
         case 'session.clear':
           SessionManager.clearActiveSession();
           return { success: true, actionId: step.action, feedback: 'Đã xóa phiên làm việc.' };
+      }
+    }
+
+    // Vision Camera Direct Event Trigger
+    if (actionId === 'vision.opencamera' || actionId === 'vision.open_camera') {
+      if (typeof document !== 'undefined') {
+        document.dispatchEvent(new CustomEvent('lovira-voice-open-camera'));
       }
     }
 

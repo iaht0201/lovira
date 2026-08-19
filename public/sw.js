@@ -39,8 +39,11 @@ self.addEventListener('fetch', (event) => {
   // Only handle GET requests
   if (event.request.method !== 'GET') return;
 
-  // Skip caching for third-party scripts, chrome extensions, and API routes
   const url = new URL(event.request.url);
+  // Only intercept HTTP/HTTPS schemes
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') return;
+
+  // Skip caching for API routes, third-party scripts, or chrome extensions
   if (url.pathname.startsWith('/api') || url.pathname.startsWith('/chrome-extension')) {
     return;
   }
@@ -48,24 +51,33 @@ self.addEventListener('fetch', (event) => {
   event.respondWith(
     fetch(event.request)
       .then((networkResponse) => {
-        // If successful, clone response and cache it for static assets
+        // If successful basic response, cache it
         if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
           const responseToCache = networkResponse.clone();
           caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, responseToCache);
+            cache.put(event.request, responseToCache).catch(() => {});
           });
         }
         return networkResponse;
       })
-      .catch(() => {
+      .catch(async () => {
         // Fallback to cache if offline
-        return caches.match(event.request).then((cachedResponse) => {
-          if (cachedResponse) return cachedResponse;
-          
-          // Return index.html for navigation requests (SPA routing)
-          if (event.request.mode === 'navigate') {
-            return caches.match('/index.html');
-          }
+        const cachedResponse = await caches.match(event.request);
+        if (cachedResponse) return cachedResponse;
+
+        // Return index.html for navigation requests (SPA routing)
+        if (event.request.mode === 'navigate') {
+          const fallbackIndex = await caches.match('/index.html');
+          if (fallbackIndex) return fallbackIndex;
+          const fallbackRoot = await caches.match('/');
+          if (fallbackRoot) return fallbackRoot;
+        }
+
+        // Return safe fallback Response instead of undefined
+        return new Response('Network offline and resource not cached.', {
+          status: 503,
+          statusText: 'Service Unavailable',
+          headers: { 'Content-Type': 'text/plain; charset=utf-8' },
         });
       })
   );

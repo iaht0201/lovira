@@ -2,6 +2,7 @@ import express, { Request, Response, NextFunction } from 'express';
 import dotenv from 'dotenv';
 import { GoogleGenAI, Type } from '@google/genai';
 import { z } from 'zod';
+import { formatFewShotPromptExamples } from './LoviraIntentTraining';
 
 dotenv.config();
 
@@ -813,6 +814,9 @@ ${JSON.stringify({ recentTurns, workingMemory, activeSession }, null, 2)}
 GLOBAL ACTIONS AVAILABLE:
 ${JSON.stringify(globalActions, null, 2)}
 
+FEW-SHOT TRAINING EXAMPLES & GROUND TRUTH MAPPINGS:
+${formatFewShotPromptExamples()}
+
 OUTPUT SCHEMA (Raw JSON only):
 {
   "action": string (the exact canonical action ID or "PREREQUISITE_MISSING", "CLARIFICATION_REQUIRED", "UNKNOWN"),
@@ -927,6 +931,9 @@ ${JSON.stringify(
   null,
   2
 )}
+
+FEW-SHOT TRAINING EXAMPLES & GROUND TRUTH MAPPINGS:
+${formatFewShotPromptExamples()}
 
 OUTPUT SCHEMA (Raw JSON only):
 {

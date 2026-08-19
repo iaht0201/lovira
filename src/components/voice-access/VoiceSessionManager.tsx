@@ -259,10 +259,13 @@ export const VoiceAccessProvider: React.FC<ProviderProps> = ({
       case 'OPEN_VISION':
       case 'OPEN_CAMERA':
       case 'navigation.openVision':
+      case 'navigation.openvision':
+      case 'navigation.vision':
+      case 'vision':
         onNavigate('/vision');
         if (chainAction) {
           setTimeout(() => {
-            if (chainAction.action === 'vision.openCamera' || chainAction.action === 'openCamera') {
+            if (chainAction.action === 'vision.openCamera' || chainAction.action === 'openCamera' || chainAction.action === 'vision.opencamera') {
               document.dispatchEvent(new CustomEvent('lovira-voice-open-camera'));
             }
             executeScreenAction(chainAction.action as string, chainAction.parameters);
@@ -273,6 +276,9 @@ export const VoiceAccessProvider: React.FC<ProviderProps> = ({
 
       case 'OPEN_CONVERSATION':
       case 'navigation.openConversation':
+      case 'navigation.openconversation':
+      case 'navigation.conversation':
+      case 'conversation':
         onNavigate('/conversation');
         if (chainAction) {
           setTimeout(() => {
@@ -284,6 +290,10 @@ export const VoiceAccessProvider: React.FC<ProviderProps> = ({
 
       case 'OPEN_EASY_READ':
       case 'navigation.openEasyRead':
+      case 'navigation.openeasyread':
+      case 'navigation.easyRead':
+      case 'navigation.easyread':
+      case 'easyread':
         onNavigate('/easy-read');
         if (chainAction) {
           setTimeout(() => {
@@ -295,7 +305,12 @@ export const VoiceAccessProvider: React.FC<ProviderProps> = ({
 
       case 'OPEN_DOCUMENTS':
       case 'navigation.openDocuments':
+      case 'navigation.opendocuments':
       case 'navigation.openDocument':
+      case 'navigation.opendocument':
+      case 'navigation.documents':
+      case 'navigation.document':
+      case 'documents':
         onNavigate('/documents');
         if (chainAction) {
           setTimeout(() => {
@@ -307,6 +322,9 @@ export const VoiceAccessProvider: React.FC<ProviderProps> = ({
 
       case 'OPEN_HISTORY':
       case 'navigation.openHistory':
+      case 'navigation.openhistory':
+      case 'navigation.history':
+      case 'history':
         onNavigate('/history');
         finishWithFeedback(feedback || 'Lovira đã mở Lịch sử.');
         break;
@@ -314,6 +332,9 @@ export const VoiceAccessProvider: React.FC<ProviderProps> = ({
       case 'OPEN_ACCESSIBILITY':
       case 'OPEN_SETTINGS':
       case 'navigation.openSettings':
+      case 'navigation.opensettings':
+      case 'navigation.settings':
+      case 'settings':
         onNavigate('/settings');
         if (chainAction) {
           setTimeout(() => {
@@ -325,9 +346,12 @@ export const VoiceAccessProvider: React.FC<ProviderProps> = ({
 
       case 'OPEN_SESSION':
       case 'navigation.openSession':
+      case 'navigation.opensession':
+      case 'navigation.session':
       case 'session.open':
+      case 'session':
         onNavigate('/session');
-        finishWithFeedback(feedback || 'Lovira đã mở chi tiết phiên làm việc.');
+        finishWithFeedback(feedback || 'Lovira đã mở chi tiết phiên làm việc Lovira Life.');
         break;
 
       case 'session.create': {

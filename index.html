@@ -2,7 +2,7 @@
 <html lang="vi">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Lovira — AI lan tỏa sự thấu hiểu</title>
     <meta name="description" content="Lovira giúp bạn nhìn, nghe và hiểu thông tin theo cách phù hợp nhất bằng AI trợ năng." />
     <meta property="og:title" content="Lovira — AI lan tỏa sự thấu hiểu" />
@@ -10,20 +10,33 @@
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary_large_image" />
 
-    <!-- Web App Manifest & PWA Tags -->
-    <link rel="manifest" href="/manifest.json" />
-    <link rel="apple-touch-icon" href="/icons/icon-192.png" />
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-    <meta name="theme-color" content="#3546b5" />
+    <!-- Favicon & Icons -->
+    <link rel="icon" type="image/svg+xml" href="/icons/icon.svg" />
+    <link rel="alternate icon" type="image/png" href="/icons/icon-192.png" />
 
-    <!-- Register Service Worker -->
+    <!-- Web App Manifest & iOS PWA Tags -->
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="theme-color" content="#3546b5" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Lovira" />
+    <meta name="format-detection" content="telephone=no" />
+
+    <!-- Apple Touch Icons -->
+    <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+    <link rel="apple-touch-icon" sizes="152x152" href="/icons/icon-192.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/icons/icon-192.png" />
+    <link rel="apple-touch-icon" sizes="192x192" href="/icons/icon-192.png" />
+    <link rel="apple-touch-icon" sizes="512x512" href="/icons/icon-512.png" />
+
+    <!-- Register Service Worker safely -->
     <script>
-      if ('serviceWorker' in navigator) {
+      if ('serviceWorker' in navigator && window.location.protocol.startsWith('http')) {
         window.addEventListener('load', () => {
           navigator.serviceWorker.register('/sw.js')
-            .then((reg) => console.log('Service Worker registered successfully:', reg.scope))
-            .catch((err) => console.error('Service Worker registration failed:', err));
+            .then((reg) => console.log('[Lovira PWA] Service Worker registered:', reg.scope))
+            .catch((err) => console.warn('[Lovira PWA] Service Worker registration note:', err));
         });
       }
     </script>

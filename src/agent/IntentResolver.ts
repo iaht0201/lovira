@@ -1,6 +1,7 @@
 import { AgentContext, AgentPlannerResponse, AgentActionDefinition } from './types';
 import { ActionRegistry } from './ActionRegistry';
 import { SessionManager } from './SessionManager';
+import { LOVIRA_FEW_SHOT_TRAINING_CORPUS } from './LoviraTrainingCorpus';
 import { fetchApi } from '../services/api';
 
 export interface ResolveResult {
@@ -332,6 +333,22 @@ export class IntentResolver {
 
   // ==================== LAYER 2 HELPER ====================
   private static trySemanticMatch(text: string, context: AgentContext): ResolveResult | null {
+    // 1. Direct match against few-shot training corpus
+    const normalizedInput = text.trim().toLowerCase();
+    const corpusMatch = LOVIRA_FEW_SHOT_TRAINING_CORPUS.find(
+      (example) => example.userUtterance.toLowerCase() === normalizedInput
+    );
+    if (corpusMatch) {
+      return {
+        source: 'semantic',
+        intent: `corpus_${corpusMatch.category}`,
+        confidence: 0.98,
+        needsClarification: false,
+        feedback: corpusMatch.feedback,
+        plan: corpusMatch.expectedPlan || [{ action: corpusMatch.expectedAction }],
+      };
+    }
+
     // Check referential language: "cái này", "đoạn này", "đọc lại", "làm lại"
     if (text.includes('đọc lại') || text === 'nói lại' || text === 'đọc tiếp' || text === 'đọc bản tóm tắt') {
       if (context.currentScreen === 'conversation') {

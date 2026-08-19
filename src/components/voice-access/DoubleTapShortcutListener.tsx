@@ -20,24 +20,25 @@ export const DoubleTapShortcutListener: React.FC<ShortcutProps> = ({ settings })
 
     const handleDoubleTap = (e: TouchEvent) => {
       // Avoid firing if tapping on interactive elements like buttons, inputs, selects, links
-      const target = e.target as HTMLElement;
+      const rawTarget = e.target as (Node | null);
+      const target = (rawTarget instanceof Element ? rawTarget : rawTarget?.parentElement) as HTMLElement | null;
+      if (!target) return;
+
       if (
         target.tagName === 'BUTTON' ||
         target.tagName === 'INPUT' ||
         target.tagName === 'SELECT' ||
         target.tagName === 'TEXTAREA' ||
         target.tagName === 'A' ||
-        target.closest('button') ||
-        target.closest('a')
+        (typeof target.closest === 'function' && (target.closest('button') || target.closest('a')))
       ) {
         return;
       }
 
       const now = Date.now();
-      const DOUBLE_TAP_DELAY = 300;
+      const DOUBLE_TAP_DELAY = 350;
       if (now - lastTapRef.current < DOUBLE_TAP_DELAY) {
         console.log('[PWA Voice] Double tap gesture detected. Launching active voice session.');
-        e.preventDefault();
         activateSessionRef.current();
       }
       lastTapRef.current = now;
@@ -45,15 +46,17 @@ export const DoubleTapShortcutListener: React.FC<ShortcutProps> = ({ settings })
 
     const handleDoubleClick = (e: MouseEvent) => {
       // Desktop fallback double click
-      const target = e.target as HTMLElement;
+      const rawTarget = e.target as (Node | null);
+      const target = (rawTarget instanceof Element ? rawTarget : rawTarget?.parentElement) as HTMLElement | null;
+      if (!target) return;
+
       if (
         target.tagName === 'BUTTON' ||
         target.tagName === 'INPUT' ||
         target.tagName === 'SELECT' ||
         target.tagName === 'TEXTAREA' ||
         target.tagName === 'A' ||
-        target.closest('button') ||
-        target.closest('a')
+        (typeof target.closest === 'function' && (target.closest('button') || target.closest('a')))
       ) {
         return;
       }
@@ -62,7 +65,7 @@ export const DoubleTapShortcutListener: React.FC<ShortcutProps> = ({ settings })
       activateSessionRef.current();
     };
 
-    window.addEventListener('touchend', handleDoubleTap, { passive: false });
+    window.addEventListener('touchend', handleDoubleTap, { passive: true });
     window.addEventListener('dblclick', handleDoubleClick);
 
     return () => {
