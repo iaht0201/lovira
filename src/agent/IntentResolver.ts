@@ -58,10 +58,16 @@ export class IntentResolver {
     try {
       const llmResult = await this.callAgentPlannerApi(input, context, customApiKey);
       if (llmResult) {
-        // Validate plan steps against registry
+        // Validate plan steps against available actions and registry
+        const availableActionIds = new Set(
+          (context.availableActions || []).map((a) => a.id.toLowerCase())
+        );
+
         const validatedPlan = llmResult.plan.filter((step) => {
-          const actionDef = ActionRegistry.getAction(step.action);
-          if (!actionDef) {
+          const sLower = step.action.toLowerCase();
+          const inAvailable = availableActionIds.has(sLower);
+          const inRegistry = ActionRegistry.hasAction(step.action);
+          if (!inAvailable && !inRegistry) {
             console.warn(`[IntentResolver] Filtered out unexposed action: ${step.action}`);
             return false;
           }
@@ -100,6 +106,55 @@ export class IntentResolver {
 
   // ==================== LAYER 1 HELPER ====================
   private static tryDeterministicMatch(text: string, context: AgentContext): ResolveResult | null {
+    // 0. Priority Contextual Stop / Cancel Actions (Highest Priority)
+    if (
+      text === 'dừng' ||
+      text === 'dừng lại' ||
+      text === 'thôi' ||
+      text === 'im đi' ||
+      text === 'dừng nghe' ||
+      text === 'dừng đọc' ||
+      text === 'ngừng lại' ||
+      text === 'hủy'
+    ) {
+      // If on conversation screen and recording
+      if (context.currentScreen === 'conversation') {
+        return {
+          source: 'deterministic',
+          intent: 'conversation_stop',
+          confidence: 1.0,
+          needsClarification: false,
+          feedback: 'Đã dừng ghi âm.',
+          plan: [{ action: 'conversation.stop', reason: 'Người dùng yêu cầu dừng ghi âm' }],
+        };
+      }
+
+      // If speech is reading or requested to stop speech
+      if (text === 'dừng đọc' || text === 'im đi' || text === 'thôi') {
+        return {
+          source: 'deterministic',
+          intent: 'speech_stop',
+          confidence: 1.0,
+          needsClarification: false,
+          feedback: 'Đã dừng đọc.',
+          plan: [{ action: 'speech.stop', reason: 'Dừng phát âm thanh' }],
+        };
+      }
+
+      // Default stop action
+      return {
+        source: 'deterministic',
+        intent: 'agent_stop',
+        confidence: 1.0,
+        needsClarification: false,
+        feedback: 'Đã dừng lại.',
+        plan: [
+          { action: 'speech.stop', reason: 'Dừng đọc' },
+          { action: 'agent.stopListening', reason: 'Dừng nhận lệnh' },
+        ],
+      };
+    }
+
     // 1. Session Memory questions
     if (
       text === 'giờ tôi phải làm gì' ||
@@ -205,10 +260,13 @@ export class IntentResolver {
       };
     }
 
-    // 3. Exact alias match in ActionRegistry
-    const allActions = ActionRegistry.getAllActions();
-    for (const action of allActions) {
-      if (action.aliases && action.aliases.includes(text)) {
+    // 3. Exact alias match in context.availableActions (combines screen + global actions)
+    const availableActions = context.availableActions && context.availableActions.length > 0
+      ? context.availableActions
+      : ActionRegistry.getAllActions();
+
+    for (const action of availableActions) {
+      if (action.aliases && action.aliases.some((alias) => alias.toLowerCase() === text)) {
         return {
           source: 'deterministic',
           intent: `exact_action_${action.id}`,
@@ -226,7 +284,17 @@ export class IntentResolver {
   // ==================== LAYER 2 HELPER ====================
   private static trySemanticMatch(text: string, context: AgentContext): ResolveResult | null {
     // Check referential language: "cái này", "đoạn này", "đọc lại", "làm lại"
-    if (text.includes('đọc lại') || text === 'nói lại' || text === 'đọc tiếp') {
+    if (text.includes('đọc lại') || text === 'nói lại' || text === 'đọc tiếp' || text === 'đọc bản tóm tắt') {
+      if (context.currentScreen === 'conversation') {
+        return {
+          source: 'semantic',
+          intent: 'conversation_read_summary',
+          confidence: 0.95,
+          needsClarification: false,
+          feedback: 'Đang đọc tóm tắt cuộc trò chuyện.',
+          plan: [{ action: 'conversation.readSummary', reason: 'Đọc tóm tắt cuộc trò chuyện' }],
+        };
+      }
       if (context.currentResult) {
         return {
           source: 'semantic',
@@ -245,6 +313,40 @@ export class IntentResolver {
           needsClarification: false,
           feedback: 'Đang đọc đoạn bạn vừa chọn.',
           plan: [{ action: 'speech.readCurrent', reason: 'Đọc văn bản đang bôi đen' }],
+        };
+      }
+    }
+
+    // Contextual Conversation Commands
+    if (context.currentScreen === 'conversation') {
+      if (text === 'tiếp tục' || text.includes('tiếp tục ghi')) {
+        return {
+          source: 'semantic',
+          intent: 'conversation_resume',
+          confidence: 0.95,
+          needsClarification: false,
+          feedback: 'Đang tiếp tục lắng nghe.',
+          plan: [{ action: 'conversation.resume', reason: 'Tiếp tục ghi âm cuộc trò chuyện' }],
+        };
+      }
+      if (text === 'tạm dừng' || text.includes('tạm dừng ghi')) {
+        return {
+          source: 'semantic',
+          intent: 'conversation_pause',
+          confidence: 0.95,
+          needsClarification: false,
+          feedback: 'Đã tạm dừng ghi âm.',
+          plan: [{ action: 'conversation.pause', reason: 'Tạm dừng ghi âm cuộc trò chuyện' }],
+        };
+      }
+      if (text.includes('tóm tắt') || text.includes('họ dặn gì') || text.includes('bác sĩ nói gì')) {
+        return {
+          source: 'semantic',
+          intent: 'conversation_summarize',
+          confidence: 0.95,
+          needsClarification: false,
+          feedback: 'Đang tóm tắt cuộc trò chuyện.',
+          plan: [{ action: 'conversation.summarize', reason: 'Tóm tắt nội dung cuộc trò chuyện' }],
         };
       }
     }
@@ -308,6 +410,32 @@ export class IntentResolver {
       }
     }
 
+    // "bắt đầu nghe" / "mở nghe và ghi lại rồi bắt đầu nghe"
+    if (text.includes('nghe') && (text.includes('bắt đầu') || text.includes('ghi lại') || text.includes('bật micro'))) {
+      if (context.currentScreen === 'conversation') {
+        return {
+          source: 'semantic',
+          intent: 'conversation_start',
+          confidence: 0.95,
+          needsClarification: false,
+          feedback: 'Đang bật micro lắng nghe cuộc trò chuyện.',
+          plan: [{ action: 'conversation.start', reason: 'Bật micro ghi âm cuộc trò chuyện' }],
+        };
+      } else {
+        return {
+          source: 'semantic',
+          intent: 'open_and_start_conversation',
+          confidence: 0.92,
+          needsClarification: false,
+          feedback: 'Đang mở Nghe & ghi lại và bắt đầu lắng nghe.',
+          plan: [
+            { action: 'navigation.openConversation', reason: 'Mở màn hình Nghe & ghi lại' },
+            { action: 'conversation.start', reason: 'Kích hoạt lắng nghe cuộc trò chuyện' },
+          ],
+        };
+      }
+    }
+
     // "vào cài đặt bật tương phản cao" (multi-step)
     if (text.includes('cài đặt') && text.includes('tương phản')) {
       return {
@@ -347,12 +475,17 @@ export class IntentResolver {
     context: AgentContext,
     customApiKey?: string
   ): Promise<AgentPlannerResponse | null> {
-    const exposedActions = ActionRegistry.getAllActions().map((a) => ({
+    const rawActions = context.availableActions && context.availableActions.length > 0
+      ? context.availableActions
+      : ActionRegistry.getAllActions();
+
+    const safeExposedActions = rawActions.map((a) => ({
       id: a.id,
       label: a.label,
       description: a.description,
       category: a.category,
       requires: a.requires,
+      parameters: a.parameters,
     }));
 
     const payload = {
@@ -371,9 +504,14 @@ export class IntentResolver {
         : null,
       activeImage: context.activeImage ? { name: context.activeImage.name, hasImage: true } : null,
       activeDocument: context.activeDocument ? { name: context.activeDocument.name, type: context.activeDocument.type } : null,
-      currentResult: context.currentResult ? { type: context.currentResult.type, preview: context.currentResult.content.slice(0, 300) } : null,
+      currentResult: context.currentResult
+        ? {
+            type: context.currentResult.type,
+            preview: (context.currentResult.accessibleText || context.currentResult.content || '').slice(0, 300),
+          }
+        : null,
       selectedText: context.selectedText ? context.selectedText.slice(0, 300) : null,
-      availableActions: exposedActions,
+      availableActions: safeExposedActions,
       customApiKey,
     };
 

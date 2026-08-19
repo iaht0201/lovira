@@ -1,4 +1,4 @@
-type MicOwner = 'VOICE_ACCESS' | 'CONVERSATION' | 'NONE';
+export type MicOwner = 'VOICE_ACCESS' | 'CONVERSATION' | 'AGENT_COMMAND' | 'NONE';
 
 class MicrophoneCoordinator {
   private currentOwner: MicOwner = 'NONE';
@@ -12,15 +12,25 @@ class MicrophoneCoordinator {
     }
 
     if (owner === 'CONVERSATION') {
-      // Conversation takes absolute high priority
+      // Conversation takes absolute highest priority
       this.currentOwner = 'CONVERSATION';
       this.notifyChange();
       return true;
     }
 
-    if (owner === 'VOICE_ACCESS') {
+    if (owner === 'AGENT_COMMAND') {
       if (this.currentOwner === 'CONVERSATION') {
-        console.warn('[MicCoordinator] Voice Access requested mic, but Conversation currently active. Rejecting.');
+        console.warn('[MicCoordinator] Agent Command requested mic, but Conversation currently active. Rejecting.');
+        return false;
+      }
+      this.currentOwner = 'AGENT_COMMAND';
+      this.notifyChange();
+      return true;
+    }
+
+    if (owner === 'VOICE_ACCESS') {
+      if (this.currentOwner === 'CONVERSATION' || this.currentOwner === 'AGENT_COMMAND') {
+        console.warn(`[MicCoordinator] Voice Access requested mic, but ${this.currentOwner} currently active. Rejecting.`);
         return false;
       }
       this.currentOwner = 'VOICE_ACCESS';
@@ -43,6 +53,12 @@ class MicrophoneCoordinator {
     return this.currentOwner;
   }
 
+  public isAvailableFor(owner: MicOwner): boolean {
+    if (this.currentOwner === 'NONE' || this.currentOwner === owner) return true;
+    if (owner === 'CONVERSATION') return true;
+    return false;
+  }
+
   public subscribe(callback: (owner: MicOwner) => void): () => void {
     this.onOwnerChangeCallbacks.add(callback);
     return () => {
@@ -62,3 +78,4 @@ class MicrophoneCoordinator {
 }
 
 export const LoviraMicCoordinator = new MicrophoneCoordinator();
+

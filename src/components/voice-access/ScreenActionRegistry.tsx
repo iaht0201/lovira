@@ -179,12 +179,83 @@ export const GLOBAL_APP_ACTIONS: GlobalActionDefinition[] = [
   },
 ];
 
+export interface AgentResultContext {
+  type: 'vision' | 'easy-read' | 'conversation' | 'document';
+  accessibleText: string;
+  shortText?: string;
+  sourceId?: string;
+}
+
+export const CANONICAL_ACTION_ALIASES: Record<string, string[]> = {
+  'conversation.start': ['startListening', 'conversation.start'],
+  'conversation.pause': ['pauseListening', 'conversation.pause'],
+  'conversation.resume': ['resumeListening', 'conversation.resume'],
+  'conversation.stop': ['stopListening', 'conversation.stop'],
+  'conversation.summarize': ['summarize', 'conversation.summarize'],
+  'conversation.extractTasks': ['extractTasks', 'conversation.extractTasks'],
+  'conversation.clear': ['clear', 'conversation.clear'],
+  'conversation.readSummary': ['readSummary', 'conversation.readSummary'],
+  'conversation.copyTranscript': ['copyTranscript', 'conversation.copyTranscript'],
+  'vision.openCamera': ['openCamera', 'vision.openCamera'],
+  'vision.describeScene': ['setModeScene', 'vision.describeScene'],
+  'vision.readText': ['setModeText', 'vision.readText'],
+  'vision.detectSafety': ['detectSafety', 'vision.detectSafety'],
+  'vision.analyze': ['reanalyze', 'vision.analyze'],
+  'vision.readResult': ['readSummary', 'vision.readResult'],
+  'vision.reset': ['resetImage', 'vision.reset'],
+  'easyRead.simplify': ['simplify', 'easyRead.simplify'],
+  'easyRead.readResult': ['readResult', 'easyRead.readResult'],
+  'easyRead.copyResult': ['copyResult', 'easyRead.copyResult'],
+  'easyRead.clear': ['clear', 'easyRead.clear'],
+  'document.readAnalysis': ['readAnalysis', 'document.readAnalysis'],
+  'document.copyAnalysis': ['copyAnalysis', 'document.copyAnalysis'],
+  'document.askQuestion': ['askQuestion', 'document.askQuestion'],
+  'document.clear': ['clear', 'document.clear'],
+};
+
+let globalActiveScreenId: string | null = null;
+const screenListeners = new Set<(screenId: string) => void>();
+
+export function notifyScreenRegistered(screenId: string) {
+  globalActiveScreenId = screenId;
+  screenListeners.forEach((listener) => {
+    try {
+      listener(screenId);
+    } catch (e) {
+      console.error('[ScreenActionRegistry] listener error:', e);
+    }
+  });
+}
+
+export function waitForScreen(targetScreenId: string, timeoutMs: number = 4000): Promise<boolean> {
+  const normTarget = targetScreenId.toLowerCase().replace('/', '');
+  if (globalActiveScreenId && globalActiveScreenId.toLowerCase().replace('/', '') === normTarget) {
+    return Promise.resolve(true);
+  }
+  return new Promise((resolve) => {
+    let timer: any = null;
+    const listener = (screenId: string) => {
+      if (screenId.toLowerCase().replace('/', '') === normTarget) {
+        clearTimeout(timer);
+        screenListeners.delete(listener);
+        resolve(true);
+      }
+    };
+    screenListeners.add(listener);
+    timer = setTimeout(() => {
+      screenListeners.delete(listener);
+      resolve(false);
+    }, timeoutMs);
+  });
+}
+
 export const ScreenActionProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [currentScreenInfo, setCurrentScreenInfo] = useState<ScreenContextInfo | null>(null);
   const registeredScreensRef = useRef<Map<string, ScreenContextInfo>>(new Map());
 
   const registerScreen = useCallback((info: ScreenContextInfo) => {
     registeredScreensRef.current.set(info.screenId, info);
+    notifyScreenRegistered(info.screenId);
     setCurrentScreenInfo((prev) => {
       if (
         prev &&
@@ -202,6 +273,9 @@ export const ScreenActionProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
   const unregisterScreen = useCallback((screenId: string) => {
     registeredScreensRef.current.delete(screenId);
+    if (globalActiveScreenId === screenId) {
+      globalActiveScreenId = null;
+    }
     setCurrentScreenInfo((prev) => (prev?.screenId === screenId ? null : prev));
   }, []);
 
@@ -256,9 +330,24 @@ export const ScreenActionProvider: React.FC<{ children: React.ReactNode }> = ({ 
         return { success: false, error: 'Không tìm thấy màn hình hiện tại.' };
       }
 
-      const targetAction = currentScreenInfo.actions.find(
-        (a) => a.id.toLowerCase() === actionId.toLowerCase()
-      );
+      const normId = actionId.toLowerCase();
+      // Match exact ID or canonical alias match
+      const targetAction = currentScreenInfo.actions.find((a) => {
+        const aNorm = a.id.toLowerCase();
+        if (aNorm === normId) return true;
+        // Check alias mapping
+        for (const [canonical, aliases] of Object.entries(CANONICAL_ACTION_ALIASES)) {
+          const cNorm = canonical.toLowerCase();
+          const aliasNorms = aliases.map((al) => al.toLowerCase());
+          if (
+            (cNorm === normId || aliasNorms.includes(normId)) &&
+            (cNorm === aNorm || aliasNorms.includes(aNorm))
+          ) {
+            return true;
+          }
+        }
+        return false;
+      });
 
       if (!targetAction) {
         return { success: false, error: `Hành động "${actionId}" không tồn tại trên màn hình này.` };

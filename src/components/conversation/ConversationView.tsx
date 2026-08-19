@@ -24,6 +24,7 @@ import { summarizeConversation } from '../../services/api';
 import { saveActivityHistory } from '../../lib/firebase';
 import { useRegisterScreenActions } from '../voice-access/ScreenActionRegistry';
 import { LoviraSpeechManager } from '../voice-access/SpeechManager';
+import { LoviraMicCoordinator } from '../voice-access/MicrophoneCoordinator';
 
 interface ConversationViewProps {
   userProfile?: UserProfile | null;
@@ -99,6 +100,12 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
   }, []);
 
   useEffect(() => {
+    return () => {
+      LoviraMicCoordinator.releaseMic('CONVERSATION');
+    };
+  }, []);
+
+  useEffect(() => {
     if (transcriptContainerRef.current) {
       transcriptContainerRef.current.scrollTop = transcriptContainerRef.current.scrollHeight;
     }
@@ -106,6 +113,12 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
 
   const startListening = () => {
     if (!isSupported) return;
+
+    const micGranted = LoviraMicCoordinator.requestMic('CONVERSATION');
+    if (!micGranted) {
+      setError('Micro đang được tính năng trợ lý giọng nói sử dụng. Vui lòng chờ trợ lý dừng lệnh.');
+      return;
+    }
 
     setError(null);
     setIsListening(true);
@@ -122,6 +135,7 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
       },
       (err) => {
         console.warn('Speech error:', err);
+        LoviraMicCoordinator.releaseMic('CONVERSATION');
         if (err === 'not-allowed') {
           setError('Lovira chưa được phép sử dụng micro. Bạn vẫn có thể nhập nội dung bằng bàn phím.');
           setIsListening(false);
@@ -144,12 +158,14 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
         (instance as any).start();
       } catch (e) {
         console.error('Failed to start speech recognition:', e);
+        LoviraMicCoordinator.releaseMic('CONVERSATION');
       }
     }
   };
 
   const pauseListening = () => {
     setIsPaused(true);
+    LoviraMicCoordinator.releaseMic('CONVERSATION');
     if (recognitionRef.current) {
       try {
         recognitionRef.current.stop();
@@ -160,6 +176,11 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
   };
 
   const resumeListening = () => {
+    const micGranted = LoviraMicCoordinator.requestMic('CONVERSATION');
+    if (!micGranted) {
+      setError('Micro đang được tính năng trợ lý giọng nói sử dụng.');
+      return;
+    }
     setIsPaused(false);
     if (recognitionRef.current) {
       try {
@@ -173,6 +194,7 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
   };
 
   const stopListening = () => {
+    LoviraMicCoordinator.releaseMic('CONVERSATION');
     setIsListening(false);
     setIsPaused(false);
     setInterimText('');

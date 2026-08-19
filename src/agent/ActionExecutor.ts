@@ -8,6 +8,7 @@ import { ActionRegistry } from './ActionRegistry';
 import { SessionManager } from './SessionManager';
 import { speakText, stopSpeaking } from '../lib/speech';
 import { AccessibilitySettings } from '../types';
+import { waitForScreen } from '../components/voice-access/ScreenActionRegistry';
 
 export interface ActionExecutorCallbacks {
   onNavigate: (route: string) => void;
@@ -15,13 +16,15 @@ export interface ActionExecutorCallbacks {
   executeScreenAction?: (actionId: string, params?: Record<string, any>) => Promise<{ success: boolean; result?: any; error?: string }>;
   getCurrentContext: () => AgentContext;
   onStateChange?: (step: AgentPlanStep, index: number, total: number) => void;
+  onStopListening?: () => void;
 }
 
 const MAX_AUTONOMOUS_STEPS = 5;
 
 export class ActionExecutor {
   /**
-   * Executes a plan of steps autonomously with loop protection, prerequisite checking and verification.
+   * Executes a plan of steps autonomously with loop protection, prerequisite checking,
+   * screen transition synchronization, and verification.
    */
   public static async executePlan(
     plan: Array<{ action: string; reason?: string; parameters?: Record<string, unknown> }>,
@@ -57,8 +60,13 @@ export class ActionExecutor {
       }
 
       // Check Action Registry definition
+      const context = callbacks.getCurrentContext();
       const actionDef = ActionRegistry.getAction(step.action);
-      if (!actionDef) {
+      const availableActionDef = (context.availableActions || []).find(
+        (a) => a.id.toLowerCase() === actionId
+      );
+
+      if (!actionDef && !availableActionDef && !actionId.startsWith('navigation.') && !actionId.startsWith('agent.')) {
         return {
           success: false,
           actionId: step.action,
@@ -68,8 +76,7 @@ export class ActionExecutor {
       }
 
       // Prerequisites Check
-      const context = callbacks.getCurrentContext();
-      if (actionDef.requires && actionDef.requires.length > 0) {
+      if (actionDef?.requires && actionDef.requires.length > 0) {
         for (const req of actionDef.requires) {
           if (req === 'activeImage' && !context.activeImage) {
             return {
@@ -133,9 +140,26 @@ export class ActionExecutor {
         finalFeedback = stepOutcome.feedback;
       }
 
-      // Small breather between consecutive UI actions to allow rendering
+      // If this was a navigation step and next step is screen-specific, wait for screen readiness
       if (i < stepsToRun.length - 1) {
-        await new Promise((resolve) => setTimeout(resolve, 400));
+        const nextStep = stepsToRun[i + 1];
+        if (actionId.startsWith('navigation.') && !nextStep.action.toLowerCase().startsWith('navigation.')) {
+          let targetScreen = '';
+          if (actionId === 'navigation.openconversation') targetScreen = 'conversation';
+          else if (actionId === 'navigation.openvision') targetScreen = 'vision';
+          else if (actionId === 'navigation.openeasyread') targetScreen = 'easy-read';
+          else if (actionId === 'navigation.opendocument') targetScreen = 'documents';
+          else if (actionId === 'navigation.opensettings') targetScreen = 'settings';
+          else if (actionId === 'navigation.opensession') targetScreen = 'session';
+          else if (actionId === 'navigation.openhistory') targetScreen = 'history';
+
+          if (targetScreen) {
+            await waitForScreen(targetScreen, 3000);
+          }
+        } else {
+          // Breather between consecutive actions
+          await new Promise((resolve) => setTimeout(resolve, 300));
+        }
       }
     }
 
@@ -154,6 +178,22 @@ export class ActionExecutor {
   ): Promise<AgentActionResult> {
     const actionId = step.action.toLowerCase();
     const params = step.parameters || {};
+
+    // 0. Agent Control Actions
+    if (actionId === 'agent.stoplistening') {
+      if (callbacks.onStopListening) {
+        callbacks.onStopListening();
+      }
+      return { success: true, actionId: step.action, feedback: 'Đã dừng nghe lệnh.' };
+    }
+
+    if (actionId === 'agent.cancel') {
+      stopSpeaking();
+      if (callbacks.onStopListening) {
+        callbacks.onStopListening();
+      }
+      return { success: true, actionId: step.action, feedback: 'Đã hủy thao tác.' };
+    }
 
     // 1. Navigation Actions
     if (actionId.startsWith('navigation.')) {
@@ -202,12 +242,14 @@ export class ActionExecutor {
             return { success: true, actionId: step.action, feedback: 'Đang đọc đoạn bạn đã chọn.' };
           }
           return { success: true, actionId: step.action, feedback: 'Không có văn bản nào đang được chọn.' };
-        case 'speech.readresult':
-          if (context.currentResult?.content) {
-            speakText(context.currentResult.content, { rate: context.accessibilityPreferences.speechRate });
+        case 'speech.readresult': {
+          const textToRead = context.currentResult?.accessibleText || context.currentResult?.content;
+          if (textToRead) {
+            speakText(textToRead, { rate: context.accessibilityPreferences.speechRate });
             return { success: true, actionId: step.action, feedback: 'Đang đọc kết quả.' };
           }
           return { success: false, actionId: step.action, error: 'Chưa có kết quả để đọc.' };
+        }
         case 'speech.slower':
           callbacks.onUpdateSettings({ speechRate: 0.8 });
           return { success: true, actionId: step.action, feedback: 'Đã chỉnh tốc độ nói chậm lại.' };
@@ -221,13 +263,25 @@ export class ActionExecutor {
     if (actionId.startsWith('accessibility.')) {
       switch (actionId) {
         case 'accessibility.increasefont': {
-          const nextScales: Record<string, string> = { '100': '125', '125': '150', '150': '175', '175': '175' };
-          callbacks.onUpdateSettings({ fontScale: nextScales[context.accessibilityPreferences.fontScale] as any });
+          const nextScales: Record<string, '100' | '125' | '150' | '175'> = {
+            '100': '125',
+            '125': '150',
+            '150': '175',
+            '175': '175',
+          };
+          const current = (context.accessibilityPreferences.fontScale || '100') as '100' | '125' | '150' | '175';
+          callbacks.onUpdateSettings({ fontScale: nextScales[current] || '125' });
           return { success: true, actionId: step.action, feedback: 'Đã phóng to chữ.' };
         }
         case 'accessibility.decreasefont': {
-          const prevScales: Record<string, string> = { '175': '150', '150': '125', '125': '100', '100': '100' };
-          callbacks.onUpdateSettings({ fontScale: prevScales[context.accessibilityPreferences.fontScale] as any });
+          const prevScales: Record<string, '100' | '125' | '150' | '175'> = {
+            '175': '150',
+            '150': '125',
+            '125': '100',
+            '100': '100',
+          };
+          const current = (context.accessibilityPreferences.fontScale || '100') as '100' | '125' | '150' | '175';
+          callbacks.onUpdateSettings({ fontScale: prevScales[current] || '100' });
           return { success: true, actionId: step.action, feedback: 'Đã thu nhỏ chữ.' };
         }
         case 'accessibility.enablehighcontrast':

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import {
   AgentState,
   AgentPlanStep,
@@ -12,8 +12,9 @@ import { ContextBuilder } from './ContextBuilder';
 import { IntentResolver } from './IntentResolver';
 import { ActionExecutor } from './ActionExecutor';
 import { useScreenActionContext } from '../components/voice-access/ScreenActionRegistry';
-import { speakText, stopSpeaking, createSpeechRecognitionInstance } from '../lib/speech';
+import { speakText, stopSpeaking } from '../lib/speech';
 import { AccessibilitySettings } from '../types';
+import { LoviraMicCoordinator } from '../components/voice-access/MicrophoneCoordinator';
 
 interface AgentContextType {
   agentState: AgentState;
@@ -72,6 +73,10 @@ export const AgentProvider: React.FC<AgentProviderProps> = ({
   const [transcript, setTranscript] = useState('');
   const [isLifeModalOpen, setIsLifeModalOpen] = useState(false);
 
+  const recognitionRef = useRef<any>(null);
+  const cancelledRef = useRef<boolean>(false);
+  const latestTranscriptRef = useRef<string>('');
+
   const { executeAction: executeScreenAction, currentScreenInfo } = useScreenActionContext();
 
   // Subscribe to SessionManager updates
@@ -94,6 +99,37 @@ export const AgentProvider: React.FC<AgentProviderProps> = ({
       return undefined;
     }
   };
+
+  const stopListening = useCallback(() => {
+    cancelledRef.current = true;
+    LoviraMicCoordinator.releaseMic('AGENT_COMMAND');
+
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.onresult = null;
+        recognitionRef.current.onerror = null;
+        recognitionRef.current.onend = null;
+        recognitionRef.current.abort();
+      } catch (e) {
+        console.warn('[AgentController] Error aborting recognition:', e);
+      }
+      recognitionRef.current = null;
+    }
+
+    latestTranscriptRef.current = '';
+    setTranscript('');
+    setIsListening(false);
+    setAgentState('idle');
+    setStatusMessage('Đã dừng nghe.');
+    stopSpeaking();
+  }, []);
+
+  // Clean up recognition and speech when unmounting or navigating away
+  useEffect(() => {
+    return () => {
+      stopListening();
+    };
+  }, [stopListening]);
 
   const processInput = useCallback(
     async (rawInput: string) => {
@@ -157,6 +193,7 @@ export const AgentProvider: React.FC<AgentProviderProps> = ({
               setCurrentStepIndex(index + 1);
               setTotalSteps(total);
             },
+            onStopListening: stopListening,
           });
 
           if (result.success) {
@@ -194,10 +231,10 @@ export const AgentProvider: React.FC<AgentProviderProps> = ({
         setTimeout(() => setAgentState('idle'), 3000);
       }
     },
-    [currentRoute, settings, onNavigate, onUpdateSettings, executeScreenAction, currentScreenInfo]
+    [currentRoute, settings, onNavigate, onUpdateSettings, executeScreenAction, currentScreenInfo, stopListening]
   );
 
-  // Voice Listening setup using Web Speech Recognition
+  // Voice Listening setup using Web Speech Recognition with Mic Coordination & Ref guards
   const startListening = useCallback(() => {
     const SpeechRecognition =
       (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -207,56 +244,114 @@ export const AgentProvider: React.FC<AgentProviderProps> = ({
       return;
     }
 
+    // Stop speaking if currently speaking
+    stopSpeaking();
+
+    // Request exclusive mic ownership
+    const micGranted = LoviraMicCoordinator.requestMic('AGENT_COMMAND');
+    if (!micGranted) {
+      setStatusMessage('Micro đang được tính năng trò chuyện sử dụng. Vui lòng dừng nghe thoại trước.');
+      return;
+    }
+
+    // Abort existing instance if any
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.abort();
+      } catch {}
+      recognitionRef.current = null;
+    }
+
+    cancelledRef.current = false;
+    latestTranscriptRef.current = '';
+    setTranscript('');
+
     try {
       const recognition = new SpeechRecognition();
       recognition.lang = 'vi-VN';
       recognition.continuous = false;
       recognition.interimResults = true;
+      recognitionRef.current = recognition;
 
       recognition.onstart = () => {
+        if (cancelledRef.current) return;
         setIsListening(true);
         setAgentState('listening');
         setStatusMessage('Đang lắng nghe bạn nói...');
-        setTranscript('');
       };
 
       recognition.onresult = (event: any) => {
-        const text = Array.from(event.results)
-          .map((r: any) => r[0].transcript)
-          .join('');
-        setTranscript(text);
+        if (cancelledRef.current) return;
+        let interimText = '';
+        let finalText = '';
+
+        for (let i = 0; i < event.results.length; i++) {
+          const res = event.results[i];
+          if (res.isFinal) {
+            finalText += res[0].transcript + ' ';
+          } else {
+            interimText += res[0].transcript;
+          }
+        }
+
+        const combined = (finalText + interimText).trim();
+        latestTranscriptRef.current = combined;
+        setTranscript(combined);
       };
 
       recognition.onerror = (e: any) => {
-        console.warn('[Agent Voice Recognition Error]', e);
+        console.warn('[Agent Voice Recognition Error]', e.error);
+        LoviraMicCoordinator.releaseMic('AGENT_COMMAND');
         setIsListening(false);
-        setAgentState('idle');
-        setStatusMessage('Chưa nghe rõ giọng nói. Bạn hãy thử lại nhé.');
+
+        if (cancelledRef.current || e.error === 'aborted') {
+          return;
+        }
+
+        setAgentState('error');
+        if (e.error === 'not-allowed') {
+          setStatusMessage('Quyền truy cập micro bị từ chối. Vui lòng cho phép quyền micro trong trình duyệt.');
+        } else if (e.error === 'audio-capture') {
+          setStatusMessage('Không tìm thấy micro thu âm trên thiết bị.');
+        } else if (e.error === 'no-speech') {
+          setStatusMessage('Không nhận được giọng nói. Bạn hãy bấm vào micro để nói lại nhé.');
+        } else if (e.error === 'network') {
+          setStatusMessage('Lỗi kết nối mạng khi nhận diện giọng nói.');
+        } else {
+          setStatusMessage('Chưa nghe rõ giọng nói. Bạn hãy thử lại nhé.');
+        }
+
+        setTimeout(() => {
+          setAgentState('idle');
+        }, 3500);
       };
 
       recognition.onend = () => {
+        LoviraMicCoordinator.releaseMic('AGENT_COMMAND');
         setIsListening(false);
-        if (transcript && transcript.trim().length > 1) {
-          processInput(transcript);
+        recognitionRef.current = null;
+
+        if (cancelledRef.current) {
+          return;
+        }
+
+        const capturedText = latestTranscriptRef.current.trim();
+        if (capturedText && capturedText.length >= 1) {
+          processInput(capturedText);
         } else {
           setAgentState('idle');
-          setStatusMessage('Sẵn sàng.');
+          setStatusMessage('Sẵn sàng hỗ trợ bạn.');
         }
       };
 
       recognition.start();
     } catch (err) {
       console.warn('[Agent Voice Recognition Exception]', err);
+      LoviraMicCoordinator.releaseMic('AGENT_COMMAND');
       setIsListening(false);
       setAgentState('idle');
     }
-  }, [processInput, transcript]);
-
-  const stopListening = useCallback(() => {
-    setIsListening(false);
-    setAgentState('idle');
-    stopSpeaking();
-  }, []);
+  }, [processInput]);
 
   const createSession = (type: LifeSessionType, title?: string, goal?: string) => {
     const sess = SessionManager.createSession(type, title, goal);
@@ -314,3 +409,4 @@ export const useAgent = () => {
   }
   return context;
 };
+

@@ -128,6 +128,9 @@ export interface AgentContext {
   currentResult?: {
     type: string;
     content: string;
+    accessibleText?: string;
+    shortText?: string;
+    sourceId?: string;
   };
   availableActions: AgentActionDefinition[];
   previousAction?: AgentActionResult;
