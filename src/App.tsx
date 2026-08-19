@@ -19,6 +19,10 @@ import { AccessibilitySettings, UserProfile } from './types';
 import { DEFAULT_ACCESSIBILITY_SETTINGS } from './constants';
 import { initAnonymousAuth } from './lib/firebase';
 
+import { VoiceAccessProvider } from './components/voice-access/VoiceSessionManager';
+import { VoiceStatusBar } from './components/voice-access/VoiceStatusBar';
+import { DoubleTapShortcutListener } from './components/voice-access/DoubleTapShortcutListener';
+
 export default function App() {
   const [currentRoute, setCurrentRoute] = useState<string>('/');
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
@@ -101,108 +105,119 @@ export default function App() {
   }, [isDark, settings.highContrast, settings.fontScale]);
 
   return (
-    <div
-      className={`h-screen flex overflow-hidden bg-canvas text-text-primary ${
-        settings.reducedMotion ? 'reduce-motion' : ''
-      } ${settings.largeControls ? 'large-controls' : ''}`}
+    <VoiceAccessProvider
+      settings={settings}
+      onUpdateSettings={handleUpdateSettings}
+      currentRoute={currentRoute}
+      onNavigate={navigateTo}
+      userProfile={userProfile}
     >
-      <SkipLink />
+      <DoubleTapShortcutListener settings={settings} />
+      <VoiceStatusBar settings={settings} />
 
-      {/* Desktop Sidebar (Full height on left) */}
-      <Sidebar
-        currentRoute={currentRoute}
-        onNavigate={navigateTo}
-        userProfile={userProfile}
-        settings={settings}
-        onUpdateSettings={handleUpdateSettings}
-      />
+      <div
+        className={`h-screen flex overflow-hidden bg-canvas text-text-primary ${
+          settings.reducedMotion ? 'reduce-motion' : ''
+        } ${settings.largeControls ? 'large-controls' : ''}`}
+      >
+        <SkipLink />
 
-      {/* Right Column: Header + Main Content */}
-      <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
-        {/* Top Header Bar */}
-        <Header
+        {/* Desktop Sidebar (Full height on left) */}
+        <Sidebar
+          currentRoute={currentRoute}
+          onNavigate={navigateTo}
+          userProfile={userProfile}
           settings={settings}
           onUpdateSettings={handleUpdateSettings}
-          userProfile={userProfile}
-          onNavigate={navigateTo}
         />
 
-        {/* Main Content Viewport */}
-        <main id="main-content" tabIndex={-1} className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 pb-28 sm:pb-8 w-full outline-none">
-          <div className="max-w-7xl mx-auto">
-            <ErrorBoundary key={currentRoute}>
-              {currentRoute === '/' && (
-                <DashboardView
-                  userProfile={userProfile}
-                  settings={settings}
-                  onUpdateSettings={handleUpdateSettings}
-                  onNavigate={navigateTo}
-                />
-              )}
+        {/* Right Column: Header + Main Content */}
+        <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
+          {/* Top Header Bar */}
+          <Header
+            settings={settings}
+            onUpdateSettings={handleUpdateSettings}
+            userProfile={userProfile}
+            onNavigate={navigateTo}
+          />
 
-              {currentRoute.startsWith('/vision') && (
-                <VisionView
-                  userProfile={userProfile}
-                  settings={settings}
-                  initialAction={currentRoute.includes('action=camera') ? 'camera' : undefined}
-                />
-              )}
+          {/* Main Content Viewport */}
+          <main id="main-content" tabIndex={-1} className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 pb-28 sm:pb-8 w-full outline-none">
+            <div className="max-w-7xl mx-auto">
+              <ErrorBoundary key={currentRoute}>
+                {currentRoute === '/' && (
+                  <DashboardView
+                    userProfile={userProfile}
+                    settings={settings}
+                    onUpdateSettings={handleUpdateSettings}
+                    onNavigate={navigateTo}
+                  />
+                )}
 
-              {currentRoute.startsWith('/conversation') && (
-                <ConversationView
-                  userProfile={userProfile}
-                  settings={settings}
-                  onNavigate={navigateTo}
-                />
-              )}
+                {currentRoute.startsWith('/vision') && (
+                  <VisionView
+                    userProfile={userProfile}
+                    settings={settings}
+                    initialAction={currentRoute.includes('action=camera') ? 'camera' : undefined}
+                  />
+                )}
 
-              {currentRoute.startsWith('/easy-read') && (
-                <EasyReadView
-                  userProfile={userProfile}
-                  settings={settings}
-                />
-              )}
+                {currentRoute.startsWith('/conversation') && (
+                  <ConversationView
+                    userProfile={userProfile}
+                    settings={settings}
+                    onNavigate={navigateTo}
+                  />
+                )}
 
-              {currentRoute.startsWith('/documents') && (
-                <DocumentView
-                  userProfile={userProfile}
-                  settings={settings}
-                />
-              )}
+                {currentRoute.startsWith('/easy-read') && (
+                  <EasyReadView
+                    userProfile={userProfile}
+                    settings={settings}
+                  />
+                )}
 
-              {currentRoute.startsWith('/history') && (
-                <HistoryView userProfile={userProfile} />
-              )}
+                {currentRoute.startsWith('/documents') && (
+                  <DocumentView
+                    userProfile={userProfile}
+                    settings={settings}
+                  />
+                )}
 
-              {currentRoute.startsWith('/settings') && (
-                <SettingsView
-                  settings={settings}
-                  onUpdateSettings={handleUpdateSettings}
-                  userProfile={userProfile}
-                />
-              )}
-            </ErrorBoundary>
-          </div>
-        </main>
+                {currentRoute.startsWith('/history') && (
+                  <HistoryView userProfile={userProfile} />
+                )}
+
+                {currentRoute.startsWith('/settings') && (
+                  <SettingsView
+                    settings={settings}
+                    onUpdateSettings={handleUpdateSettings}
+                    userProfile={userProfile}
+                  />
+                )}
+              </ErrorBoundary>
+            </div>
+          </main>
+        </div>
+
+        {/* Mobile Navigation */}
+        <MobileNav
+          currentRoute={currentRoute}
+          onNavigate={navigateTo}
+          onOpenMoreMenu={() => setIsMoreMenuOpen(true)}
+        />
+
+        {/* Mobile More Menu Drawer */}
+        <MoreMenuModal
+          isOpen={isMoreMenuOpen}
+          onClose={() => setIsMoreMenuOpen(false)}
+          onNavigate={navigateTo}
+          currentRoute={currentRoute}
+        />
+
+        {/* Persistent PWA Installation Banner */}
+        <PWAInstallPrompt />
       </div>
-
-      {/* Mobile Navigation */}
-      <MobileNav
-        currentRoute={currentRoute}
-        onNavigate={navigateTo}
-        onOpenMoreMenu={() => setIsMoreMenuOpen(true)}
-      />
-
-      {/* Mobile More Menu Drawer */}
-      <MoreMenuModal
-        isOpen={isMoreMenuOpen}
-        onClose={() => setIsMoreMenuOpen(false)}
-        onNavigate={navigateTo}
-        currentRoute={currentRoute}
-      />
-
-      {/* Persistent PWA Installation Banner */}
-      <PWAInstallPrompt />
-    </div>
+    </VoiceAccessProvider>
   );
 }

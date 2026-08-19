@@ -757,6 +757,155 @@ Trả lời bằng tiếng Việt thân thiện, rõ ràng:`;
   }
 });
 
+// 7. POST /api/ai/verify-key (Verify user custom Gemini API key)
+app.post('/api/ai/verify-key', async (req: Request, res: Response) => {
+  console.log('[Lovira API] verify-key request received');
+  res.setHeader('Content-Type', 'application/json');
+  try {
+    const { customApiKey } = req.body || {};
+    if (!customApiKey || typeof customApiKey !== 'string' || !customApiKey.trim()) {
+      return res.status(400).json({ success: false, error: 'API Key không hợp lệ.' });
+    }
+
+    // Attempt a super lightweight request
+    const ai = getGenAIClient(customApiKey.trim());
+    await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: 'Ping',
+      config: {
+        maxOutputTokens: 5,
+      },
+    });
+
+    return res.json({ success: true, message: 'Kết nối Gemini thành công.' });
+  } catch (err: unknown) {
+    const norm = normalizeGeminiError(err);
+    return res.status(norm.status).json({
+      success: false,
+      error: 'Lovira chưa thể sử dụng khóa Gemini này. Kiểm tra lại khóa hoặc hạn mức API của bạn.',
+      category: norm.category,
+      code: norm.code,
+    });
+  }
+});
+
+// 8. POST /api/ai/voice-intent (Classify natural language voice commands)
+app.post('/api/ai/voice-intent', async (req: Request, res: Response) => {
+  console.log('[Lovira API] voice-intent request received');
+  res.setHeader('Content-Type', 'application/json');
+  try {
+    const { command, context = {}, customApiKey } = req.body || {};
+    if (!command || typeof command !== 'string' || !command.trim()) {
+      return res.status(400).json({ success: false, error: 'Câu lệnh là bắt buộc.' });
+    }
+
+    const VOICE_INTENT_SYSTEM_INSTRUCTION = `You are the action router for Lovira.
+Lovira is a Vietnamese accessibility application.
+
+Your only task is to understand the user's voice command in Vietnamese and select exactly one supported action.
+
+Supported actions (LoviraAction):
+- START_VOICE_SESSION
+- END_VOICE_SESSION
+- DISABLE_VOICE_ACCESS
+- GO_HOME
+- GO_BACK
+- OPEN_VISION
+- OPEN_CONVERSATION
+- OPEN_EASY_READ
+- OPEN_DOCUMENTS
+- OPEN_HISTORY
+- OPEN_ACCESSIBILITY
+- OPEN_SETTINGS
+- OPEN_CAMERA
+- CAPTURE_IMAGE
+- ANALYZE_SCENE
+- READ_IMAGE_TEXT
+- EXPLAIN_OBJECT
+- SIMPLIFY_CURRENT_TEXT
+- SUMMARIZE_CURRENT_CONTENT
+- INCREASE_FONT
+- DECREASE_FONT
+- SET_FONT_SCALE
+- ENABLE_HIGH_CONTRAST
+- DISABLE_HIGH_CONTRAST
+- ENABLE_REDUCED_MOTION
+- DISABLE_REDUCED_MOTION
+- ENABLE_LARGE_CONTROLS
+- DISABLE_LARGE_CONTROLS
+- READ_PAGE
+- READ_MAIN_CONTENT
+- READ_CURRENT_REGION
+- READ_CURRENT_FOCUS
+- READ_CURRENT_RESULT
+- READ_INTERACTIVE_ELEMENTS
+- READ_NEXT
+- READ_PREVIOUS
+- PAUSE_READING
+- RESUME_READING
+- STOP_READING
+- SPEAK_SLOWER
+- SPEAK_FASTER
+- SAVE_CURRENT_RESULT
+- DESCRIBE_CURRENT_PAGE
+- UNKNOWN
+
+Use the current application context to understand ambiguous terms:
+“cái này” (this item)
+“phần này” (this section)
+“ảnh này” (this picture)
+“tài liệu này” (this document)
+“đọc lại” (read again)
+“tiếp theo” (next)
+“quay lại” (back)
+
+Context of current page:
+${JSON.stringify(context, null, 2)}
+
+You must return a JSON object with the following fields:
+{
+  "action": string (one of the supported actions list above, NEVER invent a new name),
+  "confidence": number (0.0 to 1.0),
+  "parameters": {},
+  "confirmationRequired": boolean (set to true if the action is destructive/irreversible),
+  "feedback": string (a short, warm, supportive confirmation or statement in Vietnamese, e.g. "Đã tăng cỡ chữ."),
+  "clarificationQuestion": string (only if confidence is low, keep it short and friendly)
+}
+
+Do not write code, do not output explanatory text, only return raw JSON.`;
+
+    const rawResponse = await generateTextWithDualEngine({
+      systemInstruction: VOICE_INTENT_SYSTEM_INSTRUCTION,
+      prompt: `Command: "${command.trim()}"`,
+      responseMimeType: 'application/json',
+      customApiKey,
+    });
+
+    const parsed = safeParseJson<any>(rawResponse);
+    if (!parsed || !parsed.action) {
+      console.warn('[VoiceIntent] Failed to parse semantic AI output as JSON:', rawResponse);
+      return res.json({
+        success: true,
+        provider: customApiKey ? 'gemini' : 'groq',
+        data: {
+          action: 'UNKNOWN',
+          confidence: 0,
+          confirmationRequired: false,
+          feedback: 'Lovira chưa hiểu rõ yêu cầu này.',
+        },
+      });
+    }
+
+    return res.json({
+      success: true,
+      provider: customApiKey ? 'gemini' : 'groq',
+      data: parsed,
+    });
+  } catch (err: unknown) {
+    return handleApiError(res, 'voice-intent', err);
+  }
+});
+
 // Global Express error handler
 app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
   const norm = normalizeGeminiError(err);

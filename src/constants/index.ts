@@ -13,6 +13,11 @@ export const DEFAULT_ACCESSIBILITY_SETTINGS: AccessibilitySettings = {
   speechRate: 1.0,
   voiceVariant: 'female1',
   voiceURI: '',
+  voiceAccessEnabled: false,
+  spokenFeedbackEnabled: true,
+  doubleTapShortcutEnabled: false,
+  preferredAIProvider: 'groq',
+  geminiFallbackPolicy: 'ask',
 };
 
 export const APP_NAME = 'Lovira';

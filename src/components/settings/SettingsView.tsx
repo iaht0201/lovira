@@ -30,9 +30,18 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   onUpdateSettings,
   userProfile,
 }) => {
-  const [apiKeyInput, setApiKeyInput] = useState(
-    localStorage.getItem('lovira_custom_gemini_key') || ''
-  );
+  const [apiKeyInput, setApiKeyInput] = useState(() => {
+    try {
+      return localStorage.getItem('lovira_custom_gemini_api_key') || localStorage.getItem('lovira_custom_gemini_key') || '';
+    } catch {
+      return '';
+    }
+  });
+
+  const [verifyState, setVerifyState] = useState<'idle' | 'checking' | 'success' | 'error'>('idle');
+  const [verifyMessage, setVerifyMessage] = useState('');
+  const [rememberKey, setRememberKey] = useState(true);
+
   const [keySaved, setKeySaved] = useState(false);
   const [isPlayingTest, setIsPlayingTest] = useState(false);
   const [systemVoices, setSystemVoices] = useState<SpeechSynthesisVoice[]>([]);
@@ -95,15 +104,58 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     });
   };
 
-  const handleSaveApiKey = (e: React.FormEvent) => {
+  const handleVerifyAndSaveKey = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (apiKeyInput.trim()) {
-      localStorage.setItem('lovira_custom_gemini_key', apiKeyInput.trim());
-    } else {
-      localStorage.removeItem('lovira_custom_gemini_key');
+    if (!apiKeyInput.trim()) {
+      setVerifyState('error');
+      setVerifyMessage('Vui lòng nhập khóa API Gemini.');
+      return;
     }
-    setKeySaved(true);
-    setTimeout(() => setKeySaved(false), 2000);
+
+    setVerifyState('checking');
+    setVerifyMessage('Đang kiểm tra khóa...');
+
+    try {
+      const response = await fetch('/api/ai/verify-key', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-lovira-client': 'pwa-settings-client',
+        },
+        body: JSON.stringify({ customApiKey: apiKeyInput.trim() }),
+      });
+
+      const result = await response.json();
+      if (response.ok && result.success) {
+        setVerifyState('success');
+        setVerifyMessage('Kết nối Gemini thành công.');
+        onUpdateSettings({ preferredAIProvider: 'gemini' });
+
+        if (rememberKey) {
+          localStorage.setItem('lovira_custom_gemini_api_key', apiKeyInput.trim());
+          // Sync with old key name just in case
+          localStorage.setItem('lovira_custom_gemini_key', apiKeyInput.trim());
+        } else {
+          localStorage.removeItem('lovira_custom_gemini_api_key');
+          localStorage.removeItem('lovira_custom_gemini_key');
+        }
+      } else {
+        setVerifyState('error');
+        setVerifyMessage(result.error || 'Lovira chưa thể sử dụng khóa Gemini này.');
+      }
+    } catch (err) {
+      setVerifyState('error');
+      setVerifyMessage('Lỗi mạng hoặc máy chủ không thể xác thực khóa.');
+    }
+  };
+
+  const handleDisconnectGemini = () => {
+    localStorage.removeItem('lovira_custom_gemini_api_key');
+    localStorage.removeItem('lovira_custom_gemini_key');
+    setApiKeyInput('');
+    setVerifyState('idle');
+    setVerifyMessage('');
+    onUpdateSettings({ preferredAIProvider: 'groq' });
   };
 
   const handleResetSettings = () => {
@@ -404,42 +456,198 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         </div>
       </section>
 
-      {/* 3. API Key & Security */}
-      <section className="bg-surface border border-slate-200 dark:border-slate-800 p-6 rounded-2xl space-y-4">
+      {/* 3. Voice Access Settings */}
+      <section className="bg-surface border border-slate-200 dark:border-slate-800 p-6 rounded-2xl space-y-6">
         <h3 className="text-base font-bold text-text-primary flex items-center gap-2 pb-3 border-b border-slate-100 dark:border-slate-800">
-          <Key className="w-5 h-5 text-primary shrink-0" /> Khóa API Gemini
+          <Mic className="w-5 h-5 text-primary shrink-0" /> Điều khiển bằng giọng nói (Voice Access)
         </h3>
+        <p className="text-xs text-text-secondary leading-relaxed">
+          Hỗ trợ sử dụng toàn bộ ứng dụng thông qua khẩu lệnh nói trực tiếp không chạm. Chỉ cần nói <strong>“Chào Lovira”</strong> để khởi động trợ lý ảo bất kỳ lúc nào.
+        </p>
 
-        <div className="p-3.5 rounded-xl bg-surface-subtle text-xs space-y-1">
-          <div className="flex items-center gap-1.5 font-bold text-text-primary">
-            <Shield className="w-4 h-4 text-emerald-500" /> Mặc định: Máy chủ server-side an toàn
+        {/* Voice Access Enabled */}
+        <div className="flex items-center justify-between p-3.5 rounded-xl bg-surface-subtle border border-slate-100 dark:border-slate-800">
+          <div className="space-y-0.5 pr-4">
+            <span className="text-sm font-bold text-text-primary flex items-center gap-2">
+              Sử dụng Voice Access
+            </span>
+            <p className="text-xs text-text-secondary">Bật micro lắng nghe khẩu lệnh của bạn khi mở ứng dụng Lovira.</p>
           </div>
-          <p className="text-text-secondary">
-            Lovira đã tích hợp Gemini API trực tiếp trên server proxy. Để trống trừ khi bạn muốn dùng khóa Gemini riêng.
-          </p>
+
+          <button
+            type="button"
+            onClick={() => onUpdateSettings({ voiceAccessEnabled: !settings.voiceAccessEnabled })}
+            className={`w-11 h-6 rounded-full p-0.5 transition-colors shrink-0 ${
+              settings.voiceAccessEnabled ? 'bg-primary' : 'bg-slate-300 dark:bg-slate-700'
+            }`}
+          >
+            <div
+              className={`w-5 h-5 rounded-full bg-white transition-transform ${
+                settings.voiceAccessEnabled ? 'translate-x-5' : 'translate-x-0'
+              }`}
+            ></div>
+          </button>
         </div>
 
-        <form onSubmit={handleSaveApiKey} className="space-y-3">
-          <div className="flex gap-2">
-            <input
-              id="custom-api-key"
-              type="password"
-              value={apiKeyInput}
-              onChange={(e) => setApiKeyInput(e.target.value)}
-              placeholder="Nhập khóa API cá nhân (tùy chọn)..."
-              className="flex-1 px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-surface text-xs text-text-primary focus:border-primary"
-            />
-            <button
-              type="submit"
-              className="px-4 py-2 rounded-xl bg-primary text-white font-semibold text-xs hover:bg-primary-hover"
-            >
-              {keySaved ? 'Đã lưu!' : 'Lưu'}
-            </button>
+        {/* Spoken Feedback Enabled */}
+        <div className="flex items-center justify-between p-3.5 rounded-xl bg-surface-subtle border border-slate-100 dark:border-slate-800">
+          <div className="space-y-0.5 pr-4">
+            <span className="text-sm font-bold text-text-primary">
+              Phản hồi bằng giọng nói
+            </span>
+            <p className="text-xs text-text-secondary">Lovira sẽ tự động phát âm thanh để hướng dẫn và đọc to kết quả tương tác.</p>
           </div>
-        </form>
+
+          <button
+            type="button"
+            onClick={() => onUpdateSettings({ spokenFeedbackEnabled: !settings.spokenFeedbackEnabled })}
+            className={`w-11 h-6 rounded-full p-0.5 transition-colors shrink-0 ${
+              settings.spokenFeedbackEnabled ? 'bg-primary' : 'bg-slate-300 dark:bg-slate-700'
+            }`}
+          >
+            <div
+              className={`w-5 h-5 rounded-full bg-white transition-transform ${
+                settings.spokenFeedbackEnabled ? 'translate-x-5' : 'translate-x-0'
+              }`}
+            ></div>
+          </button>
+        </div>
+
+        {/* Double Tap Shortcut */}
+        <div className="flex items-center justify-between p-3.5 rounded-xl bg-surface-subtle border border-slate-100 dark:border-slate-800">
+          <div className="space-y-0.5 pr-4">
+            <span className="text-sm font-bold text-text-primary">
+              Chạm hai lần để kích hoạt nhanh (Double Tap)
+            </span>
+            <p className="text-xs text-text-secondary">Chạm đúp vào vùng trống trên màn hình bất kỳ lúc nào để bắt đầu cuộc thoại với Lovira.</p>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => onUpdateSettings({ doubleTapShortcutEnabled: !settings.doubleTapShortcutEnabled })}
+            className={`w-11 h-6 rounded-full p-0.5 transition-colors shrink-0 ${
+              settings.doubleTapShortcutEnabled ? 'bg-primary' : 'bg-slate-300 dark:bg-slate-700'
+            }`}
+          >
+            <div
+              className={`w-5 h-5 rounded-full bg-white transition-transform ${
+                settings.doubleTapShortcutEnabled ? 'translate-x-5' : 'translate-x-0'
+              }`}
+            ></div>
+          </button>
+        </div>
       </section>
 
-      {/* 4. Google Account & Cloud Sync */}
+      {/* 4. AI Provider Selection */}
+      <section className="bg-surface border border-slate-200 dark:border-slate-800 p-6 rounded-2xl space-y-6">
+        <h3 className="text-base font-bold text-text-primary flex items-center gap-2 pb-3 border-b border-slate-100 dark:border-slate-800">
+          <Shield className="w-5 h-5 text-primary shrink-0" /> Nhà cung cấp AI
+        </h3>
+        <p className="text-xs text-text-secondary leading-relaxed">
+          Chọn nguồn xử lý AI cung cấp năng lực cho Lovira. Chế độ Lovira miễn phí tối ưu hiệu năng và tốc độ phản hồi tối đa. Bạn có thể tự điền khóa Gemini cá nhân để bảo vệ quyền riêng tư tuyệt đối hoặc gia tăng hạn ngạch.
+        </p>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div
+            onClick={() => onUpdateSettings({ preferredAIProvider: 'groq' })}
+            className={`p-4 rounded-xl border cursor-pointer transition-all ${
+              settings.preferredAIProvider !== 'gemini'
+                ? 'bg-primary-soft border-primary text-primary'
+                : 'bg-surface border-slate-200 dark:border-slate-800'
+            }`}
+          >
+            <h4 className="text-sm font-bold text-text-primary">Lovira miễn phí (Groq Demo)</h4>
+            <p className="text-xs text-text-secondary mt-1">Sử dụng dịch vụ AI mặc định siêu tốc độ của Lovira qua hệ thống LPU Groq. Khuyên dùng cho trải nghiệm thử nghiệm thông thường.</p>
+            <span className="inline-block mt-3 px-2 py-0.5 text-[10px] font-bold rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+              {settings.preferredAIProvider !== 'gemini' ? 'Đang sử dụng' : 'Khuyên dùng'}
+            </span>
+          </div>
+
+          <div
+            onClick={() => {
+              if (localStorage.getItem('lovira_custom_gemini_api_key')) {
+                onUpdateSettings({ preferredAIProvider: 'gemini' });
+              } else {
+                document.getElementById('custom-api-key')?.focus();
+              }
+            }}
+            className={`p-4 rounded-xl border cursor-pointer transition-all ${
+              settings.preferredAIProvider === 'gemini'
+                ? 'bg-primary-soft border-primary text-primary'
+                : 'bg-surface border-slate-200 dark:border-slate-800'
+            }`}
+          >
+            <h4 className="text-sm font-bold text-text-primary">Gemini của bạn (BYOK)</h4>
+            <p className="text-xs text-text-secondary mt-1">Sử dụng mã API riêng của bạn. Toàn bộ hội thoại và văn bản phân tích được bảo mật, không lưu giữ lịch sử đám mây.</p>
+            <span className="inline-block mt-3 px-2 py-0.5 text-[10px] font-bold rounded-md bg-indigo-500/10 text-indigo-600 dark:text-indigo-400">
+              {settings.preferredAIProvider === 'gemini' ? 'Đang sử dụng' : 'Yêu cầu kết nối'}
+            </span>
+          </div>
+        </div>
+
+        {/* Gemini API Input Form */}
+        <div className="pt-4 border-t border-slate-100 dark:border-slate-800 space-y-3">
+          <form onSubmit={handleVerifyAndSaveKey} className="space-y-3">
+            <label htmlFor="custom-api-key" className="block text-xs font-semibold text-text-secondary">
+              Khóa API Gemini của bạn:
+            </label>
+            <div className="flex gap-2">
+              <input
+                id="custom-api-key"
+                type="password"
+                value={apiKeyInput}
+                onChange={(e) => setApiKeyInput(e.target.value)}
+                placeholder="Nhập khóa API cá nhân của bạn (AIzaSy...)"
+                className="flex-1 px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-surface text-xs text-text-primary focus:border-primary"
+              />
+              <button
+                type="submit"
+                disabled={verifyState === 'checking'}
+                className="px-4 py-2 rounded-xl bg-primary hover:bg-primary-hover text-white font-semibold text-xs transition-colors shrink-0"
+              >
+                {verifyState === 'checking' ? 'Đang kiểm tra...' : 'Kiểm tra & Kết nối'}
+              </button>
+            </div>
+
+            {verifyMessage && (
+              <p
+                className={`text-xs font-bold ${
+                  verifyState === 'success' ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'
+                }`}
+              >
+                {verifyMessage}
+              </p>
+            )}
+
+            <div className="flex items-center gap-2 pt-1">
+              <input
+                type="checkbox"
+                id="remember-key"
+                checked={rememberKey}
+                onChange={(e) => setRememberKey(e.target.checked)}
+                className="rounded text-primary focus:ring-primary w-4 h-4"
+              />
+              <label htmlFor="remember-key" className="text-xs text-text-secondary select-none">
+                Ghi nhớ khóa trên thiết bị này (khóa được lưu an toàn tại bộ nhớ trình duyệt của bạn)
+              </label>
+            </div>
+
+            {localStorage.getItem('lovira_custom_gemini_api_key') && (
+              <div className="pt-2">
+                <button
+                  type="button"
+                  onClick={handleDisconnectGemini}
+                  className="px-3 py-1.5 rounded-lg border border-rose-200 dark:border-rose-900 text-rose-600 dark:text-rose-400 text-xs font-semibold hover:bg-rose-50 dark:hover:bg-rose-950/20 transition-colors"
+                >
+                  Ngừng sử dụng Gemini API cá nhân
+                </button>
+              </div>
+            )}
+          </form>
+        </div>
+      </section>
+
+      {/* 5. Google Account & Cloud Sync */}
       <section className="bg-surface border border-slate-200 dark:border-slate-800 p-6 rounded-2xl space-y-4">
         <h3 className="text-base font-bold text-text-primary flex items-center gap-2 pb-3 border-b border-slate-100 dark:border-slate-800">
           <UserCheck className="w-5 h-5 text-primary shrink-0" /> Tài khoản & Đồng bộ
