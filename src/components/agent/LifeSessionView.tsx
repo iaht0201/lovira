@@ -268,32 +268,32 @@ export const LifeSessionView: React.FC<LifeSessionViewProps> = ({
   return (
     <div className="max-w-4xl mx-auto space-y-6 pb-12">
       {/* Top Bar Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-surface p-5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xs">
-        <div className="flex items-center gap-3">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-surface p-4 sm:p-5 rounded-2xl sm:rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xs">
+        <div className="flex items-center gap-3 min-w-0 flex-1">
           <button
             onClick={() => onNavigate('/')}
             aria-label="Quay về trang chủ"
-            className="p-2.5 rounded-2xl bg-surface-subtle hover:bg-slate-200 dark:hover:bg-slate-800 text-text-secondary hover:text-text-primary transition-colors shrink-0"
+            className="p-2 sm:p-2.5 rounded-2xl bg-surface-subtle hover:bg-slate-200 dark:hover:bg-slate-800 text-text-secondary hover:text-text-primary transition-colors shrink-0"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
-          <div>
-            <div className="flex items-center gap-2">
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
               <span className="text-xl shrink-0">{config.icon}</span>
-              <h2 className="text-xl font-bold text-text-primary truncate">{activeSession.title}</h2>
-              <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300">
+              <h2 className="text-base sm:text-xl font-bold text-text-primary truncate">{activeSession.title}</h2>
+              <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 shrink-0">
                 Đang hỗ trợ
               </span>
             </div>
-            <p className="text-xs text-text-secondary mt-0.5">{activeSession.goal}</p>
+            <p className="text-xs text-text-secondary mt-0.5 truncate">{activeSession.goal}</p>
           </div>
         </div>
 
         {/* Action Controls */}
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
           <button
             onClick={() => pauseSession()}
-            className="px-3.5 py-2 rounded-xl bg-surface-subtle border border-slate-200 dark:border-slate-800 text-xs font-semibold text-text-primary hover:bg-slate-200 dark:hover:bg-slate-800 flex items-center gap-1.5"
+            className="px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl bg-surface-subtle border border-slate-200 dark:border-slate-800 text-xs font-semibold text-text-primary hover:bg-slate-200 dark:hover:bg-slate-800 flex items-center gap-1.5"
             title="Tạm dừng phiên"
           >
             <Pause className="w-3.5 h-3.5" />
@@ -305,7 +305,7 @@ export const LifeSessionView: React.FC<LifeSessionViewProps> = ({
                 completeSession();
               }
             }}
-            className="px-3.5 py-2 rounded-xl bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 flex items-center gap-1.5 shadow-xs"
+            className="px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 flex items-center gap-1.5 shadow-xs"
           >
             <CheckCircle2 className="w-3.5 h-3.5" />
             <span>Hoàn thành</span>
