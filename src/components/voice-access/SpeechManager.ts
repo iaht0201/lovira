@@ -30,6 +30,12 @@ class SpeechManager {
     }
 
     try {
+      if (this.currentUtterance) {
+        this.currentUtterance.onstart = null;
+        this.currentUtterance.onend = null;
+        this.currentUtterance.onerror = null;
+      }
+
       this.currentUtterance = new SpeechSynthesisUtterance(cleanText);
       this.currentUtterance.rate = Math.max(0.6, Math.min(2.0, options.rate));
       this.currentUtterance.lang = 'vi-VN';
@@ -57,8 +63,14 @@ class SpeechManager {
         this.currentUtterance = null;
       };
 
-      this.currentUtterance.onerror = (e) => {
-        console.error('[SpeechManager] Speech Synthesis error:', e);
+      this.currentUtterance.onerror = (e: any) => {
+        // 'interrupted' or 'canceled' happens normally when stopped or replaced
+        if (e.error === 'interrupted' || e.error === 'canceled') {
+          this.isSpeakingActive = false;
+          this.currentUtterance = null;
+          return;
+        }
+        console.warn('[SpeechManager] Speech Synthesis notice:', e.error || 'canceled');
         this.isSpeakingActive = false;
         options.onError?.();
         this.currentUtterance = null;
@@ -66,7 +78,7 @@ class SpeechManager {
 
       window.speechSynthesis.speak(this.currentUtterance);
     } catch (err) {
-      console.error('[SpeechManager] Failed to speak:', err);
+      console.warn('[SpeechManager] Could not start speech utterance:', err);
       this.isSpeakingActive = false;
       options.onError?.();
     }

@@ -69,7 +69,7 @@ export const VoiceAccessProvider: React.FC<ProviderProps> = ({
   const isListeningRef = useRef<boolean>(false);
   const isSpeakingRef = useRef<boolean>(false);
   const consecutiveErrorsRef = useRef<number>(0);
-  const restartTimeoutRef = useRef<any>(null);
+  const silenceTimeoutRef = useRef<any>(null);
 
   // Read Gemini BYOK from local storage if any
   const getCustomGeminiKey = () => {
@@ -85,7 +85,7 @@ export const VoiceAccessProvider: React.FC<ProviderProps> = ({
   };
 
   const getVoiceURI = () => {
-    return settings.voiceURI || undefined;
+    return settings.preferredVoiceURI || undefined;
   };
 
   // Sync state context
@@ -107,7 +107,7 @@ export const VoiceAccessProvider: React.FC<ProviderProps> = ({
   const stopSpeaking = () => {
     LoviraSpeechManager.stop();
     isSpeakingRef.current = false;
-    setVoiceState((prev) => (prev === 'speaking' ? 'listening' : prev));
+    deactivateSession();
   };
 
   // Speaks feedback text with prevention of self-recognition
@@ -119,7 +119,6 @@ export const VoiceAccessProvider: React.FC<ProviderProps> = ({
 
     console.log(`[PWA Voice] Speaking: "${text}"`);
     isSpeakingRef.current = true;
-    const previousState = voiceState;
     setVoiceState('speaking');
 
     // Pause recognition during speech to avoid self-audio loop
@@ -131,49 +130,44 @@ export const VoiceAccessProvider: React.FC<ProviderProps> = ({
       onEnd: () => {
         isSpeakingRef.current = false;
         onEnd?.();
-        // Restore recognition state
-        if (isListeningRef.current) {
-          setVoiceState('listening');
-          resumeRecognition();
-        } else if (isArmedRef.current) {
-          setVoiceState('armed');
-          resumeRecognition();
-        } else {
-          setVoiceState(previousState === 'speaking' ? 'listening' : previousState);
-        }
       },
       onError: () => {
         isSpeakingRef.current = false;
         onEnd?.();
-        if (isListeningRef.current) {
-          setVoiceState('listening');
-          resumeRecognition();
-        } else if (isArmedRef.current) {
-          setVoiceState('armed');
-          resumeRecognition();
-        } else {
-          setVoiceState('error');
-        }
       },
     });
   };
 
-  // Manual session triggers
+  // Manual session triggers - Single-sentence 2-click on-demand session
   const activateSession = () => {
     if (!settings.voiceAccessEnabled) return;
+    
+    if (isSpeakingRef.current) {
+      LoviraSpeechManager.stop();
+      isSpeakingRef.current = false;
+    }
+
+    if (silenceTimeoutRef.current) clearTimeout(silenceTimeoutRef.current);
+
     isArmedRef.current = false;
     isListeningRef.current = true;
     setVoiceState('listening');
-    speakText('Mình đang nghe.', () => {
-      startRecognitionInstance();
-    });
+    startRecognitionInstance();
+
+    // Auto-timeout after 8s if user doesn't say anything
+    silenceTimeoutRef.current = setTimeout(() => {
+      console.log('[PWA Voice] Silence timeout reached. Closing session.');
+      deactivateSession();
+    }, 8000);
   };
 
   const deactivateSession = () => {
+    if (silenceTimeoutRef.current) clearTimeout(silenceTimeoutRef.current);
     isArmedRef.current = true;
     isListeningRef.current = false;
-    setVoiceState('armed');
-    speakText('Đã kết thúc phiên nghe thoại.');
+    pauseRecognition();
+    LoviraMicCoordinator.releaseMic('VOICE_ACCESS');
+    setVoiceState(settings.voiceAccessEnabled ? 'armed' : 'disabled');
   };
 
   // Central Action Executor mapping to real application commands
@@ -182,10 +176,16 @@ export const VoiceAccessProvider: React.FC<ProviderProps> = ({
     console.log(`[PWA Voice] Executing action: ${action}`);
     setLastAction(action);
 
-    const speakFeedbackThenListen = (fb: string, onDone?: () => void) => {
-      speakText(fb, () => {
+    const finishWithFeedback = (fb: string, onDone?: () => void) => {
+      if (settings.spokenFeedbackEnabled) {
+        speakText(fb, () => {
+          onDone?.();
+          deactivateSession();
+        });
+      } else {
         onDone?.();
-      });
+        deactivateSession();
+      }
     };
 
     switch (action) {
@@ -199,156 +199,163 @@ export const VoiceAccessProvider: React.FC<ProviderProps> = ({
 
       case 'DISABLE_VOICE_ACCESS':
         onUpdateSettings({ voiceAccessEnabled: false });
-        speakFeedbackThenListen('Đã tắt chế độ điều khiển bằng giọng nói.');
+        finishWithFeedback('Đã tắt chế độ điều khiển bằng giọng nói.');
         break;
 
       case 'GO_HOME':
         onNavigate('/');
-        speakFeedbackThenListen(feedback || 'Đang chuyển về trang chủ.');
+        finishWithFeedback(feedback || 'Đang chuyển về trang chủ.');
         break;
 
       case 'GO_BACK':
         window.history.back();
-        speakFeedbackThenListen(feedback || 'Đang quay lại trang trước.');
+        finishWithFeedback(feedback || 'Đang quay lại trang trước.');
         break;
 
       case 'OPEN_VISION':
       case 'OPEN_CAMERA':
         onNavigate('/vision?action=camera');
-        speakFeedbackThenListen(feedback || 'Đang kích hoạt camera.');
+        finishWithFeedback(feedback || 'Đang kích hoạt camera.');
         break;
 
       case 'OPEN_CONVERSATION':
         onNavigate('/conversation');
-        speakFeedbackThenListen(feedback || 'Đang mở nghe thoại.');
+        finishWithFeedback(feedback || 'Đang mở nghe thoại.');
         break;
 
       case 'OPEN_EASY_READ':
         onNavigate('/easy-read');
-        speakFeedbackThenListen(feedback || 'Đang mở làm nội dung dễ hiểu.');
+        finishWithFeedback(feedback || 'Đang mở làm nội dung dễ hiểu.');
         break;
 
       case 'OPEN_DOCUMENTS':
         onNavigate('/documents');
-        speakFeedbackThenListen(feedback || 'Đang mở Hiểu tài liệu.');
+        finishWithFeedback(feedback || 'Đang mở Hiểu tài liệu.');
         break;
 
       case 'OPEN_HISTORY':
         onNavigate('/history');
-        speakFeedbackThenListen(feedback || 'Đang mở Lịch sử.');
+        finishWithFeedback(feedback || 'Đang mở Lịch sử.');
         break;
 
       case 'OPEN_ACCESSIBILITY':
         onNavigate('/settings'); // settings page contains accessibility controls
-        speakFeedbackThenListen(feedback || 'Đang mở cài đặt trợ năng.');
+        finishWithFeedback(feedback || 'Đang mở cài đặt trợ năng.');
         break;
 
       case 'OPEN_SETTINGS':
         onNavigate('/settings');
-        speakFeedbackThenListen(feedback || 'Đang mở màn hình cài đặt.');
+        finishWithFeedback(feedback || 'Đang mở màn hình cài đặt.');
         break;
 
       case 'INCREASE_FONT': {
         const nextScales: Record<string, string> = { '100': '125', '125': '150', '150': '175', '175': '175' };
         onUpdateSettings({ fontScale: nextScales[settings.fontScale] as any });
-        speakFeedbackThenListen('Đã phóng to kích thước chữ.');
+        finishWithFeedback('Đã phóng to kích thước chữ.');
         break;
       }
 
       case 'DECREASE_FONT': {
         const prevScales: Record<string, string> = { '175': '150', '150': '125', '125': '100', '100': '100' };
         onUpdateSettings({ fontScale: prevScales[settings.fontScale] as any });
-        speakFeedbackThenListen('Đã thu nhỏ kích thước chữ.');
+        finishWithFeedback('Đã thu nhỏ kích thước chữ.');
         break;
       }
 
       case 'ENABLE_HIGH_CONTRAST':
         onUpdateSettings({ highContrast: true });
-        speakFeedbackThenListen('Đã bật tương phản cao.');
+        finishWithFeedback('Đã bật tương phản cao.');
         break;
 
       case 'DISABLE_HIGH_CONTRAST':
         onUpdateSettings({ highContrast: false });
-        speakFeedbackThenListen('Đã tắt tương phản cao.');
+        finishWithFeedback('Đã tắt tương phản cao.');
         break;
 
       case 'ENABLE_REDUCED_MOTION':
         onUpdateSettings({ reducedMotion: true });
-        speakFeedbackThenListen('Đã bật giảm chuyển động.');
+        finishWithFeedback('Đã bật giảm chuyển động.');
         break;
 
       case 'DISABLE_REDUCED_MOTION':
         onUpdateSettings({ reducedMotion: false });
-        speakFeedbackThenListen('Đã tắt giảm chuyển động.');
+        finishWithFeedback('Đã tắt giảm chuyển động.');
         break;
 
       case 'ENABLE_LARGE_CONTROLS':
         onUpdateSettings({ largeControls: true });
-        speakFeedbackThenListen('Đã kích hoạt chế độ nút bấm trợ năng lớn.');
+        finishWithFeedback('Đã kích hoạt chế độ nút bấm trợ năng lớn.');
         break;
 
       case 'DISABLE_LARGE_CONTROLS':
         onUpdateSettings({ largeControls: false });
-        speakFeedbackThenListen('Đã tắt chế độ nút bấm lớn.');
+        finishWithFeedback('Đã tắt chế độ nút bấm lớn.');
         break;
 
       case 'STOP_READING':
         stopSpeaking();
+        deactivateSession();
         break;
 
       case 'SPEAK_SLOWER': {
         const nextRate = Math.max(0.6, settings.speechRate - 0.15);
         onUpdateSettings({ speechRate: nextRate });
-        speakFeedbackThenListen('Đã giảm tốc độ nói.');
+        finishWithFeedback('Đã giảm tốc độ nói.');
         break;
       }
 
       case 'SPEAK_FASTER': {
         const nextRate = Math.min(2.0, settings.speechRate + 0.15);
         onUpdateSettings({ speechRate: nextRate });
-        speakFeedbackThenListen('Đã tăng tốc độ nói.');
+        finishWithFeedback('Đã tăng tốc độ nói.');
         break;
       }
 
       case 'DESCRIBE_CURRENT_PAGE': {
         const desc = LoviraReadingEngine.describePage(currentRoute);
-        speakFeedbackThenListen(desc);
+        finishWithFeedback(desc);
         break;
       }
 
       case 'READ_PAGE':
         LoviraReadingEngine.readPage(currentRoute, getSpeechRate(), getVoiceURI());
+        deactivateSession();
         break;
 
       case 'READ_CURRENT_REGION':
         LoviraReadingEngine.readCurrentRegion(getSpeechRate(), getVoiceURI());
+        deactivateSession();
         break;
 
       case 'READ_NEXT':
         LoviraReadingEngine.readNextRegion(getSpeechRate(), getVoiceURI());
+        deactivateSession();
         break;
 
       case 'READ_PREVIOUS':
         LoviraReadingEngine.readPreviousRegion(getSpeechRate(), getVoiceURI());
+        deactivateSession();
         break;
 
       case 'READ_CURRENT_FOCUS':
         LoviraReadingEngine.readCurrentFocus(getSpeechRate(), getVoiceURI());
+        deactivateSession();
         break;
 
       case 'READ_CURRENT_RESULT':
         LoviraReadingEngine.readCurrentResult(getSpeechRate(), getVoiceURI());
+        deactivateSession();
         break;
 
       case 'READ_INTERACTIVE_ELEMENTS':
         LoviraReadingEngine.readInteractiveElements(getSpeechRate(), getVoiceURI());
+        deactivateSession();
         break;
 
       case 'CAPTURE_IMAGE': {
-        // Dispatch document event so current route camera is triggered
         const event = new CustomEvent('lovira-voice-capture');
         document.dispatchEvent(event);
-        speakFeedbackThenListen('Chụp ảnh thành công. Đang tiến hành phân tích.');
+        finishWithFeedback('Chụp ảnh thành công. Đang tiến hành phân tích.');
         break;
       }
 
@@ -357,7 +364,7 @@ export const VoiceAccessProvider: React.FC<ProviderProps> = ({
       case 'EXPLAIN_OBJECT': {
         const event = new CustomEvent('lovira-voice-analyze', { detail: { action } });
         document.dispatchEvent(event);
-        speakFeedbackThenListen('Đang phân tích dữ liệu hình ảnh, vui lòng đợi một chút.');
+        finishWithFeedback('Đang phân tích dữ liệu hình ảnh, vui lòng đợi một chút.');
         break;
       }
 
@@ -365,18 +372,19 @@ export const VoiceAccessProvider: React.FC<ProviderProps> = ({
       case 'SUMMARIZE_CURRENT_CONTENT': {
         const event = new CustomEvent('lovira-voice-simplify', { detail: { action } });
         document.dispatchEvent(event);
-        speakFeedbackThenListen('Đang tiến hành giản lược văn bản hiện tại.');
+        finishWithFeedback('Đang tiến hành giản lược văn bản hiện tại.');
         break;
       }
 
       case 'SAVE_CURRENT_RESULT': {
         const event = new CustomEvent('lovira-voice-save');
         document.dispatchEvent(event);
+        deactivateSession();
         break;
       }
 
       default:
-        speakFeedbackThenListen(feedback || 'Lovira chưa hỗ trợ lệnh này.');
+        finishWithFeedback(feedback || 'Lovira chưa hỗ trợ lệnh này.');
         break;
     }
   };
@@ -406,12 +414,19 @@ export const VoiceAccessProvider: React.FC<ProviderProps> = ({
       if (result.success && result.data) {
         await executeAction(result.data);
       } else {
-        speakText('Lovira chưa hiểu rõ yêu cầu này. Bạn có thể nói lại.');
+        if (settings.spokenFeedbackEnabled) {
+          speakText('Lovira chưa hiểu rõ yêu cầu này.', () => deactivateSession());
+        } else {
+          deactivateSession();
+        }
       }
     } catch (err) {
-      console.error('[PWA Voice] Semantic route failed:', err);
-      setVoiceState('error');
-      speakText('Có sự cố kết nối máy chủ khi hiểu câu lệnh.');
+      console.warn('[PWA Voice] Semantic route note:', err);
+      if (settings.spokenFeedbackEnabled) {
+        speakText('Có sự cố kết nối máy chủ khi hiểu câu lệnh.', () => deactivateSession());
+      } else {
+        deactivateSession();
+      }
     }
   };
 
@@ -421,18 +436,13 @@ export const VoiceAccessProvider: React.FC<ProviderProps> = ({
     const command = text.trim();
     console.log(`[PWA Voice] Recognized text: "${command}"`);
 
-    // 1. If currently in ARMED state, only listen for wake phrase
-    if (voiceState === 'armed' || !isListeningRef.current) {
-      const isWake = command.toLowerCase().includes('chào lovira') || command.toLowerCase().includes('chao lovira');
-      if (isWake) {
-        console.log('[PWA Voice] Wake word matched!');
-        activateSession();
-      }
-      return;
-    }
+    // Reset silence timeout
+    if (silenceTimeoutRef.current) clearTimeout(silenceTimeoutRef.current);
 
-    // 2. We are in ACTIVE session (listening state)
-    // First, check deterministic local matcher
+    // Stop recognition immediately since we captured the user's sentence
+    pauseRecognition();
+
+    // Check deterministic local matcher
     const localMatch = matchLocalIntent(command);
     if (localMatch) {
       executeAction(localMatch);
@@ -456,21 +466,27 @@ export const VoiceAccessProvider: React.FC<ProviderProps> = ({
 
     // Clean up older instances if any
     if (recognitionRef.current) {
+      const oldInstance = recognitionRef.current;
+      oldInstance.onstart = null;
+      oldInstance.onresult = null;
+      oldInstance.onerror = null;
+      oldInstance.onend = null;
       try {
-        recognitionRef.current.abort();
+        oldInstance.abort();
       } catch {
         // ignore
       }
+      recognitionRef.current = null;
     }
 
     const recognition = new SpeechRecognition();
-    recognition.continuous = true;
+    recognition.continuous = false; // Capture single sentence per 2-click session
     recognition.interimResults = false;
     recognition.lang = 'vi-VN';
     recognition.maxAlternatives = 1;
 
     recognition.onstart = () => {
-      console.log('[PWA Voice] Speech recognition started.');
+      console.log('[PWA Voice] Active listening session started.');
       consecutiveErrorsRef.current = 0;
     };
 
@@ -481,33 +497,29 @@ export const VoiceAccessProvider: React.FC<ProviderProps> = ({
     };
 
     recognition.onerror = (event: any) => {
-      console.error('[PWA Voice] Speech recognition error event:', event.error);
-      
-      if (event.error === 'not-allowed') {
-        console.error('[PWA Voice] Microphone permission denied.');
-        setVoiceState('disabled');
+      if (event.error === 'aborted' || event.error === 'no-speech') {
+        return;
+      }
+
+      if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+        console.warn('[PWA Voice] Microphone permission denied.');
+        deactivateSession();
         onUpdateSettings({ voiceAccessEnabled: false });
         return;
       }
 
+      console.warn('[PWA Voice] Speech recognition event:', event.error);
       consecutiveErrorsRef.current += 1;
       if (consecutiveErrorsRef.current > 3) {
-        console.error('[PWA Voice] Too many consecutive errors. Disabling Voice Access.');
-        setVoiceState('error');
-        onUpdateSettings({ voiceAccessEnabled: false });
-        return;
-      }
-
-      // Safe recovery on transient errors
-      if (settings.voiceAccessEnabled && !isSpeakingRef.current) {
-        scheduleRestart();
+        deactivateSession();
       }
     };
 
     recognition.onend = () => {
       console.log('[PWA Voice] Speech recognition ended.');
-      if (settings.voiceAccessEnabled && !isSpeakingRef.current && voiceState !== 'paused') {
-        scheduleRestart();
+      // If we finished listening and not speaking, return to armed standby
+      if (!isSpeakingRef.current && voiceState === 'listening') {
+        deactivateSession();
       }
     };
 
@@ -519,7 +531,7 @@ export const VoiceAccessProvider: React.FC<ProviderProps> = ({
       try {
         recognition.start();
       } catch (err) {
-        console.error('[PWA Voice] Failed to start recognition:', err);
+        console.warn('[PWA Voice] Notice starting recognition:', err);
       }
     } else {
       console.warn('[PWA Voice] Mic busy, recognition suspended.');
@@ -530,26 +542,11 @@ export const VoiceAccessProvider: React.FC<ProviderProps> = ({
   const pauseRecognition = () => {
     if (recognitionRef.current) {
       try {
-        recognitionRef.current.stop();
+        recognitionRef.current.abort();
       } catch {
         // ignore
       }
     }
-  };
-
-  const resumeRecognition = () => {
-    if (settings.voiceAccessEnabled && !isSpeakingRef.current) {
-      startRecognitionInstance();
-    }
-  };
-
-  const scheduleRestart = () => {
-    if (restartTimeoutRef.current) clearTimeout(restartTimeoutRef.current);
-    restartTimeoutRef.current = setTimeout(() => {
-      if (settings.voiceAccessEnabled && !isSpeakingRef.current && voiceState !== 'paused') {
-        resumeRecognition();
-      }
-    }, 1000);
   };
 
   // Handle settings trigger on voiceAccessEnabled
@@ -558,7 +555,6 @@ export const VoiceAccessProvider: React.FC<ProviderProps> = ({
       isArmedRef.current = true;
       isListeningRef.current = false;
       setVoiceState('armed');
-      startRecognitionInstance();
     } else {
       isArmedRef.current = false;
       isListeningRef.current = false;
@@ -568,7 +564,7 @@ export const VoiceAccessProvider: React.FC<ProviderProps> = ({
     }
 
     return () => {
-      if (restartTimeoutRef.current) clearTimeout(restartTimeoutRef.current);
+      if (silenceTimeoutRef.current) clearTimeout(silenceTimeoutRef.current);
     };
   }, [settings.voiceAccessEnabled]);
 
@@ -580,30 +576,14 @@ export const VoiceAccessProvider: React.FC<ProviderProps> = ({
           console.log('[PWA Voice] Conversation is recording, pausing Voice Access...');
           setVoiceState('paused');
           pauseRecognition();
-        } else if (owner === 'NONE' || owner === 'VOICE_ACCESS') {
-          console.log('[PWA Voice] Mic released, resuming Voice Access...');
-          setVoiceState(isListeningRef.current ? 'listening' : 'armed');
-          LoviraMicCoordinator.requestMic('VOICE_ACCESS');
-          resumeRecognition();
+        } else if (owner === 'NONE' && voiceState === 'paused') {
+          setVoiceState('armed');
         }
       }
     });
 
     return unsubscribe;
-  }, [settings.voiceAccessEnabled]);
-
-  // Page visibility change handler
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible' && settings.voiceAccessEnabled) {
-        console.log('[PWA Voice] Tab visible, verifying recognition status.');
-        resumeRecognition();
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [settings.voiceAccessEnabled]);
+  }, [settings.voiceAccessEnabled, voiceState]);
 
   return (
     <VoiceAccessContext.Provider

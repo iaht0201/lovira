@@ -8,7 +8,7 @@ interface StatusBarProps {
 }
 
 export const VoiceStatusBar: React.FC<StatusBarProps> = ({ settings }) => {
-  const { voiceState, stopSpeaking, activateSession } = useVoiceAccess();
+  const { voiceState, stopSpeaking, activateSession, deactivateSession } = useVoiceAccess();
 
   if (voiceState === 'disabled') return null;
 
@@ -19,57 +19,73 @@ export const VoiceStatusBar: React.FC<StatusBarProps> = ({ settings }) => {
     switch (voiceState) {
       case 'armed':
         return (
-          <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full shadow-sm text-xs text-text-secondary">
-            <Mic className="w-3.5 h-3.5 text-primary animate-pulse" />
-            <span>Nói <strong>“Chào Lovira”</strong> để bắt đầu</span>
-          </div>
+          <button
+            onClick={() => activateSession()}
+            className="flex items-center gap-2 px-3.5 py-2 bg-card hover:bg-slate-100 dark:hover:bg-slate-800 border-2 border-primary/40 hover:border-primary text-text-primary rounded-full shadow-md text-xs font-semibold cursor-pointer transition-all active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            title="Nhấp đúp chuột hoặc bấm vào đây để ra lệnh"
+            aria-label="Kích hoạt điều khiển bằng giọng nói"
+          >
+            <Mic className="w-4 h-4 text-primary" />
+            <span>Nhấp đúp hoặc bấm để ra lệnh</span>
+          </button>
         );
 
       case 'listening':
         return (
-          <div className="flex items-center gap-2 px-3 py-1.5 bg-primary/10 border border-primary/20 text-primary rounded-full shadow-sm text-xs font-semibold">
-            <span className={`w-2.5 h-2.5 rounded-full bg-primary ${isReduced ? '' : 'animate-ping'}`} />
-            <span>Lovira đang nghe...</span>
-          </div>
+          <button
+            onClick={() => deactivateSession()}
+            className="flex items-center gap-2 px-3.5 py-2 bg-primary text-white border-2 border-primary rounded-full shadow-lg text-xs font-semibold cursor-pointer transition-all active:scale-95 animate-pulse"
+            title="Đang lắng nghe câu lệnh. Bấm vào đây để hủy."
+            aria-label="Đang nghe câu lệnh. Bấm để dừng."
+          >
+            <span className={`w-2.5 h-2.5 rounded-full bg-white ${isReduced ? '' : 'animate-ping'}`} />
+            <span>Đang nghe bạn nói... (Bấm để dừng)</span>
+          </button>
         );
 
       case 'processing':
         return (
-          <div className="flex items-center gap-2 px-3 py-1.5 bg-purple-500/10 border border-purple-500/20 text-purple-700 dark:text-purple-400 rounded-full shadow-sm text-xs font-semibold">
-            <Loader2 className={`w-3.5 h-3.5 ${isReduced ? '' : 'animate-spin'}`} />
-            <span>Đang hiểu yêu cầu...</span>
+          <div className="flex items-center gap-2 px-3.5 py-2 bg-purple-500/10 border border-purple-500/30 text-purple-700 dark:text-purple-300 rounded-full shadow-md text-xs font-semibold">
+            <Loader2 className={`w-4 h-4 ${isReduced ? '' : 'animate-spin'}`} />
+            <span>Đang xử lý câu lệnh...</span>
           </div>
         );
 
       case 'speaking':
         return (
-          <div className="flex items-center gap-2 px-3 py-1.5 bg-teal-500/10 border border-teal-500/20 text-teal-700 dark:text-teal-400 rounded-full shadow-sm text-xs font-semibold">
-            <Volume2 className={`w-3.5 h-3.5 ${isReduced ? '' : 'animate-bounce'}`} />
-            <span>Đang phát giọng nói</span>
+          <div className="flex items-center gap-2 px-3.5 py-2 bg-teal-500/10 border border-teal-500/30 text-teal-700 dark:text-teal-300 rounded-full shadow-md text-xs font-semibold">
+            <Volume2 className={`w-4 h-4 ${isReduced ? '' : 'animate-bounce'}`} />
+            <span>Đang phản hồi</span>
             <button
               onClick={stopSpeaking}
-              className="ml-1 p-0.5 rounded-full hover:bg-teal-500/20 text-teal-600 dark:text-teal-300"
+              className="ml-1 p-0.5 rounded-full hover:bg-teal-500/20 text-teal-600 dark:text-teal-200"
               title="Dừng đọc"
               aria-label="Dừng phát giọng nói"
             >
-              <X className="w-3 h-3" />
+              <X className="w-3.5 h-3.5" />
             </button>
           </div>
         );
 
       case 'paused':
         return (
-          <div className="flex items-center gap-2 px-3 py-1.5 bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-400 rounded-full shadow-sm text-xs font-semibold">
-            <MicOff className="w-3.5 h-3.5" />
-            <span>Giọng nói tạm ngưng (Mic bận)</span>
+          <div className="flex items-center gap-2 px-3.5 py-2 bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-300 rounded-full shadow-sm text-xs font-semibold">
+            <MicOff className="w-4 h-4" />
+            <span>Giọng nói tạm ngưng (Micro đang bận)</span>
           </div>
         );
 
       case 'error':
         return (
-          <div className="flex items-center gap-2 px-3 py-1.5 bg-rose-500/10 border border-rose-500/20 text-rose-700 dark:text-rose-400 rounded-full shadow-sm text-xs font-semibold">
+          <div className="flex items-center gap-2 px-3.5 py-2 bg-rose-500/10 border border-rose-500/30 text-rose-700 dark:text-rose-300 rounded-full shadow-sm text-xs font-semibold">
             <span className="w-2 h-2 rounded-full bg-rose-600" />
-            <span>Lỗi nhận diện. Thử lại sau.</span>
+            <span>Chưa nhận được câu lệnh.</span>
+            <button
+              onClick={() => activateSession()}
+              className="underline font-bold ml-1 text-rose-800 dark:text-rose-200"
+            >
+              Thử lại
+            </button>
           </div>
         );
 
