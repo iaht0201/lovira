@@ -217,11 +217,62 @@ function safeParseJson<T>(text: string | undefined): T | null {
   }
 }
 
-// Fallback models list - active high-speed Gemini models
+// Zod Schemas for Runtime Validation
+const VisionResponseSchema = z.object({
+  summary: z.string().default('Đã phân tích xong hình ảnh.'),
+  details: z.array(z.string()).default([]),
+  detectedText: z.array(z.string()).default([]),
+  objects: z.array(
+    z.object({
+      name: z.string().default('Vật thể'),
+      description: z.string().default(''),
+      position: z.string().optional(),
+    })
+  ).default([]),
+  possibleHazards: z.array(z.string()).default([]),
+  confidenceNote: z.string().default('Rõ ràng'),
+});
+
+const EasyReadResponseSchema = z.object({
+  title: z.string().default('Văn bản Dễ hiểu'),
+  summary: z.string().default(''),
+  simplifiedText: z.string().default(''),
+  keyPoints: z.array(z.string()).default([]),
+  steps: z.array(z.string()).default([]),
+  importantDates: z.array(z.string()).default([]),
+  warnings: z.array(z.string()).default([]),
+  difficultTerms: z.array(
+    z.object({
+      term: z.string().default(''),
+      explanation: z.string().default(''),
+    })
+  ).default([]),
+});
+
+const ConversationSummaryResponseSchema = z.object({
+  summary: z.string().default('Tóm tắt cuộc trò chuyện thành công.'),
+  keyPoints: z.array(z.string()).default([]),
+  decisions: z.array(z.string()).default([]),
+  actionItems: z.array(z.string()).default([]),
+  datesAndDeadlines: z.array(z.string()).default([]),
+});
+
+const DocumentAnalysisResponseSchema = z.object({
+  title: z.string().default('Tài liệu'),
+  summary: z.string().default('Đã phân tích xong nội dung tài liệu.'),
+  keyPoints: z.array(z.string()).default([]),
+  requirements: z.array(z.string()).default([]),
+  actions: z.array(z.string()).default([]),
+  importantDates: z.array(z.string()).default([]),
+  contacts: z.array(z.string()).default([]),
+  warnings: z.array(z.string()).default([]),
+});
+
+// Fallback models list - active high-speed Gemini models for ultra-low latency
 const FALLBACK_GEMINI_MODELS = [
-  'gemini-3.7-flash',
+  'gemini-2.5-flash',
   'gemini-flash-latest',
-  'gemini-3.1-flash-lite',
+  'gemini-2.5-flash-lite',
 ];
 
 async function generateWithModelFallback(
@@ -258,6 +309,91 @@ async function generateWithModelFallback(
   }
 
   throw primaryNonNotFoundError || lastErrorNorm || normalizeGeminiError(new Error('Tất cả các mô hình AI đều không thể phản hồi.'));
+}
+
+async function generateTextWithDualEngine(params: {
+  systemInstruction: string;
+  prompt: string;
+  responseMimeType?: string;
+  customApiKey?: string;
+}): Promise<string> {
+  const { systemInstruction, prompt, responseMimeType, customApiKey } = params;
+
+  // 1. If customApiKey is provided by the user in Settings, always use custom Gemini API!
+  if (customApiKey && customApiKey.trim().length > 0) {
+    console.log('[DualEngine] Using Custom Gemini API Key from settings.');
+    const ai = getGenAIClient(customApiKey);
+    const response = await generateWithModelFallback(ai, {
+      contents: prompt,
+      config: {
+        systemInstruction,
+        responseMimeType,
+      },
+    });
+    return response.text || '';
+  }
+
+  // 2. If no custom API key, check if GROQ_API_KEY is available in environment for high speed & multi-model fallback!
+  if (process.env.GROQ_API_KEY && process.env.GROQ_API_KEY.trim().length > 0) {
+    console.log('[DualEngine] Using high-speed Groq LPU default engine.');
+    const groqModels = [
+      'openai/gpt-oss-20b',
+      'openai/gpt-oss-120b',
+      'qwen/qwen3.6-27b',
+      'groq/compound-mini'
+    ];
+
+    let lastError: any = null;
+    for (const model of groqModels) {
+      try {
+        console.log(`[Groq API] Attempting generation with model: ${model}`);
+        const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${process.env.GROQ_API_KEY.trim()}`,
+          },
+          body: JSON.stringify({
+            model,
+            messages: [
+              { role: 'system', content: systemInstruction },
+              { role: 'user', content: prompt }
+            ],
+            response_format: responseMimeType === 'application/json' ? { type: 'json_object' } : undefined,
+            temperature: 0.1,
+          }),
+        });
+
+        if (!response.ok) {
+          const errText = await response.text();
+          throw new Error(`Groq API error (status ${response.status}): ${errText}`);
+        }
+
+        const json = await response.json() as any;
+        const resultText = json.choices?.[0]?.message?.content;
+        if (resultText && resultText.trim().length > 0) {
+          console.log(`[Groq API] Success with model: ${model}`);
+          return resultText;
+        }
+      } catch (err: any) {
+        console.warn(`[Groq API] Model ${model} failed: ${err.message}. Trying next fallback...`);
+        lastError = err;
+      }
+    }
+    console.warn('[DualEngine] Groq LPU API completely exhausted. Falling back to default Gemini API...', lastError);
+  }
+
+  // 3. Default fallback to Server-Side Gemini API
+  console.log('[DualEngine] Using default Server-Side Gemini API.');
+  const ai = getGenAIClient();
+  const response = await generateWithModelFallback(ai, {
+    contents: prompt,
+    config: {
+      systemInstruction,
+      responseMimeType,
+    },
+  });
+  return response.text || '';
 }
 
 function handleApiError(res: Response, endpointName: string, err: unknown) {
@@ -365,28 +501,19 @@ Trả về định dạng JSON với các trường:
       },
     });
 
-    interface VisionParsed {
-      summary?: string;
-      details?: string[];
-      detectedText?: string[];
-      objects?: Array<{ name: string; description: string; position?: string }>;
-      possibleHazards?: string[];
-      confidenceNote?: string;
-    }
-
-    const parsed = safeParseJson<VisionParsed>(response.text);
-
-    const data = {
-      summary: parsed?.summary || response.text || 'Đã phân tích xong hình ảnh.',
-      details: Array.isArray(parsed?.details) ? parsed.details : [],
-      detectedText: Array.isArray(parsed?.detectedText) ? parsed.detectedText : [],
-      objects: Array.isArray(parsed?.objects) ? parsed.objects : [],
-      possibleHazards: Array.isArray(parsed?.possibleHazards) ? parsed.possibleHazards : [],
-      confidenceNote: parsed?.confidenceNote || 'Rõ ràng',
+    const parsedRaw = safeParseJson<Record<string, unknown>>(response.text);
+    const parsed = VisionResponseSchema.safeParse(parsedRaw || {});
+    const validData = parsed.success ? parsed.data : {
+      summary: response.text || 'Đã phân tích xong hình ảnh.',
+      details: [],
+      detectedText: [],
+      objects: [],
+      possibleHazards: [],
+      confidenceNote: 'Rõ ràng',
     };
 
     console.log('[Lovira API] vision request completed');
-    return res.json({ success: true, data });
+    return res.json({ success: true, data: validData });
   } catch (err: unknown) {
     return handleApiError(res, 'vision', err);
   }
@@ -435,52 +562,18 @@ Trả về JSON chứa:
 - warnings: Mảng các lưu ý đặc biệt hoặc cảnh báo quan trọng.
 - difficultTerms: Mảng đối tượng giải thích thuật ngữ khó { term: string, explanation: string }.`;
 
-    const response = await generateWithModelFallback(ai, {
-      contents: prompt,
-      config: {
-        systemInstruction: LOVIRA_SYSTEM_INSTRUCTION,
-        responseMimeType: 'application/json',
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            title: { type: Type.STRING },
-            summary: { type: Type.STRING },
-            simplifiedText: { type: Type.STRING },
-            keyPoints: { type: Type.ARRAY, items: { type: Type.STRING } },
-            steps: { type: Type.ARRAY, items: { type: Type.STRING } },
-            importantDates: { type: Type.ARRAY, items: { type: Type.STRING } },
-            warnings: { type: Type.ARRAY, items: { type: Type.STRING } },
-            difficultTerms: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  term: { type: Type.STRING },
-                  explanation: { type: Type.STRING },
-                },
-              },
-            },
-          },
-          required: ['summary', 'simplifiedText', 'keyPoints'],
-        },
-      },
+    const resultText = await generateTextWithDualEngine({
+      systemInstruction: LOVIRA_SYSTEM_INSTRUCTION,
+      prompt,
+      responseMimeType: 'application/json',
+      customApiKey,
     });
 
-    interface EasyReadParsed {
-      title?: string;
-      summary?: string;
-      simplifiedText?: string;
-      keyPoints?: string[];
-      steps?: string[];
-      importantDates?: string[];
-      warnings?: string[];
-      difficultTerms?: Array<{ term: string; explanation: string }>;
-    }
+    const parsedRaw = safeParseJson<Record<string, unknown>>(resultText);
+    const parsed = EasyReadResponseSchema.safeParse(parsedRaw || {});
 
-    const parsed = safeParseJson<EasyReadParsed>(response.text);
-
-    if (!parsed || (!parsed.summary && !parsed.simplifiedText)) {
-      console.error('[Lovira API] Easy Read parsing failed, raw text preview:', response.text?.slice(0, 150));
+    if (!parsed.success || (!parsed.data.summary && !parsed.data.simplifiedText)) {
+      console.error('[Lovira API] Easy Read Zod parsing failed, raw text preview:', resultText?.slice(0, 150));
       return res.status(502).json({
         success: false,
         error: 'Lovira nhận được phản hồi AI chưa đúng định dạng. Vui lòng thử lại.',
@@ -490,14 +583,14 @@ Trả về JSON chứa:
     }
 
     const data = {
-      title: parsed.title || 'Văn bản Dễ hiểu',
-      summary: parsed.summary || parsed.simplifiedText || '',
-      simplifiedText: parsed.simplifiedText || parsed.summary || '',
-      keyPoints: Array.isArray(parsed.keyPoints) ? parsed.keyPoints : [],
-      steps: Array.isArray(parsed.steps) ? parsed.steps : [],
-      importantDates: Array.isArray(parsed.importantDates) ? parsed.importantDates : [],
-      warnings: Array.isArray(parsed.warnings) ? parsed.warnings : [],
-      difficultTerms: Array.isArray(parsed.difficultTerms) ? parsed.difficultTerms : [],
+      title: parsed.data.title || 'Văn bản Dễ hiểu',
+      summary: parsed.data.summary || parsed.data.simplifiedText,
+      simplifiedText: parsed.data.simplifiedText || parsed.data.summary,
+      keyPoints: parsed.data.keyPoints,
+      steps: parsed.data.steps,
+      importantDates: parsed.data.importantDates,
+      warnings: parsed.data.warnings,
+      difficultTerms: parsed.data.difficultTerms,
     };
 
     console.log('[Lovira API] easy-read request completed');
@@ -538,41 +631,22 @@ Trả về JSON gồm:
 - actionItems: Mảng công việc/hành động cần thực hiện tiếp theo (nếu có).
 - datesAndDeadlines: Mảng các ngày, giờ, thời hạn được nhắc tới (nếu có).`;
 
-    const response = await generateWithModelFallback(ai, {
-      contents: prompt,
-      config: {
-        systemInstruction: LOVIRA_SYSTEM_INSTRUCTION,
-        responseMimeType: 'application/json',
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            summary: { type: Type.STRING },
-            keyPoints: { type: Type.ARRAY, items: { type: Type.STRING } },
-            decisions: { type: Type.ARRAY, items: { type: Type.STRING } },
-            actionItems: { type: Type.ARRAY, items: { type: Type.STRING } },
-            datesAndDeadlines: { type: Type.ARRAY, items: { type: Type.STRING } },
-          },
-          required: ['summary', 'keyPoints', 'decisions', 'actionItems', 'datesAndDeadlines'],
-        },
-      },
+    const resultText = await generateTextWithDualEngine({
+      systemInstruction: LOVIRA_SYSTEM_INSTRUCTION,
+      prompt,
+      responseMimeType: 'application/json',
+      customApiKey,
     });
 
-    interface ConvParsed {
-      summary?: string;
-      keyPoints?: string[];
-      decisions?: string[];
-      actionItems?: string[];
-      datesAndDeadlines?: string[];
-    }
+    const parsedRaw = safeParseJson<Record<string, unknown>>(resultText);
+    const parsed = ConversationSummaryResponseSchema.safeParse(parsedRaw || {});
 
-    const parsed = safeParseJson<ConvParsed>(response.text);
-
-    const data = {
-      summary: parsed?.summary || 'Tóm tắt cuộc trò chuyện thành công.',
-      keyPoints: Array.isArray(parsed?.keyPoints) ? parsed.keyPoints : [],
-      decisions: Array.isArray(parsed?.decisions) ? parsed.decisions : [],
-      actionItems: Array.isArray(parsed?.actionItems) ? parsed.actionItems : [],
-      datesAndDeadlines: Array.isArray(parsed?.datesAndDeadlines) ? parsed.datesAndDeadlines : [],
+    const data = parsed.success ? parsed.data : {
+      summary: 'Tóm tắt cuộc trò chuyện thành công.',
+      keyPoints: [],
+      decisions: [],
+      actionItems: [],
+      datesAndDeadlines: [],
     };
 
     console.log('[Lovira API] conversation-summary completed');
@@ -593,8 +667,6 @@ app.post('/api/gemini/document-analysis', async (req: Request, res: Response) =>
       return res.status(400).json({ success: false, error: 'Nội dung tài liệu không được để trống.', category: 'invalid_argument', code: 'MISSING_DOCUMENT' });
     }
 
-    const ai = getGenAIClient(customApiKey);
-
     const prompt = `Phân tích tài liệu có tên "${fileName || 'Tài liệu'}" để trích xuất thông tin trợ năng cho người dùng:
 
 Nội dung tài liệu:
@@ -612,50 +684,25 @@ Trả về JSON gồm:
 - contacts: Mảng thông tin liên hệ (số điện thoại, email, địa chỉ, đơn vị phụ trách).
 - warnings: Mảng các lưu ý quan trọng, khoản phí hoặc lưu ý pháp lý.`;
 
-    const response = await generateWithModelFallback(ai, {
-      contents: prompt,
-      config: {
-        systemInstruction: LOVIRA_SYSTEM_INSTRUCTION,
-        responseMimeType: 'application/json',
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            title: { type: Type.STRING },
-            summary: { type: Type.STRING },
-            keyPoints: { type: Type.ARRAY, items: { type: Type.STRING } },
-            requirements: { type: Type.ARRAY, items: { type: Type.STRING } },
-            actions: { type: Type.ARRAY, items: { type: Type.STRING } },
-            importantDates: { type: Type.ARRAY, items: { type: Type.STRING } },
-            contacts: { type: Type.ARRAY, items: { type: Type.STRING } },
-            warnings: { type: Type.ARRAY, items: { type: Type.STRING } },
-          },
-          required: ['summary', 'keyPoints', 'requirements', 'actions', 'importantDates', 'contacts', 'warnings'],
-        },
-      },
+    const resultText = await generateTextWithDualEngine({
+      systemInstruction: LOVIRA_SYSTEM_INSTRUCTION,
+      prompt,
+      responseMimeType: 'application/json',
+      customApiKey,
     });
 
-    interface DocParsed {
-      title?: string;
-      summary?: string;
-      keyPoints?: string[];
-      requirements?: string[];
-      actions?: string[];
-      importantDates?: string[];
-      contacts?: string[];
-      warnings?: string[];
-    }
+    const parsedRaw = safeParseJson<Record<string, unknown>>(resultText);
+    const parsed = DocumentAnalysisResponseSchema.safeParse(parsedRaw || {});
 
-    const parsed = safeParseJson<DocParsed>(response.text);
-
-    const data = {
-      title: parsed?.title || fileName || 'Tài liệu',
-      summary: parsed?.summary || 'Đã phân tích xong nội dung tài liệu.',
-      keyPoints: Array.isArray(parsed?.keyPoints) ? parsed.keyPoints : [],
-      requirements: Array.isArray(parsed?.requirements) ? parsed.requirements : [],
-      actions: Array.isArray(parsed?.actions) ? parsed.actions : [],
-      importantDates: Array.isArray(parsed?.importantDates) ? parsed.importantDates : [],
-      contacts: Array.isArray(parsed?.contacts) ? parsed.contacts : [],
-      warnings: Array.isArray(parsed?.warnings) ? parsed.warnings : [],
+    const data = parsed.success ? parsed.data : {
+      title: fileName || 'Tài liệu',
+      summary: 'Đã phân tích xong nội dung tài liệu.',
+      keyPoints: [],
+      requirements: [],
+      actions: [],
+      importantDates: [],
+      contacts: [],
+      warnings: [],
     };
 
     console.log('[Lovira API] document-analysis completed');
@@ -675,8 +722,6 @@ app.post('/api/gemini/document-qa', async (req: Request, res: Response) => {
     if (!documentText || typeof documentText !== 'string' || !documentText.trim() || !question || typeof question !== 'string' || !question.trim()) {
       return res.status(400).json({ success: false, error: 'Nội dung tài liệu và câu hỏi là bắt buộc.', category: 'invalid_argument', code: 'MISSING_PARAMS' });
     }
-
-    const ai = getGenAIClient(customApiKey);
 
     const historyFormatted = Array.isArray(conversationHistory)
       ? conversationHistory
@@ -699,14 +744,12 @@ Câu hỏi hiện tại của người dùng: "${question.trim()}"
 
 Trả lời bằng tiếng Việt thân thiện, rõ ràng:`;
 
-    const response = await generateWithModelFallback(ai, {
-      contents: prompt,
-      config: {
-        systemInstruction: LOVIRA_SYSTEM_INSTRUCTION,
-      },
+    const answer = await generateTextWithDualEngine({
+      systemInstruction: LOVIRA_SYSTEM_INSTRUCTION,
+      prompt,
+      customApiKey,
     });
 
-    const answer = response.text || 'Tôi không tìm thấy thông tin phù hợp trong tài liệu.';
     console.log('[Lovira API] document-qa completed');
     return res.json({ success: true, data: { answer }, answer });
   } catch (err: unknown) {

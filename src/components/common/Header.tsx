@@ -43,7 +43,7 @@ export const Header: React.FC<HeaderProps> = ({
       {/* Quick Accessibility & User Controls */}
       <div className="flex items-center gap-2 sm:gap-4">
         {/* Font Scale Toolbar */}
-        <div className="flex items-center gap-1 bg-surface-subtle p-1 rounded-xl">
+        <div className="flex items-center gap-1 bg-surface-subtle p-1 rounded-xl border border-slate-200 dark:border-slate-800">
           {(['100', '125', '150', '175'] as const).map((scale) => (
             <button
               key={scale}
@@ -51,8 +51,8 @@ export const Header: React.FC<HeaderProps> = ({
               title={`Cỡ chữ ${scale}%`}
               className={`px-2.5 py-1 text-xs font-bold rounded-lg transition-all ${
                 settings.fontScale === scale
-                  ? 'bg-surface text-text-primary shadow-xs font-extrabold'
-                  : 'text-text-secondary hover:text-text-primary'
+                  ? 'bg-primary text-white shadow-xs font-extrabold'
+                  : 'text-text-primary hover:bg-surface'
               }`}
             >
               {scale}%
@@ -65,12 +65,12 @@ export const Header: React.FC<HeaderProps> = ({
           onClick={toggleTheme}
           aria-label="Đổi giao diện sáng/tối"
           title={isDark ? 'Chuyển sang giao diện sáng' : 'Chuyển sang giao diện tối'}
-          className="w-10 h-10 rounded-xl bg-surface border border-slate-200 dark:border-slate-800 flex items-center justify-center text-text-secondary hover:text-text-primary transition-colors shrink-0"
+          className="w-10 h-10 rounded-xl bg-surface border border-slate-300 dark:border-slate-700 flex items-center justify-center text-text-primary hover:bg-surface-subtle transition-colors shrink-0"
         >
           {isDark ? (
             <Sun className="w-5 h-5 text-amber-400 shrink-0" />
           ) : (
-            <Moon className="w-5 h-5 shrink-0" />
+            <Moon className="w-5 h-5 text-slate-700 shrink-0" />
           )}
         </button>
 
@@ -79,14 +79,16 @@ export const Header: React.FC<HeaderProps> = ({
           onClick={toggleContrast}
           aria-label="Bật/Tắt chế độ tương phản cao"
           title="Bật/Tắt chế độ tương phản cao"
-          className={`px-3 py-2 rounded-xl bg-surface border border-slate-200 dark:border-slate-800 text-xs font-bold transition-colors flex items-center gap-1.5 shrink-0 ${
+          className={`px-3 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 border-2 ${
             settings.highContrast
-              ? 'bg-yellow-400 text-black border-yellow-500 font-extrabold'
-              : 'text-text-secondary hover:text-text-primary'
+              ? '!bg-amber-300 !text-slate-950 !border-amber-400 font-black shadow-sm'
+              : 'bg-surface border-slate-300 dark:border-slate-700 text-text-primary hover:bg-surface-subtle'
           }`}
         >
           <Contrast className="w-4 h-4 shrink-0" />
-          <span className="hidden md:inline">Tương phản cao</span>
+          <span className="hidden md:inline">
+            {settings.highContrast ? 'Tương phản cao (Bật)' : 'Tương phản cao'}
+          </span>
         </button>
 
         <div className="h-6 w-[1px] bg-slate-200 dark:bg-slate-800 hidden sm:block"></div>

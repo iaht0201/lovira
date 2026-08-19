@@ -25,11 +25,27 @@
 
 .high-contrast {
   --canvas: #000000 !important;
-  --surface: #121212 !important;
-  --surface-subtle: #242424 !important;
+  --surface: #0f0f0f !important;
+  --surface-subtle: #1c1c1c !important;
   --text-primary: #ffffff !important;
-  --text-secondary: #e0e0e0 !important;
-  --focus: #ffff00 !important;
+  --text-secondary: #f3f4f6 !important;
+  --focus: #facc15 !important;
+}
+
+.high-contrast .text-text-primary {
+  color: #ffffff !important;
+}
+
+.high-contrast .text-text-secondary {
+  color: #f3f4f6 !important;
+}
+
+.high-contrast .border-slate-200,
+.high-contrast .border-slate-800,
+.high-contrast .border-slate-100,
+.high-contrast .border-slate-700,
+.high-contrast .border-slate-300 {
+  border-color: #555555 !important;
 }
 
 html {
