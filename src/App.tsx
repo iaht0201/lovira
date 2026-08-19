@@ -5,6 +5,7 @@ import { Header } from './components/common/Header';
 import { MobileNav } from './components/common/MobileNav';
 import { MoreMenuModal } from './components/common/MoreMenuModal';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
+import { PWAInstallPrompt } from './components/common/PWAInstallPrompt';
 
 import { DashboardView } from './components/dashboard/DashboardView';
 import { VisionView } from './components/vision/VisionView';
@@ -199,6 +200,9 @@ export default function App() {
         onNavigate={navigateTo}
         currentRoute={currentRoute}
       />
+
+      {/* Persistent PWA Installation Banner */}
+      <PWAInstallPrompt />
     </div>
   );
 }
