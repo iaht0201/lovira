@@ -127,6 +127,43 @@ export function matchLocalIntent(
     };
   }
 
+  // Vision - Direct inspection with camera chain
+  if (
+    norm.includes('kiem tra hinh anh') ||
+    norm.includes('kiem tra anh') ||
+    norm.includes('xem hinh anh') ||
+    norm.includes('xem anh nay') ||
+    norm.includes('chup anh giup toi') ||
+    norm.includes('chup hinh giup toi') ||
+    norm.includes('nhin khong ro') ||
+    norm.includes('khong nhin ro')
+  ) {
+    return {
+      action: 'navigation.openVision',
+      chainAction: { action: 'vision.openCamera' },
+      confidence: 1.0,
+      confirmationRequired: false,
+      feedback: 'Lovira đã mở Nhìn giúp tôi và bật máy ảnh để hỗ trợ bạn. Bạn hãy đưa camera về phía vật thể hoặc bấm chụp nhé.',
+    };
+  }
+
+  // Retry / Repeat previous action from memory
+  if (
+    norm === 'thuc hien lai' ||
+    norm === 'lam lai' ||
+    norm === 'thu lai' ||
+    norm === 'lap lai' ||
+    norm === 'lam lai thao tac' ||
+    norm === 'chay lai'
+  ) {
+    return {
+      action: 'RETRY_LAST_ACTION',
+      confidence: 1.0,
+      confirmationRequired: false,
+      feedback: 'Lovira đang thực hiện lại thao tác trước đó cho bạn.',
+    };
+  }
+
   // Vision
   if (
     norm === 'mo nhin giup toi' ||
@@ -139,7 +176,6 @@ export function matchLocalIntent(
     norm === 'xem giup toi' ||
     norm === 'toi muon dung chuc nang nhin' ||
     norm === 'xem giup toi cai nay' ||
-    norm === 'toi nhin khong ro' ||
     norm === 'coi cai nay la gi'
   ) {
     return {

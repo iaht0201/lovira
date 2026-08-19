@@ -6,6 +6,8 @@ import { LoviraMicCoordinator } from './MicrophoneCoordinator';
 import { LoviraReadingEngine } from './ReadingEngine';
 import { AccessibilitySettings, UserProfile } from '../../types';
 import { useScreenActionContext, GLOBAL_APP_ACTIONS } from './ScreenActionRegistry';
+import { AgentWorkingMemory } from '../../agent/WorkingMemory';
+import { SessionManager } from '../../agent/SessionManager';
 
 interface VoiceAccessContextValue {
   voiceState: LoviraVoiceState;
@@ -260,8 +262,11 @@ export const VoiceAccessProvider: React.FC<ProviderProps> = ({
         onNavigate('/vision');
         if (chainAction) {
           setTimeout(() => {
+            if (chainAction.action === 'vision.openCamera' || chainAction.action === 'openCamera') {
+              document.dispatchEvent(new CustomEvent('lovira-voice-open-camera'));
+            }
             executeScreenAction(chainAction.action as string, chainAction.parameters);
-          }, 450);
+          }, 350);
         }
         finishWithFeedback(feedback || 'Lovira đã mở Nhìn giúp tôi.');
         break;
@@ -466,6 +471,29 @@ export const VoiceAccessProvider: React.FC<ProviderProps> = ({
         break;
       }
 
+      case 'RETRY_LAST_ACTION': {
+        const lastPlan = AgentWorkingMemory.getLastPlan();
+        const lastTurn = AgentWorkingMemory.getLastTurn();
+        if (lastPlan && lastPlan.length > 0) {
+          const firstStep = lastPlan[0];
+          executeAction({
+            action: firstStep.action as any,
+            parameters: firstStep.parameters,
+            confidence: 1.0,
+            feedback: feedback || 'Đang thực hiện lại thao tác cho bạn.',
+          });
+        } else if (lastTurn && lastTurn.intent && lastTurn.intent !== 'RETRY_LAST_ACTION') {
+          executeAction({
+            action: lastTurn.intent as any,
+            confidence: 1.0,
+            feedback: feedback || 'Đang thực hiện lại thao tác cho bạn.',
+          });
+        } else {
+          finishWithFeedback('Chưa có thao tác trước đó để thực hiện lại.');
+        }
+        break;
+      }
+
       default:
         finishWithFeedback(feedback || 'Lovira chưa hỗ trợ lệnh này.');
         break;
@@ -477,6 +505,10 @@ export const VoiceAccessProvider: React.FC<ProviderProps> = ({
     setVoiceState('processing');
     try {
       const screenContext = getAvailableActionsForAI();
+      const recentTurns = AgentWorkingMemory.getRecentTurns(5);
+      const workingMemory = AgentWorkingMemory.getLastTurn();
+      const activeSession = SessionManager.getActiveSession();
+
       const response = await fetch('/api/ai/voice-intent', {
         method: 'POST',
         headers: {
@@ -489,6 +521,9 @@ export const VoiceAccessProvider: React.FC<ProviderProps> = ({
           screenContext,
           globalActions: GLOBAL_APP_ACTIONS,
           customApiKey: getCustomGeminiKey(),
+          recentTurns,
+          workingMemory,
+          activeSession,
         }),
       });
 
@@ -498,6 +533,18 @@ export const VoiceAccessProvider: React.FC<ProviderProps> = ({
 
       const result = await response.json();
       if (result.success && result.data) {
+        // Record into working memory for conversational continuity
+        AgentWorkingMemory.recordTurn(
+          command,
+          result.data.action,
+          result.data.chainAction
+            ? [
+                { action: result.data.action, parameters: result.data.parameters },
+                { action: result.data.chainAction.action, parameters: result.data.chainAction.parameters },
+              ]
+            : [{ action: result.data.action, parameters: result.data.parameters }],
+          result.data.feedback || ''
+        );
         await executeAction(result.data);
       } else {
         if (settings.spokenFeedbackEnabled) {
@@ -540,6 +587,19 @@ export const VoiceAccessProvider: React.FC<ProviderProps> = ({
 
     const localMatch = matchLocalIntent(command, screenActions);
     if (localMatch) {
+      if (localMatch.action !== 'RETRY_LAST_ACTION') {
+        AgentWorkingMemory.recordTurn(
+          command,
+          localMatch.action,
+          localMatch.chainAction
+            ? [
+                { action: localMatch.action, parameters: localMatch.parameters },
+                { action: localMatch.chainAction.action, parameters: localMatch.chainAction.parameters },
+              ]
+            : [{ action: localMatch.action, parameters: localMatch.parameters }],
+          localMatch.feedback || ''
+        );
+      }
       executeAction(localMatch);
     } else {
       // Send to semantic AI

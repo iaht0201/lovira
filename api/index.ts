@@ -736,65 +736,39 @@ Lịch sử trò chuyện trước đó:
 ${historyFormatted}
 
 Tài liệu:
-"""
-${documentText.slice(0, 30000)}
-"""
+${documentText}
 
-Câu hỏi hiện tại của người dùng: "${question.trim()}"
+Câu hỏi:
+${question}`;
 
-Trả lời bằng tiếng Việt thân thiện, rõ ràng:`;
-
-    const answer = await generateTextWithDualEngine({
-      systemInstruction: LOVIRA_SYSTEM_INSTRUCTION,
+    const text = await generateTextWithDualEngine({
+      systemInstruction: 'Bạn là trợ lý giải đáp câu hỏi về tài liệu tiếng Việt chuyên nghiệp, ngắn gọn, trung thực.',
       prompt,
       customApiKey,
     });
 
-    console.log('[Lovira API] document-qa completed');
-    return res.json({ success: true, data: { answer }, answer });
+    return res.json({ success: true, answer: text });
   } catch (err: unknown) {
     return handleApiError(res, 'document-qa', err);
   }
 });
 
-// 7. POST /api/ai/verify-key (Verify user custom Gemini API key)
-app.post('/api/ai/verify-key', async (req: Request, res: Response) => {
-  console.log('[Lovira API] verify-key request received');
-  res.setHeader('Content-Type', 'application/json');
-  try {
-    const { customApiKey } = req.body || {};
-    if (!customApiKey || typeof customApiKey !== 'string' || !customApiKey.trim()) {
-      return res.status(400).json({ success: false, error: 'API Key không hợp lệ.' });
-    }
-
-    // Attempt a super lightweight request
-    const ai = getGenAIClient(customApiKey.trim());
-    await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: 'Ping',
-      config: {
-        maxOutputTokens: 5,
-      },
-    });
-
-    return res.json({ success: true, message: 'Kết nối Gemini thành công.' });
-  } catch (err: unknown) {
-    const norm = normalizeGeminiError(err);
-    return res.status(norm.status).json({
-      success: false,
-      error: 'Lovira chưa thể sử dụng khóa Gemini này. Kiểm tra lại khóa hoặc hạn mức API của bạn.',
-      category: norm.category,
-      code: norm.code,
-    });
-  }
-});
-
-// 8. POST /api/ai/voice-intent (Classify natural language voice commands with Screen-Action Registry)
+// 8. POST /api/ai/voice-intent (Classify natural language voice commands with Screen-Action Registry & Working Memory)
 app.post('/api/ai/voice-intent', async (req: Request, res: Response) => {
   console.log('[Lovira API] voice-intent request received');
   res.setHeader('Content-Type', 'application/json');
   try {
-    const { command, context = {}, screenContext = null, globalActions = [], customApiKey } = req.body || {};
+    const {
+      command,
+      context = {},
+      screenContext = null,
+      globalActions = [],
+      recentTurns = [],
+      workingMemory = null,
+      activeSession = null,
+      customApiKey,
+    } = req.body || {};
+
     if (!command || typeof command !== 'string' || !command.trim()) {
       return res.status(400).json({ success: false, error: 'Câu lệnh là bắt buộc.' });
     }
@@ -821,19 +795,20 @@ CANONICAL ACTIONS TO EMIT (Always prefer these canonical IDs):
 - Settings: accessibility.increaseFont, accessibility.decreaseFont, accessibility.setFontScale, accessibility.enableHighContrast, accessibility.disableHighContrast, accessibility.enableLargeControls, accessibility.disableLargeControls, accessibility.enableReducedMotion, accessibility.disableReducedMotion, accessibility.setTheme, accessibility.setSpeechRate, accessibility.setVoice, accessibility.enableSpokenFeedback, accessibility.disableSpokenFeedback, accessibility.enableVoiceAccess, accessibility.disableVoiceAccess
 - Life Session: session.create, session.open, session.pause, session.resume, session.complete, session.cancel, session.getNextStep, session.addFact, session.addTask, session.completeTask, session.addResource, session.summarize
 
-REFERENCE RESOLUTION:
+SPECIAL MULTI-STEP & INTENT MAPPINGS:
+- Visual assistance / "tôi muốn kiểm tra hình ảnh này vì tôi không nhìn rõ" / "xem giúp tôi vì tôi nhìn không rõ":
+  -> "action": "navigation.openVision", "chainAction": { "action": "vision.openCamera" }, "feedback": "Lovira đã mở Nhìn giúp tôi và bật máy ảnh để hỗ trợ bạn. Bạn hãy đưa camera về phía vật thể hoặc bấm chụp nhé."
+- Retry / Repeat / "thực hiện lại" / "làm lại" / "thử lại":
+  -> If previous action exists in working memory, replay it; if on vision with image, trigger "vision.analyze".
 - "Đọc cái này / Đọc cho tôi": If selected text -> speech.readCurrent; if active image/OCR -> vision.readText; if active document -> document.readResult; if conversation -> conversation.readSummary; otherwise clarify.
-- "Dừng / Dừng lại": If speech is playing -> speech.stop; if conversation recording -> conversation.stop; if agent plan running -> agent.cancelPlan.
-- "Cái vừa rồi / Đọc lại": read last result / repeat previous action.
-- "Giờ tôi làm gì? / Tiếp theo": session.getNextStep if session active.
-
-SENSITIVE CONTEXT SAFEGUARDS:
-- Medical: Remind user to verify medication or instructions with doctor/pharmacist.
-- Legal: Remind user to check official administrative sources.
-- Physical Safety: Remind user AI description does not replace physical mobility aids.
+- "Dừng / Dừng lại": If speech is playing -> speech.stop; if conversation recording -> conversation.stop.
+- "Giờ tôi làm gì? / Tiếp theo": session.getNextStep.
 
 CURRENT SCREEN CONTEXT:
 ${JSON.stringify(screenContext || context, null, 2)}
+
+RECENT WORKING MEMORY & TURNS:
+${JSON.stringify({ recentTurns, workingMemory, activeSession }, null, 2)}
 
 GLOBAL ACTIONS AVAILABLE:
 ${JSON.stringify(globalActions, null, 2)}
@@ -848,7 +823,8 @@ OUTPUT SCHEMA (Raw JSON only):
   "chainAction": object | null,
   "suggestedAction": string | null,
   "clarificationQuestion": string | null
-}`;
+}
+`;
 
     const rawResponse = await generateTextWithDualEngine({
       systemInstruction: VOICE_INTENT_SYSTEM_INSTRUCTION,
@@ -955,7 +931,7 @@ ${JSON.stringify(
 OUTPUT SCHEMA (Raw JSON only):
 {
   "intent": string,
-  "confidence": number (0.0 to 1.0),
+  "confidence": number (0.0 to 0.0),
   "needsClarification": boolean,
   "clarificationQuestion": string | null,
   "message": string (short friendly feedback in Vietnamese),

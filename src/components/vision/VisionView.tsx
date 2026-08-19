@@ -47,7 +47,20 @@ export const VisionView: React.FC<VisionViewProps> = ({
     if (initialAction === 'camera') {
       setIsCameraOpen(true);
     }
-  }, [initialAction]);
+
+    const handleOpenCamEvent = () => setIsCameraOpen(true);
+    const handleCaptureEvent = () => {
+      if (!isCameraOpen) setIsCameraOpen(true);
+    };
+
+    document.addEventListener('lovira-voice-open-camera', handleOpenCamEvent);
+    document.addEventListener('lovira-voice-capture', handleCaptureEvent);
+
+    return () => {
+      document.removeEventListener('lovira-voice-open-camera', handleOpenCamEvent);
+      document.removeEventListener('lovira-voice-capture', handleCaptureEvent);
+    };
+  }, [initialAction, isCameraOpen]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -174,6 +187,17 @@ export const VisionView: React.FC<VisionViewProps> = ({
     setTimeout(() => setCopied(false), 2000);
   };
 
+  useEffect(() => {
+    if (selectedImage || result) {
+      import('../../agent/ContextBuilder').then(({ ContextBuilder }) => {
+        ContextBuilder.setLiveMedia({
+          activeImage: selectedImage ? { id: 'current-vision-img', source: selectedImage, name: 'Ảnh phân tích' } : undefined,
+          currentResult: result ? { type: 'vision', content: `${result.summary}. Chi tiết: ${result.details.join('. ')}` } : undefined,
+        });
+      });
+    }
+  }, [selectedImage, result]);
+
   useRegisterScreenActions({
     screenId: 'vision',
     screenTitle: 'Nhìn giúp tôi',
@@ -185,58 +209,58 @@ export const VisionView: React.FC<VisionViewProps> = ({
     },
     actions: [
       {
-        id: 'openCamera',
+        id: 'vision.openCamera',
         label: 'Mở camera',
-        aliases: ['mở camera', 'bật máy ảnh', 'chụp hình', 'chụp ảnh'],
+        aliases: ['mở camera', 'bật máy ảnh', 'chụp hình', 'chụp ảnh', 'openCamera', 'bật camera'],
         description: 'Mở cửa sổ camera để chụp ảnh môi trường xung quanh',
         handler: () => setIsCameraOpen(true),
       },
       {
-        id: 'setModeScene',
+        id: 'vision.describeScene',
         label: 'Mô tả cảnh',
-        aliases: ['mô tả cảnh', 'mô tả khung cảnh', 'chế độ cảnh', 'xem cảnh'],
+        aliases: ['mô tả cảnh', 'mô tả khung cảnh', 'chế độ cảnh', 'xem cảnh', 'setModeScene'],
         description: 'Chuyển sang chế độ mô tả tổng quan khung cảnh',
         handler: () => handleModeChange('scene'),
       },
       {
-        id: 'setModeText',
+        id: 'vision.readText',
         label: 'Đọc văn bản',
-        aliases: ['đọc văn bản', 'đọc chữ trong ảnh', 'nhận diện chữ', 'đọc chữ', 'đọc text'],
+        aliases: ['đọc văn bản', 'đọc chữ trong ảnh', 'nhận diện chữ', 'đọc chữ', 'đọc text', 'setModeText', 'đọc nhãn'],
         description: 'Chuyển sang chế độ đọc chữ và quét văn bản trong ảnh',
         handler: () => handleModeChange('text'),
       },
       {
-        id: 'setModeObject',
+        id: 'vision.explainObject',
         label: 'Nhận diện vật thể',
-        aliases: ['vật thể', 'nhận diện vật thể', 'nhận diện đồ vật', 'đây là cái gì'],
+        aliases: ['vật thể', 'nhận diện vật thể', 'nhận diện đồ vật', 'đây là cái gì', 'setModeObject'],
         description: 'Chuyển sang chế độ định danh và phân tích các đồ vật trong ảnh',
         handler: () => handleModeChange('object'),
       },
       {
-        id: 'setModeQuick',
+        id: 'vision.quickSummary',
         label: 'Tóm tắt nhanh',
-        aliases: ['tóm tắt nhanh', 'tóm tắt ảnh', 'nói ngắn gọn'],
+        aliases: ['tóm tắt nhanh', 'tóm tắt ảnh', 'nói ngắn gọn', 'setModeQuick'],
         description: 'Chuyển sang chế độ tóm tắt nhanh gọn',
         handler: () => handleModeChange('quick'),
       },
       {
-        id: 'reanalyze',
+        id: 'vision.analyze',
         label: 'Phân tích lại',
-        aliases: ['phân tích lại', 'quét lại', 'chạy lại ảnh', 'thử lại'],
+        aliases: ['phân tích lại', 'quét lại', 'chạy lại ảnh', 'thử lại', 'reanalyze', 'làm lại'],
         description: 'Thực hiện phân tích lại hình ảnh hiện tại',
         prerequisites: {
           isSatisfied: !!selectedImage,
           missingReason: 'Bạn chưa có ảnh nào. Bạn muốn mở camera hay chọn ảnh từ máy?',
-          promptForMissing: 'openCamera',
+          promptForMissing: 'vision.openCamera',
         },
         handler: () => {
           if (selectedImage) runVisionAnalysis(selectedImage, visionMode);
         },
       },
       {
-        id: 'resetImage',
+        id: 'vision.retake',
         label: 'Chọn ảnh khác',
-        aliases: ['chọn ảnh khác', 'xóa ảnh', 'bỏ ảnh này', 'ảnh mới'],
+        aliases: ['chọn ảnh khác', 'xóa ảnh', 'bỏ ảnh này', 'ảnh mới', 'resetImage', 'chụp lại'],
         description: 'Xóa ảnh hiện tại để chọn hoặc chụp ảnh mới',
         prerequisites: {
           isSatisfied: !!selectedImage,
@@ -248,9 +272,9 @@ export const VisionView: React.FC<VisionViewProps> = ({
         },
       },
       {
-        id: 'readSummary',
+        id: 'speech.readResult',
         label: 'Đọc kết quả',
-        aliases: ['đọc kết quả', 'đọc to kết quả', 'đọc nội dung', 'đọc tóm tắt'],
+        aliases: ['đọc kết quả', 'đọc to kết quả', 'đọc nội dung', 'đọc tóm tắt', 'readSummary'],
         description: 'Đọc to kết quả phân tích hình ảnh',
         prerequisites: {
           isSatisfied: !!result,
@@ -264,9 +288,9 @@ export const VisionView: React.FC<VisionViewProps> = ({
         },
       },
       {
-        id: 'copyResult',
+        id: 'vision.saveResult',
         label: 'Sao chép kết quả',
-        aliases: ['sao chép kết quả', 'copy kết quả', 'copy mô tả'],
+        aliases: ['sao chép kết quả', 'copy kết quả', 'copy mô tả', 'copyResult'],
         description: 'Sao chép nội dung mô tả hình ảnh vào khay nhớ tạm',
         prerequisites: {
           isSatisfied: !!result,
@@ -275,9 +299,9 @@ export const VisionView: React.FC<VisionViewProps> = ({
         handler: () => handleCopy(),
       },
       {
-        id: 'askQuestion',
+        id: 'vision.askFollowUp',
         label: 'Hỏi thêm về ảnh',
-        aliases: ['hỏi về ảnh', 'trong ảnh có', 'hỏi thêm'],
+        aliases: ['hỏi về ảnh', 'trong ảnh có', 'hỏi thêm', 'askQuestion'],
         description: 'Đặt câu hỏi cụ thể về chi tiết trong ảnh hiện tại',
         prerequisites: {
           isSatisfied: !!selectedImage,
