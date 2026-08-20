@@ -322,6 +322,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               </button>
             ))}
           </div>
+
+          {/* Live Preview Box */}
+          <div className="p-4 rounded-xl bg-surface-subtle border border-slate-200 dark:border-slate-800 space-y-1.5 mt-2">
+            <span className="text-[11px] font-bold text-text-secondary uppercase tracking-wider block">Xem trước kích thước chữ:</span>
+            <p className="text-text-primary font-medium leading-relaxed">
+              Lovira giúp người khiếm thị, người điếc và người gặp khó khăn đọc hiểu tiếp cận thế giới thông tin dễ dàng và bình đẳng.
+            </p>
+          </div>
         </div>
 
         {/* Large Controls Mode */}

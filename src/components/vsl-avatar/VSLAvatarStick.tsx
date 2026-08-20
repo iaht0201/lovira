@@ -643,10 +643,12 @@ export const VSLAvatarStick: React.FC<VSLAvatarStickProps> = ({
 
   return (
     <div
+      role="img"
+      aria-label={`Hình nhân mô phỏng Ngôn ngữ Ký hiệu Việt Nam cho câu: ${text || 'Sẵn sàng'}`}
       className={`relative overflow-hidden rounded-2xl bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 border border-slate-800 shadow-2xl group flex items-center justify-center ${className}`}
       style={{ width, height }}
     >
-      <svg ref={svgRef} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 750" width="100%" height="100%" preserveAspectRatio="xMidYMid meet">
+      <svg ref={svgRef} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 750" width="100%" height="100%" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
         {/* Glow Effects */}
         <defs>
           <filter id="bodyGlow" x="-30%" y="-30%" width="160%" height="160%">
@@ -672,6 +674,10 @@ export const VSLAvatarStick: React.FC<VSLAvatarStickProps> = ({
           <line ref={lineLLowerRef} />
           <line ref={lineRUpperRef} />
           <line ref={lineRLowerRef} />
+          {/* Hips Grounding Base */}
+          <line x1="240" y1="520" x2="360" y2="520" />
+          <line x1="240" y1="520" x2="220" y2="600" />
+          <line x1="360" y1="520" x2="380" y2="600" />
         </g>
 
         {/* Major Body Core Lines */}
@@ -682,6 +688,10 @@ export const VSLAvatarStick: React.FC<VSLAvatarStickProps> = ({
           <line ref={lineLLowerRef} />
           <line ref={lineRUpperRef} />
           <line ref={lineRLowerRef} />
+          {/* Hips Grounding Base Core */}
+          <line x1="240" y1="520" x2="360" y2="520" />
+          <line x1="240" y1="520" x2="220" y2="600" />
+          <line x1="360" y1="520" x2="380" y2="600" />
         </g>
 
         {/* Hand Phalanges (5 Fingers Bones) with Cyber Neon Glow */}
@@ -703,6 +713,8 @@ export const VSLAvatarStick: React.FC<VSLAvatarStickProps> = ({
           <circle ref={rElbowRef} r="13" />
           <circle ref={lWristRef} r="11" />
           <circle ref={rWristRef} r="11" />
+          <circle cx="240" cy="520" r="12" />
+          <circle cx="360" cy="520" r="12" />
         </g>
         <g fill="#bfdbfe">
           <circle ref={headInnerRef} r="38" fill="url(#headGrad)" />
@@ -712,6 +724,8 @@ export const VSLAvatarStick: React.FC<VSLAvatarStickProps> = ({
           <circle ref={rElbowRef} r="7" />
           <circle ref={lWristRef} r="6" />
           <circle ref={rWristRef} r="6" />
+          <circle cx="240" cy="520" r="6" />
+          <circle cx="360" cy="520" r="6" />
         </g>
 
         {/* Expressive Facial Features (Mắt, Mũi, Miệng, Lông mày, Má hồng phát sáng) */}
@@ -754,19 +768,20 @@ export const VSLAvatarStick: React.FC<VSLAvatarStickProps> = ({
       {isTranslating && (
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-950/80 backdrop-blur-sm z-10 p-4 text-center">
           <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mb-3"></div>
-          <p className="text-white font-medium text-sm">Đang tái hiện cử chỉ bàn tay 5 ngón...</p>
+          <p className="text-white font-medium text-sm">Đang biểu diễn ngôn ngữ ký hiệu...</p>
         </div>
       )}
 
-      {/* Replay Button */}
-      {showReplayOverlay && !isTranslating && !isPlaying && text && (
+      {/* Replay Button - Always clearly accessible */}
+      {showReplayOverlay && !isTranslating && text && (
         <button
           onClick={() => setPlayCount((c) => c + 1)}
-          className="absolute bottom-4 right-4 flex items-center gap-2 px-3 py-2 bg-slate-900/80 hover:bg-slate-800 backdrop-blur-md border border-slate-700/60 rounded-xl text-slate-300 hover:text-white transition-all duration-200 opacity-0 group-hover:opacity-100 shadow-xl transform translate-y-2 group-hover:translate-y-0"
+          className="absolute bottom-3 right-3 flex items-center gap-1.5 px-3 py-1.5 bg-slate-900/90 hover:bg-slate-800 backdrop-blur-md border border-slate-700/80 rounded-xl text-slate-200 hover:text-white transition-all shadow-md active:scale-95 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-sky-400"
           title="Phát lại ký hiệu"
+          aria-label="Phát lại biểu diễn ký hiệu"
         >
-          <RefreshCw size={16} className="text-sky-400" />
-          <span className="text-sm font-medium">Phát lại</span>
+          <RefreshCw size={14} className="text-sky-400" />
+          <span>Phát lại</span>
         </button>
       )}
     </div>

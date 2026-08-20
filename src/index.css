@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
   --canvas: #f6f7fb;
   --surface: #ffffff;
@@ -38,7 +40,12 @@
   --border-strong: #aeb8c8;
   --focus: #1d4ed8;
 
+  --shadow-sm: 0 1px 2px rgb(23 32 56 / 0.06);
+  --shadow-md: 0 8px 24px rgb(23 32 56 / 0.08);
+  --shadow-dialog: 0 24px 64px rgb(15 23 42 / 0.22);
+
   --font-scale: 1;
+  color-scheme: light;
 }
 
 .dark {
@@ -72,98 +79,136 @@
   --warning-soft: #443715;
 
   --error: #ff9b91;
+  --error-hover: #ffb4ac;
   --error-soft: #4d2523;
 
   --border: #39445a;
   --border-strong: #69758e;
   --focus: #a9c5ff;
+
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.3);
+  --shadow-md: 0 8px 24px rgb(0 0 0 / 0.4);
+  --shadow-dialog: 0 24px 64px rgb(0 0 0 / 0.6);
+
+  color-scheme: dark;
 }
 
 .high-contrast {
-  --canvas: #ffffff;
-  --surface: #ffffff;
-  --surface-subtle: #e2e8f0;
-  --surface-raised: #ffffff;
-  --text-primary: #000000;
-  --text-secondary: #1e293b;
-  --border: #000000;
-  --border-strong: #000000;
-  --primary: #0000cc;
+  --canvas: #000000 !important;
+  --surface: #0f0f0f !important;
+  --surface-subtle: #1c1c1c !important;
+  --text-primary: #ffffff !important;
+  --text-secondary: #f3f4f6 !important;
+  --focus: #facc15 !important;
 }
 
-.dark.high-contrast {
-  --canvas: #000000;
-  --surface: #0a0a0a;
-  --surface-subtle: #1f1f1f;
-  --surface-raised: #141414;
-  --text-primary: #ffffff;
-  --text-secondary: #f1f5f9;
-  --border: #ffffff;
-  --border-strong: #ffffff;
-  --primary: #ffff00;
+.high-contrast .text-text-primary {
+  color: #ffffff !important;
+}
+
+.high-contrast .text-text-secondary {
+  color: #f3f4f6 !important;
+}
+
+.high-contrast .border-slate-200,
+.high-contrast .border-slate-800,
+.high-contrast .border-slate-100,
+.high-contrast .border-slate-700,
+.high-contrast .border-slate-300 {
+  border-color: #555555 !important;
 }
 
 html {
-  font-size: calc(16px * var(--font-scale, 1));
+  scroll-behavior: smooth;
+  height: 100%;
+  font-size: calc(16px * var(--font-scale));
 }
 
 body {
+  height: 100%;
   background-color: var(--canvas);
   color: var(--text-primary);
-  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
 }
 
-.bg-canvas {
-  background-color: var(--canvas);
+/* Custom Color Utility Classes */
+.bg-canvas { background-color: var(--canvas); }
+.bg-surface { background-color: var(--surface); }
+.bg-surface-subtle { background-color: var(--surface-subtle); }
+.bg-surface-raised { background-color: var(--surface-raised); }
+
+.text-text-primary { color: var(--text-primary); }
+.text-text-secondary { color: var(--text-secondary); }
+.text-text-disabled { color: var(--text-disabled); }
+
+/* Borders & Shadows */
+.border-token { border-color: var(--border); }
+.border-token-strong { border-color: var(--border-strong); }
+.shadow-token-sm { box-shadow: var(--shadow-sm); }
+.shadow-token-md { box-shadow: var(--shadow-md); }
+.shadow-token-dialog { box-shadow: var(--shadow-dialog); }
+
+/* Custom Brand Color Accents */
+.bg-primary { background-color: var(--primary); }
+.bg-primary-hover:hover { background-color: var(--primary-hover); }
+.bg-primary-active:active { background-color: var(--primary-active); }
+.bg-primary-soft { background-color: var(--primary-soft); }
+.text-primary { color: var(--primary); }
+.border-primary { border-color: var(--primary); }
+.border-primary-token { border-color: var(--primary-border); }
+
+.bg-teal { background-color: var(--teal); }
+.bg-teal-hover:hover { background-color: var(--teal-hover); }
+.bg-teal-soft { background-color: var(--teal-soft); }
+.text-teal { color: var(--teal); }
+
+.bg-coral { background-color: var(--coral); }
+.bg-coral-hover:hover { background-color: var(--coral-hover); }
+.bg-coral-soft { background-color: var(--coral-soft); }
+.text-coral { color: var(--coral); }
+
+/* Status Tokens */
+.bg-success { background-color: var(--success); }
+.bg-success-soft { background-color: var(--success-soft); }
+.text-success { color: var(--success); }
+
+.bg-warning { background-color: var(--warning); }
+.bg-warning-soft { background-color: var(--warning-soft); }
+.text-warning { color: var(--warning); }
+
+.bg-error { background-color: var(--error); }
+.bg-error-hover:hover { background-color: var(--error-hover); }
+.bg-error-soft { background-color: var(--error-soft); }
+.text-error { color: var(--error); }
+
+:focus-visible {
+  outline: 3px solid var(--focus) !important;
+  outline-offset: 3px !important;
 }
 
-.bg-surface {
-  background-color: var(--surface);
+.skip-link {
+  position: absolute;
+  top: -50px;
+  left: 16px;
+  background: #3546b5;
+  color: white;
+  padding: 10px 20px;
+  z-index: 9999;
+  font-weight: 600;
+  border-radius: 8px;
+  transition: top 0.2s ease;
+}
+.skip-link:focus {
+  top: 16px;
 }
 
-.bg-surface-subtle {
-  background-color: var(--surface-subtle);
+.wave-bar {
+  animation: soundWave 1.2s ease-in-out infinite alternate;
 }
-
-.bg-surface-raised {
-  background-color: var(--surface-raised);
-}
-
-.text-text-primary {
-  color: var(--text-primary);
-}
-
-.text-text-secondary {
-  color: var(--text-secondary);
-}
-
-.text-text-disabled {
-  color: var(--text-disabled);
-}
-
-.border-border {
-  border-color: var(--border);
-}
-
-.border-border-strong {
-  border-color: var(--border-strong);
-}
-
-.break-words-safe {
-  overflow-wrap: anywhere;
-  word-break: break-word;
-  min-width: 0;
-}
-
-.large-controls button,
-.large-controls input,
-.large-controls select,
-.large-controls a {
-  min-height: 48px;
-  min-width: 48px;
-  font-size: 1.05rem;
+@keyframes soundWave {
+  0% { height: 8px; }
+  100% { height: 42px; }
 }
 
 .reduce-motion * {
@@ -172,7 +217,49 @@ body {
   transition-duration: 0.001ms !important;
 }
 
-:focus-visible {
-  outline: 3px solid var(--focus);
-  outline-offset: 2px;
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
+
+/* Large Controls (Accessibility Mode) */
+.large-controls button,
+.large-controls a,
+.large-controls input,
+.large-controls select,
+.large-controls textarea {
+  min-height: 48px !important;
+  padding-top: 0.75rem !important;
+  padding-bottom: 0.75rem !important;
+  font-size: 1.05rem !important;
+}
+
+.large-controls button svg,
+.large-controls a svg {
+  width: 1.35rem !important;
+  height: 1.35rem !important;
+}
+
+/* Universal mobile overflow & text wrapping safety */
+.break-words-safe {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* iOS Safe Area Inset Utilities */
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+.pt-safe {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+.mb-safe {
+  margin-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+
+
