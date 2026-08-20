@@ -21,6 +21,7 @@ export interface AccessibilitySettings {
   doubleTapShortcutEnabled?: boolean;
   preferredAIProvider?: 'groq' | 'gemini';
   geminiFallbackPolicy?: 'ask' | 'groq';
+  vslAccessibilityEnabled?: boolean;
 }
 
 export interface UserProfile {

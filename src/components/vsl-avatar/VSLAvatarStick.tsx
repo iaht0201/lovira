@@ -1,38 +1,48 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { vslMotionService, VSLMotionData, VSLFrame } from '../../services/vslMotionService';
-import { vslAccessibilityService } from '../../services/vslAccessibilityService';
 import { RefreshCw } from 'lucide-react';
 
-export interface VSLAvatarStickProps {
+interface VSLAvatarStickProps {
   text: string;
-  responseId?: number;
   width?: number | string;
   height?: number | string;
   className?: string;
-  showControls?: boolean;
-  onStatusChange?: (status: {
-    isTranslating: boolean;
-    isPlaying: boolean;
-    glosses: string[];
-    currentGloss: string | null;
-  }) => void;
-  onFinished?: () => void;
+  compact?: boolean;
+  showReplayOverlay?: boolean;
+  onPlaybackStateChange?: (state: { isPlaying: boolean; isTranslating: boolean }) => void;
+}
+
+interface Point2D {
+  x: number;
+  y: number;
+}
+
+interface FrameJoints {
+  head: Point2D;
+  leftShoulder: Point2D;
+  rightShoulder: Point2D;
+  leftElbow: Point2D;
+  rightElbow: Point2D;
+  leftHand: Point2D & { shape?: string; rotation?: number; rawY?: number };
+  rightHand: Point2D & { shape?: string; rotation?: number; rawY?: number };
 }
 
 export const VSLAvatarStick: React.FC<VSLAvatarStickProps> = ({
   text,
-  responseId,
   width = 400,
   height = 400,
   className = '',
-  showControls = true,
-  onStatusChange,
-  onFinished,
+  compact = false,
+  showReplayOverlay = true,
+  onPlaybackStateChange,
 }) => {
   const [isTranslating, setIsTranslating] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [playCount, setPlayCount] = useState(0);
-  const [currentGloss, setCurrentGloss] = useState<string | null>(null);
+
+  useEffect(() => {
+    onPlaybackStateChange?.({ isPlaying, isTranslating });
+  }, [isPlaying, isTranslating, onPlaybackStateChange]);
 
   // Animation state
   const requestRef = useRef<number>(0);
@@ -40,10 +50,7 @@ export const VSLAvatarStick: React.FC<VSLAvatarStickProps> = ({
   const startTimeRef = useRef<number>(0);
   const motionQueueRef = useRef<VSLMotionData[]>([]);
   const isPlayingRef = useRef(false);
-  const lastRenderedPoseRef = useRef<Record<string, { x: number; y: number }> | null>(null);
-  const activeResponseIdRef = useRef<number | undefined>(responseId);
-  const currentGlossesRef = useRef<string[]>([]);
-  const currentGlossIndexRef = useRef<number>(-1);
+  const lastRenderedPoseRef = useRef<FrameJoints | null>(null);
 
   // DOM Refs for direct SVG manipulation (60FPS performance)
   const svgRef = useRef<SVGSVGElement>(null);
@@ -55,22 +62,49 @@ export const VSLAvatarStick: React.FC<VSLAvatarStickProps> = ({
   const lineSpineRef = useRef<SVGLineElement>(null);
 
   const headRef = useRef<SVGCircleElement>(null);
+  const headInnerRef = useRef<SVGCircleElement>(null);
   const lShoulderRef = useRef<SVGCircleElement>(null);
   const rShoulderRef = useRef<SVGCircleElement>(null);
   const lElbowRef = useRef<SVGCircleElement>(null);
   const rElbowRef = useRef<SVGCircleElement>(null);
-  const lHandRef = useRef<SVGCircleElement>(null);
-  const rHandRef = useRef<SVGCircleElement>(null);
+  const lWristRef = useRef<SVGCircleElement>(null);
+  const rWristRef = useRef<SVGCircleElement>(null);
 
-  // Default coordinate positions (T-pose fallback)
-  const defaultPose = {
+  // Facial Features SVG Refs (Expressive Eyes, Eyebrows, Pupils, Nose, Mouth)
+  const lEyeGlowRef = useRef<SVGEllipseElement>(null);
+  const rEyeGlowRef = useRef<SVGEllipseElement>(null);
+  const lEyeRef = useRef<SVGCircleElement>(null);
+  const rEyeRef = useRef<SVGCircleElement>(null);
+  const lPupilRef = useRef<SVGCircleElement>(null);
+  const rPupilRef = useRef<SVGCircleElement>(null);
+  const lEyebrowRef = useRef<SVGPathElement>(null);
+  const rEyebrowRef = useRef<SVGPathElement>(null);
+  const noseRef = useRef<SVGPathElement>(null);
+  const mouthRef = useRef<SVGPathElement>(null);
+  const mouthGlowRef = useRef<SVGPathElement>(null);
+  const blushLeftRef = useRef<SVGCircleElement>(null);
+  const blushRightRef = useRef<SVGCircleElement>(null);
+
+  // Hand & 5 Fingers SVG Refs (Bones + Joint vertebrae)
+  const lHandBonesGlowRef = useRef<SVGPathElement>(null);
+  const lHandBonesRef = useRef<SVGPathElement>(null);
+  const lHandJointsRef = useRef<SVGPathElement>(null);
+  const lHandJointsCoreRef = useRef<SVGPathElement>(null);
+
+  const rHandBonesGlowRef = useRef<SVGPathElement>(null);
+  const rHandBonesRef = useRef<SVGPathElement>(null);
+  const rHandJointsRef = useRef<SVGPathElement>(null);
+  const rHandJointsCoreRef = useRef<SVGPathElement>(null);
+
+  // Default coordinate positions: Natural standing rest posture (hands hanging at sides)
+  const defaultPose: FrameJoints = {
     head: { x: 0, y: -0.9 },
     leftShoulder: { x: 0.5, y: 0 },
     rightShoulder: { x: -0.5, y: 0 },
-    leftElbow: { x: 1.0, y: 0 },
-    rightElbow: { x: -1.0, y: 0 },
-    leftHand: { x: 1.5, y: 0 },
-    rightHand: { x: -1.5, y: 0 },
+    leftElbow: { x: 0.65, y: 1.05 },
+    rightElbow: { x: -0.65, y: 1.05 },
+    leftHand: { x: 0.55, y: 2.15, shape: 'REST', rotation: 0, rawY: 2.15 },
+    rightHand: { x: -0.55, y: 2.15, shape: 'REST', rotation: 0, rawY: 2.15 },
   };
 
   const mapCoord = (x: number, y: number) => {
@@ -82,7 +116,192 @@ export const VSLAvatarStick: React.FC<VSLAvatarStickProps> = ({
     };
   };
 
-  const updateSVG = (frame: Record<string, { x: number; y: number }>) => {
+  /**
+   * Generates SVG paths for 5 anatomical fingers with multi-segment joints (đốt sống/đốt ngón tay)
+   */
+  const computeHandSkeleton = (
+    wrist: { cx: number; cy: number },
+    elbow: { cx: number; cy: number },
+    isLeftHand: boolean,
+    shape: string = 'OPEN',
+    rawY?: number
+  ) => {
+    // 1. Forearm directional vector
+    let dx = wrist.cx - elbow.cx;
+    let dy = wrist.cy - elbow.cy;
+    let len = Math.hypot(dx, dy);
+    if (len < 1e-4) {
+      dx = 0;
+      dy = 1;
+      len = 1;
+    }
+    const ux = dx / len;
+    const uy = dy / len;
+
+    // Perpendicular lateral vector across the palm
+    // isLeftHand is based on screen coordinate mirroring
+    const side = isLeftHand ? 1 : -1;
+    const nx = -uy * side;
+    const ny = ux * side;
+
+    const boneSegments: Array<[Point2D, Point2D]> = [];
+    const joints: Array<{ pt: Point2D; radius: number }> = [];
+
+    // Helper to add joint
+    const addJoint = (pt: Point2D, radius: number) => {
+      joints.push({ pt, radius });
+    };
+
+    // Wrist root joint
+    addJoint({ x: wrist.cx, y: wrist.cy }, 5.5);
+
+    // Finger specs: [spreadAngleDeg, fingerLengthScale, palmOffsetAlongN, palmOffsetAlongU]
+    const fingerConfigs = [
+      { name: 'thumb', spread: 42, length: 0.75, offN: 11.0, offU: 4.0, isThumb: true },
+      { name: 'index', spread: 14, length: 1.0, offN: 5.0, offU: 12.5, isThumb: false },
+      { name: 'middle', spread: 1, length: 1.06, offN: 0.5, offU: 13.8, isThumb: false },
+      { name: 'ring', spread: -12, length: 0.96, offN: -4.0, offU: 12.5, isThumb: false },
+      { name: 'pinky', spread: -28, length: 0.80, offN: -8.5, offU: 10.0, isThumb: false },
+    ];
+
+    const isResting = shape === 'REST' || shape === 'UNKNOWN' || (rawY !== undefined && rawY > 1.35);
+
+    fingerConfigs.forEach((cfg) => {
+      // 1. Metacarpal base (khớp bàn ngón MCP)
+      const mcpBase: Point2D = {
+        x: wrist.cx + ux * cfg.offU + nx * cfg.offN,
+        y: wrist.cy + uy * cfg.offU + ny * cfg.offN,
+      };
+
+      // Connect wrist to metacarpal base (palm bone)
+      boneSegments.push([{ x: wrist.cx, y: wrist.cy }, mcpBase]);
+      addJoint(mcpBase, 3.8);
+
+      // Determine curl/extension state per shape
+      let isCurled = false;
+      let spreadOffset = 0;
+
+      if (isResting) {
+        // Natural resting hand: fingers are softly closed together along the arm
+        spreadOffset = -cfg.spread * 0.82;
+      } else if (shape === 'FIST') {
+        isCurled = true;
+      } else if (shape === 'POINT') {
+        if (!cfg.isThumb && cfg.name !== 'index') isCurled = true;
+      } else if (shape === 'PEACE' || shape === 'V') {
+        if (cfg.name === 'index') spreadOffset = 10;
+        else if (cfg.name === 'middle') spreadOffset = -10;
+        else isCurled = true;
+      } else if (shape === 'THUMBS_UP') {
+        if (!cfg.isThumb) isCurled = true;
+      } else if (shape === 'PINCH') {
+        if (!cfg.isThumb && cfg.name !== 'index') isCurled = true;
+      } else if (shape === 'FLAT') {
+        // Flat hand: fingers close together
+        spreadOffset = -cfg.spread * 0.6;
+      } else if (shape === 'CUSTOM') {
+        // Custom / Natural signing posture: slight curvature on ring and pinky
+        if (cfg.name === 'pinky' || cfg.name === 'ring') {
+          spreadOffset = -4;
+        }
+      }
+
+      // Base finger angle in radians
+      const totalSpreadRad = ((cfg.spread + spreadOffset) * Math.PI) / 180;
+      const cosS = Math.cos(totalSpreadRad);
+      const sinS = Math.sin(totalSpreadRad);
+
+      // Forward direction for this finger
+      const fDirX = ux * cosS + nx * sinS;
+      const fDirY = uy * cosS + ny * sinS;
+      const fNormX = -fDirY * side;
+      const fNormY = fDirX * side;
+
+      if (isCurled) {
+        // Curled finger (Đốt gập tạo nắm tay hoặc khớp ngón thu gọn)
+        const curlScale = cfg.length * 5.5;
+        const pip: Point2D = {
+          x: mcpBase.x + fDirX * curlScale,
+          y: mcpBase.y + fDirY * curlScale,
+        };
+        const dip: Point2D = {
+          x: pip.x - fNormX * (curlScale * 0.75) + fDirX * 1.5,
+          y: pip.y - fNormY * (curlScale * 0.75) + fDirY * 1.5,
+        };
+        const tip: Point2D = {
+          x: dip.x - fDirX * (curlScale * 0.7),
+          y: dip.y - fDirY * (curlScale * 0.7),
+        };
+
+        boneSegments.push([mcpBase, pip]);
+        boneSegments.push([pip, dip]);
+        boneSegments.push([dip, tip]);
+
+        addJoint(pip, 3.2);
+        addJoint(dip, 2.7);
+        addJoint(tip, 2.5);
+      } else {
+        // Extended / Relaxed finger (3 đốt sống: Đốt gần / Phalanx Proximal, Đốt giữa / Phalanx Medial, Đốt xa / Phalanx Distal & Tip)
+        const lenMultiplier = isResting ? 0.72 : 1.0;
+        const seg1 = cfg.length * 8.5 * lenMultiplier; // MCP -> PIP
+        const seg2 = cfg.length * 7.0 * lenMultiplier; // PIP -> DIP
+        const seg3 = cfg.length * 6.0 * lenMultiplier; // DIP -> TIP
+
+        // PIP Joint (Khớp liên đốt ngón gần)
+        const pip: Point2D = {
+          x: mcpBase.x + fDirX * seg1,
+          y: mcpBase.y + fDirY * seg1,
+        };
+
+        // DIP Joint (Khớp liên đốt ngón xa) - with slight natural curvature
+        const dip: Point2D = {
+          x: pip.x + fDirX * seg2 * 0.98 + (isResting ? 0 : fNormX * 0.8),
+          y: pip.y + fDirY * seg2 * 0.98 + (isResting ? 0 : fNormY * 0.8),
+        };
+
+        // Tip (Đầu ngón tay)
+        const tip: Point2D = {
+          x: dip.x + fDirX * seg3 * 0.96 + (isResting ? 0 : fNormX * 1.2),
+          y: dip.y + fDirY * seg3 * 0.96 + (isResting ? 0 : fNormY * 1.2),
+        };
+
+        boneSegments.push([mcpBase, pip]);
+        boneSegments.push([pip, dip]);
+        boneSegments.push([dip, tip]);
+
+        addJoint(pip, isResting ? 2.8 : 3.5);
+        addJoint(dip, isResting ? 2.4 : 3.0);
+        addJoint(tip, isResting ? 2.0 : 2.6);
+      }
+    });
+
+    // Build SVG Path strings
+    // 1. Bones path: M x1 y1 L x2 y2 ...
+    const bonesPath = boneSegments.map(([p1, p2]) => `M ${p1.x.toFixed(1)},${p1.y.toFixed(1)} L ${p2.x.toFixed(1)},${p2.y.toFixed(1)}`).join(' ');
+
+    // 2. Joints path: circles drawn as arc paths
+    const jointsPath = joints
+      .map(({ pt, radius }) => {
+        const r = radius.toFixed(1);
+        const x = pt.x.toFixed(1);
+        const y = pt.y.toFixed(1);
+        return `M ${x} ${y} m -${r},0 a ${r},${r} 0 1,0 ${radius * 2},0 a ${r},${r} 0 1,0 -${radius * 2},0`;
+      })
+      .join(' ');
+
+    const jointsCorePath = joints
+      .map(({ pt, radius }) => {
+        const r = Math.max(1, radius * 0.45).toFixed(1);
+        const x = pt.x.toFixed(1);
+        const y = pt.y.toFixed(1);
+        return `M ${x} ${y} m -${r},0 a ${r},${r} 0 1,0 ${parseFloat(r) * 2},0 a ${r},${r} 0 1,0 -${parseFloat(r) * 2},0`;
+      })
+      .join(' ');
+
+    return { bonesPath, jointsPath, jointsCorePath };
+  };
+
+  const updateSVG = (frame: FrameJoints) => {
     const head = mapCoord(frame.head.x, frame.head.y);
     const ls = mapCoord(frame.leftShoulder.x, frame.leftShoulder.y);
     const rs = mapCoord(frame.rightShoulder.x, frame.rightShoulder.y);
@@ -95,6 +314,80 @@ export const VSLAvatarStick: React.FC<VSLAvatarStickProps> = ({
     // Update Circles
     headRef.current?.setAttribute('cx', String(head.cx));
     headRef.current?.setAttribute('cy', String(head.cy));
+    headInnerRef.current?.setAttribute('cx', String(head.cx));
+    headInnerRef.current?.setAttribute('cy', String(head.cy));
+
+    // Update Animated Facial Features with Natural Blink & Emotion
+    const now = performance.now();
+    // Blink cycle: blinks every ~3.5s for 150ms
+    const blinkCycle = now % 3500;
+    const isBlinking = blinkCycle > 3350;
+    const eyeRadiusY = isBlinking ? 1.0 : 6.0;
+    const eyeRadiusX = isBlinking ? 5.5 : 5.0;
+
+    const leftEyePos = { cx: head.cx - 13, cy: head.cy - 7 };
+    const rightEyePos = { cx: head.cx + 13, cy: head.cy - 7 };
+
+    lEyeGlowRef.current?.setAttribute('cx', String(leftEyePos.cx));
+    lEyeGlowRef.current?.setAttribute('cy', String(leftEyePos.cy));
+    lEyeGlowRef.current?.setAttribute('rx', String(eyeRadiusX + 2));
+    lEyeGlowRef.current?.setAttribute('ry', String(eyeRadiusY + 2));
+
+    rEyeGlowRef.current?.setAttribute('cx', String(rightEyePos.cx));
+    rEyeGlowRef.current?.setAttribute('cy', String(rightEyePos.cy));
+    rEyeGlowRef.current?.setAttribute('rx', String(eyeRadiusX + 2));
+    rEyeGlowRef.current?.setAttribute('ry', String(eyeRadiusY + 2));
+
+    lEyeRef.current?.setAttribute('cx', String(leftEyePos.cx));
+    lEyeRef.current?.setAttribute('cy', String(leftEyePos.cy));
+    lEyeRef.current?.setAttribute('r', String(eyeRadiusY));
+
+    rEyeRef.current?.setAttribute('cx', String(rightEyePos.cx));
+    rEyeRef.current?.setAttribute('cy', String(rightEyePos.cy));
+    rEyeRef.current?.setAttribute('r', String(eyeRadiusY));
+
+    // Pupils follow the active signing hand or camera direction
+    const handFocusX = (frame.rightHand.x + frame.leftHand.x) * 0.5;
+    const pupilShiftX = Math.max(-2, Math.min(2, -handFocusX * 2));
+    const pupilShiftY = isBlinking ? 0 : 0.5;
+
+    lPupilRef.current?.setAttribute('cx', String(leftEyePos.cx + pupilShiftX));
+    lPupilRef.current?.setAttribute('cy', String(leftEyePos.cy + pupilShiftY));
+    lPupilRef.current?.setAttribute('r', isBlinking ? '0' : '2.5');
+
+    rPupilRef.current?.setAttribute('cx', String(rightEyePos.cx + pupilShiftX));
+    rPupilRef.current?.setAttribute('cy', String(rightEyePos.cy + pupilShiftY));
+    rPupilRef.current?.setAttribute('r', isBlinking ? '0' : '2.5');
+
+    // Eyebrows (Curved & friendly, slight lift during signing)
+    const browLift = isPlayingRef.current ? -2 : 0;
+    const lBrowD = `M ${head.cx - 20} ${head.cy - 16 + browLift} Q ${head.cx - 13} ${head.cy - 20 + browLift} ${head.cx - 6} ${head.cy - 17 + browLift}`;
+    const rBrowD = `M ${head.cx + 6} ${head.cy - 17 + browLift} Q ${head.cx + 13} ${head.cy - 20 + browLift} ${head.cx + 20} ${head.cy - 16 + browLift}`;
+    lEyebrowRef.current?.setAttribute('d', lBrowD);
+    rEyebrowRef.current?.setAttribute('d', rBrowD);
+
+    // Nose Bridge (Sleek minimalist anime/cyber stick nose)
+    const noseD = `M ${head.cx} ${head.cy - 2} L ${head.cx + 3} ${head.cy + 5} L ${head.cx - 1} ${head.cy + 7}`;
+    noseRef.current?.setAttribute('d', noseD);
+
+    // Mouth (Expressive Smile / Speaking loop when active)
+    let mouthD: string;
+    if (isPlayingRef.current) {
+      // Gentle articulation oscillation while signing
+      const speechOsc = Math.sin(now * 0.012) * 3;
+      mouthD = `M ${head.cx - 11} ${head.cy + 16} Q ${head.cx} ${head.cy + 22 + speechOsc} ${head.cx + 11} ${head.cy + 16}`;
+    } else {
+      // Natural warm smile when resting
+      mouthD = `M ${head.cx - 10} ${head.cy + 16} Q ${head.cx} ${head.cy + 22} ${head.cx + 10} ${head.cy + 16}`;
+    }
+    mouthRef.current?.setAttribute('d', mouthD);
+    mouthGlowRef.current?.setAttribute('d', mouthD);
+
+    // Cute Cheeks Blush
+    blushLeftRef.current?.setAttribute('cx', String(head.cx - 18));
+    blushLeftRef.current?.setAttribute('cy', String(head.cy + 7));
+    blushRightRef.current?.setAttribute('cx', String(head.cx + 18));
+    blushRightRef.current?.setAttribute('cy', String(head.cy + 7));
 
     lShoulderRef.current?.setAttribute('cx', String(ls.cx));
     lShoulderRef.current?.setAttribute('cy', String(ls.cy));
@@ -108,11 +401,11 @@ export const VSLAvatarStick: React.FC<VSLAvatarStickProps> = ({
     rElbowRef.current?.setAttribute('cx', String(re.cx));
     rElbowRef.current?.setAttribute('cy', String(re.cy));
 
-    lHandRef.current?.setAttribute('cx', String(lh.cx));
-    lHandRef.current?.setAttribute('cy', String(lh.cy));
+    lWristRef.current?.setAttribute('cx', String(lh.cx));
+    lWristRef.current?.setAttribute('cy', String(lh.cy));
 
-    rHandRef.current?.setAttribute('cx', String(rh.cx));
-    rHandRef.current?.setAttribute('cy', String(rh.cy));
+    rWristRef.current?.setAttribute('cx', String(rh.cx));
+    rWristRef.current?.setAttribute('cy', String(rh.cy));
 
     // Update Lines
     lineShouldersRef.current?.setAttribute('x1', String(rs.cx));
@@ -144,6 +437,20 @@ export const VSLAvatarStick: React.FC<VSLAvatarStickProps> = ({
     lineRLowerRef.current?.setAttribute('y1', String(re.cy));
     lineRLowerRef.current?.setAttribute('x2', String(rh.cx));
     lineRLowerRef.current?.setAttribute('y2', String(rh.cy));
+
+    // Compute & Render 5-Finger Articulated Skeleton for Left Hand
+    const lHandData = computeHandSkeleton(lh, le, true, frame.leftHand.shape || 'OPEN', frame.leftHand.rawY ?? frame.leftHand.y);
+    lHandBonesGlowRef.current?.setAttribute('d', lHandData.bonesPath);
+    lHandBonesRef.current?.setAttribute('d', lHandData.bonesPath);
+    lHandJointsRef.current?.setAttribute('d', lHandData.jointsPath);
+    lHandJointsCoreRef.current?.setAttribute('d', lHandData.jointsCorePath);
+
+    // Compute & Render 5-Finger Articulated Skeleton for Right Hand
+    const rHandData = computeHandSkeleton(rh, re, false, frame.rightHand.shape || 'OPEN', frame.rightHand.rawY ?? frame.rightHand.y);
+    rHandBonesGlowRef.current?.setAttribute('d', rHandData.bonesPath);
+    rHandBonesRef.current?.setAttribute('d', rHandData.bonesPath);
+    rHandJointsRef.current?.setAttribute('d', rHandData.jointsPath);
+    rHandJointsCoreRef.current?.setAttribute('d', rHandData.jointsCorePath);
   };
 
   const setRestPose = () => {
@@ -154,20 +461,7 @@ export const VSLAvatarStick: React.FC<VSLAvatarStickProps> = ({
     if (motionQueueRef.current.length === 0) {
       isPlayingRef.current = false;
       setIsPlaying(false);
-      setCurrentGloss(null);
       setRestPose();
-
-      if (activeResponseIdRef.current !== undefined) {
-        vslAccessibilityService.finishSigning(activeResponseIdRef.current);
-      }
-
-      onFinished?.();
-      onStatusChange?.({
-        isTranslating: false,
-        isPlaying: false,
-        glosses: currentGlossesRef.current,
-        currentGloss: null,
-      });
       return;
     }
 
@@ -176,48 +470,13 @@ export const VSLAvatarStick: React.FC<VSLAvatarStickProps> = ({
     const motion = motionQueueRef.current.shift()!;
     currentMotionRef.current = motion;
     startTimeRef.current = performance.now();
-
-    currentGlossIndexRef.current += 1;
-    const glossLabel = motion.slug !== 'rest' ? motion.label || motion.slug : null;
-    setCurrentGloss(glossLabel);
-
-    if (activeResponseIdRef.current !== undefined) {
-      vslAccessibilityService.updateGlossProgress(
-        activeResponseIdRef.current,
-        currentGlossIndexRef.current,
-        glossLabel
-      );
-    }
-
-    onStatusChange?.({
-      isTranslating: false,
-      isPlaying: true,
-      glosses: currentGlossesRef.current,
-      currentGloss: glossLabel,
-    });
   };
 
   useEffect(() => {
-    activeResponseIdRef.current = responseId;
-  }, [responseId]);
-
-  useEffect(() => {
-    if (!text || !text.trim()) {
-      motionQueueRef.current = [];
-      currentMotionRef.current = null;
-      isPlayingRef.current = false;
-      setIsPlaying(false);
-      setIsTranslating(false);
-      setCurrentGloss(null);
-      setRestPose();
-      return;
-    }
-
-    let isCancelled = false;
+    if (!text) return;
 
     const trimMotion = (motion: VSLMotionData) => {
       let startIndex = 0;
-      // Trục Y của MediaPipe: Số càng lớn là càng hướng xuống đất. Mốc y > 1.2 là tay đang thõng xuống dưới hông.
       while (
         startIndex < motion.frames.length - 1 &&
         motion.frames[startIndex].leftHand.y > 1.2 &&
@@ -235,7 +494,6 @@ export const VSLAvatarStick: React.FC<VSLAvatarStickProps> = ({
         endIndex--;
       }
 
-      // Giữ lại 1 frame đệm
       if (startIndex > 0) startIndex--;
       if (endIndex < motion.frames.length - 1) endIndex++;
 
@@ -251,42 +509,19 @@ export const VSLAvatarStick: React.FC<VSLAvatarStickProps> = ({
 
     const translateAndPlay = async () => {
       setIsTranslating(true);
-      onStatusChange?.({
-        isTranslating: true,
-        isPlaying: false,
-        glosses: [],
-        currentGloss: null,
-      });
-
-      const currentRespId = activeResponseIdRef.current;
       const glosses = await vslMotionService.translateTextToGlosses(text);
-
-      if (isCancelled) return;
-
-      currentGlossesRef.current = glosses;
-      currentGlossIndexRef.current = -1;
-
-      if (currentRespId !== undefined) {
-        vslAccessibilityService.setGlosses(currentRespId, glosses);
-      }
 
       const motions: VSLMotionData[] = [];
       for (const slug of glosses) {
-        if (isCancelled) return;
         const m = await vslMotionService.getMotion(slug);
         if (m && m.frames && m.frames.length > 0) {
           motions.push(trimMotion(m));
-        } else {
-          console.log(`[VSL] No animation frames available for slug: "${slug}"`);
         }
       }
-
-      if (isCancelled) return;
 
       setIsTranslating(false);
 
       if (motions.length > 0) {
-        // Thêm một motion "nghỉ" ảo ở cuối để tay tự động hạ xuống mượt mà khi kết thúc câu
         motions.push({
           schema: 'lovira.vsl.rive-motion.v1',
           label: 'Nghỉ',
@@ -294,39 +529,26 @@ export const VSLAvatarStick: React.FC<VSLAvatarStickProps> = ({
           duration: 0.5,
           framesCount: 2,
           frames: [
-            { t: 0, ...defaultPose } as VSLFrame,
-            { t: 0.5, ...defaultPose } as VSLFrame,
+            { t: 0, ...defaultPose } as unknown as VSLFrame,
+            { t: 0.5, ...defaultPose } as unknown as VSLFrame,
           ],
         });
 
         motionQueueRef.current = motions;
-        currentMotionRef.current = null;
-        processQueue();
+        if (!isPlayingRef.current) {
+          processQueue();
+        }
       } else {
         isPlayingRef.current = false;
         setIsPlaying(false);
         setRestPose();
-        onStatusChange?.({
-          isTranslating: false,
-          isPlaying: false,
-          glosses: [],
-          currentGloss: null,
-        });
-        if (currentRespId !== undefined) {
-          vslAccessibilityService.finishSigning(currentRespId);
-        }
       }
     };
-
     translateAndPlay();
-
-    return () => {
-      isCancelled = true;
-    };
-  }, [text, playCount, responseId]);
+  }, [text, playCount]);
 
   useEffect(() => {
-    setRestPose(); // Set initial pose on mount
+    setRestPose();
 
     const animate = () => {
       if (!isPlayingRef.current || !currentMotionRef.current) {
@@ -358,32 +580,37 @@ export const VSLAvatarStick: React.FC<VSLAvatarStickProps> = ({
       }
 
       // Helper to lerp coordinates
-      const lerpCoord = (c1: any, c2: any) => ({
+      const lerpCoord = (c1: Point2D, c2: Point2D) => ({
         x: c1.x + (c2.x - c1.x) * progress,
         y: c1.y + (c2.y - c1.y) * progress,
       });
 
-      const interpolatedFrame = {
+      const interpolatedFrame: FrameJoints = {
         head: lerpCoord(currentFrame.head, nextFrame.head),
         leftShoulder: lerpCoord(currentFrame.leftShoulder, nextFrame.leftShoulder),
         rightShoulder: lerpCoord(currentFrame.rightShoulder, nextFrame.rightShoulder),
         leftElbow: lerpCoord(currentFrame.leftElbow, nextFrame.leftElbow),
         rightElbow: lerpCoord(currentFrame.rightElbow, nextFrame.rightElbow),
-        leftHand: lerpCoord(currentFrame.leftHand, nextFrame.leftHand),
-        rightHand: lerpCoord(currentFrame.rightHand, nextFrame.rightHand),
+        leftHand: {
+          ...lerpCoord(currentFrame.leftHand, nextFrame.leftHand),
+          shape: currentFrame.leftHand.shape || 'OPEN',
+        },
+        rightHand: {
+          ...lerpCoord(currentFrame.rightHand, nextFrame.rightHand),
+          shape: currentFrame.rightHand.shape || 'OPEN',
+        },
       };
 
-      // Blend Time: 250ms chuyển mượt giữa từ trước và từ sau
+      // Blend Time: 250ms smoothing
       let finalFrame = interpolatedFrame;
       const blendDuration = 0.25;
 
       if (lastRenderedPoseRef.current && elapsed < blendDuration) {
         const blendFactor = elapsed / blendDuration;
-        // SmoothStep easing function cho cảm giác tự nhiên
         const easedFactor = blendFactor * blendFactor * (3 - 2 * blendFactor);
 
         const prev = lastRenderedPoseRef.current;
-        const blendCoord = (c1: any, c2: any) => ({
+        const blendCoord = (c1: Point2D, c2: Point2D) => ({
           x: c1.x + (c2.x - c1.x) * easedFactor,
           y: c1.y + (c2.y - c1.y) * easedFactor,
         });
@@ -394,8 +621,14 @@ export const VSLAvatarStick: React.FC<VSLAvatarStickProps> = ({
           rightShoulder: blendCoord(prev.rightShoulder, interpolatedFrame.rightShoulder),
           leftElbow: blendCoord(prev.leftElbow, interpolatedFrame.leftElbow),
           rightElbow: blendCoord(prev.rightElbow, interpolatedFrame.rightElbow),
-          leftHand: blendCoord(prev.leftHand, interpolatedFrame.leftHand),
-          rightHand: blendCoord(prev.rightHand, interpolatedFrame.rightHand),
+          leftHand: {
+            ...blendCoord(prev.leftHand, interpolatedFrame.leftHand),
+            shape: interpolatedFrame.leftHand.shape,
+          },
+          rightHand: {
+            ...blendCoord(prev.rightHand, interpolatedFrame.rightHand),
+            shape: interpolatedFrame.rightHand.shape,
+          },
         };
       }
 
@@ -405,44 +638,34 @@ export const VSLAvatarStick: React.FC<VSLAvatarStickProps> = ({
     };
 
     requestRef.current = requestAnimationFrame(animate);
-    return () => {
-      if (requestRef.current) {
-        cancelAnimationFrame(requestRef.current);
-      }
-    };
+    return () => cancelAnimationFrame(requestRef.current!);
   }, []);
 
   return (
     <div
-      className={`relative overflow-hidden rounded-xl bg-gray-900 border border-gray-800 shadow-inner group flex items-center justify-center ${className}`}
+      className={`relative overflow-hidden rounded-2xl bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 border border-slate-800 shadow-2xl group flex items-center justify-center ${className}`}
       style={{ width, height }}
     >
-      <svg
-        ref={svgRef}
-        xmlns="http://www.w3.org/2000/svg"
-        viewBox="0 0 600 750"
-        width="100%"
-        height="100%"
-        className="w-full h-full object-contain"
-      >
+      <svg ref={svgRef} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 750" width="100%" height="100%" preserveAspectRatio="xMidYMid meet">
         {/* Glow Effects */}
         <defs>
-          <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
-            <feGaussianBlur stdDeviation="6" result="blur" />
+          <filter id="bodyGlow" x="-30%" y="-30%" width="160%" height="160%">
+            <feGaussianBlur stdDeviation="8" result="blur" />
             <feComposite in="SourceGraphic" in2="blur" operator="over" />
           </filter>
+          <filter id="handGlow" x="-40%" y="-40%" width="180%" height="180%">
+            <feGaussianBlur stdDeviation="4" result="blur" />
+            <feComposite in="SourceGraphic" in2="blur" operator="over" />
+          </filter>
+          <radialGradient id="headGrad" cx="40%" cy="40%" r="60%">
+            <stop offset="0%" stopColor="#60a5fa" />
+            <stop offset="60%" stopColor="#2563eb" />
+            <stop offset="100%" stopColor="#1e3a8a" />
+          </radialGradient>
         </defs>
 
-        {/* Lines */}
-        <g stroke="#3b82f6" strokeWidth="18" strokeLinecap="round" filter="url(#glow)" opacity="0.8">
-          <line ref={lineShouldersRef} />
-          <line ref={lineSpineRef} />
-          <line ref={lineLUpperRef} />
-          <line ref={lineLLowerRef} />
-          <line ref={lineRUpperRef} />
-          <line ref={lineRLowerRef} />
-        </g>
-        <g stroke="#60a5fa" strokeWidth="8" strokeLinecap="round">
+        {/* Major Body Glow Lines */}
+        <g stroke="#3b82f6" strokeWidth="16" strokeLinecap="round" filter="url(#bodyGlow)" opacity="0.6">
           <line ref={lineShouldersRef} />
           <line ref={lineSpineRef} />
           <line ref={lineLUpperRef} />
@@ -451,53 +674,102 @@ export const VSLAvatarStick: React.FC<VSLAvatarStickProps> = ({
           <line ref={lineRLowerRef} />
         </g>
 
-        {/* Joints (Circles) */}
+        {/* Major Body Core Lines */}
+        <g stroke="#60a5fa" strokeWidth="7" strokeLinecap="round">
+          <line ref={lineShouldersRef} />
+          <line ref={lineSpineRef} />
+          <line ref={lineLUpperRef} />
+          <line ref={lineLLowerRef} />
+          <line ref={lineRUpperRef} />
+          <line ref={lineRLowerRef} />
+        </g>
+
+        {/* Hand Phalanges (5 Fingers Bones) with Cyber Neon Glow */}
+        <g stroke="#38bdf8" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" filter="url(#handGlow)" opacity="0.65">
+          <path ref={lHandBonesGlowRef} fill="none" />
+          <path ref={rHandBonesGlowRef} fill="none" />
+        </g>
+        <g stroke="#93c5fd" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round">
+          <path ref={lHandBonesRef} fill="none" />
+          <path ref={rHandBonesRef} fill="none" />
+        </g>
+
+        {/* Major Body Joints (Circles) */}
         <g fill="#1e3a8a">
-          <circle ref={headRef} r="45" />
+          <circle ref={headRef} r="46" />
           <circle ref={lShoulderRef} r="16" />
           <circle ref={rShoulderRef} r="16" />
-          <circle ref={lElbowRef} r="14" />
-          <circle ref={rElbowRef} r="14" />
-          <circle ref={lHandRef} r="22" />
-          <circle ref={rHandRef} r="22" />
+          <circle ref={lElbowRef} r="13" />
+          <circle ref={rElbowRef} r="13" />
+          <circle ref={lWristRef} r="11" />
+          <circle ref={rWristRef} r="11" />
         </g>
         <g fill="#bfdbfe">
-          <circle ref={headRef} r="40" />
-          <circle ref={lShoulderRef} r="10" />
-          <circle ref={rShoulderRef} r="10" />
-          <circle ref={lElbowRef} r="8" />
-          <circle ref={rElbowRef} r="8" />
-          <circle ref={lHandRef} r="14" />
-          <circle ref={rHandRef} r="14" />
+          <circle ref={headInnerRef} r="38" fill="url(#headGrad)" />
+          <circle ref={lShoulderRef} r="9" />
+          <circle ref={rShoulderRef} r="9" />
+          <circle ref={lElbowRef} r="7" />
+          <circle ref={rElbowRef} r="7" />
+          <circle ref={lWristRef} r="6" />
+          <circle ref={rWristRef} r="6" />
         </g>
+
+        {/* Expressive Facial Features (Mắt, Mũi, Miệng, Lông mày, Má hồng phát sáng) */}
+        <g id="avatar-facial-expression">
+          {/* Eyebrows (Lông mày biểu cảm) */}
+          <path ref={lEyebrowRef} fill="none" stroke="#e0f2fe" strokeWidth="2.8" strokeLinecap="round" />
+          <path ref={rEyebrowRef} fill="none" stroke="#e0f2fe" strokeWidth="2.8" strokeLinecap="round" />
+
+          {/* Eye Glow (Quầng sáng mắt) */}
+          <ellipse ref={lEyeGlowRef} fill="#38bdf8" opacity="0.4" />
+          <ellipse ref={rEyeGlowRef} fill="#38bdf8" opacity="0.4" />
+
+          {/* Eyes (Tròng mắt phát sáng) */}
+          <circle ref={lEyeRef} fill="#ffffff" />
+          <circle ref={rEyeRef} fill="#ffffff" />
+
+          {/* Pupils (Con ngươi chuyển động linh hoạt theo hướng ký hiệu) */}
+          <circle ref={lPupilRef} fill="#0f172a" />
+          <circle ref={rPupilRef} fill="#0f172a" />
+
+          {/* Nose (Mũi) */}
+          <path ref={noseRef} fill="none" stroke="#93c5fd" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" opacity="0.85" />
+
+          {/* Cheeks Blush (Má hồng thân thiện) */}
+          <circle ref={blushLeftRef} r="5.5" fill="#f43f5e" opacity="0.3" filter="url(#handGlow)" />
+          <circle ref={blushRightRef} r="5.5" fill="#f43f5e" opacity="0.3" filter="url(#handGlow)" />
+
+          {/* Mouth (Miệng tươi cười / nhép khẩu hình sống động) */}
+          <path ref={mouthGlowRef} fill="none" stroke="#38bdf8" strokeWidth="4.5" strokeLinecap="round" opacity="0.5" filter="url(#handGlow)" />
+          <path ref={mouthRef} fill="none" stroke="#ffffff" strokeWidth="2.5" strokeLinecap="round" />
+        </g>
+
+        {/* Finger Vertebrae / Joint Nodes (Đốt ngón tay / Khớp MCP, PIP, DIP, Tip) */}
+        <path ref={lHandJointsRef} fill="#0284c7" stroke="#38bdf8" strokeWidth="1.5" />
+        <path ref={lHandJointsCoreRef} fill="#ffffff" />
+        <path ref={rHandJointsRef} fill="#0284c7" stroke="#38bdf8" strokeWidth="1.5" />
+        <path ref={rHandJointsCoreRef} fill="#ffffff" />
       </svg>
 
       {isTranslating && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-900/80 backdrop-blur-sm z-10 p-4 text-center">
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-950/80 backdrop-blur-sm z-10 p-4 text-center">
           <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mb-3"></div>
-          <p className="text-white font-medium text-xs sm:text-sm">Đang tải ký hiệu Người Que...</p>
-        </div>
-      )}
-
-      {/* Current Gloss Label Badge */}
-      {currentGloss && isPlaying && (
-        <div className="absolute top-3 left-1/2 -translate-x-1/2 px-2.5 py-1 rounded-full bg-primary/80 backdrop-blur-md border border-white/20 text-white text-[11px] font-bold shadow-md uppercase tracking-wide pointer-events-none transition-all">
-          {currentGloss}
+          <p className="text-white font-medium text-sm">Đang tái hiện cử chỉ bàn tay 5 ngón...</p>
         </div>
       )}
 
       {/* Replay Button */}
-      {showControls && !isTranslating && !isPlaying && text && (
+      {showReplayOverlay && !isTranslating && !isPlaying && text && (
         <button
           onClick={() => setPlayCount((c) => c + 1)}
-          className="absolute bottom-3 right-3 flex items-center gap-1.5 px-2.5 py-1.5 bg-gray-900/80 hover:bg-gray-800 backdrop-blur-md border border-gray-700/50 rounded-lg text-gray-200 hover:text-white text-xs font-semibold transition-all duration-200 shadow-md focus:outline-none focus:ring-2 focus:ring-primary"
+          className="absolute bottom-4 right-4 flex items-center gap-2 px-3 py-2 bg-slate-900/80 hover:bg-slate-800 backdrop-blur-md border border-slate-700/60 rounded-xl text-slate-300 hover:text-white transition-all duration-200 opacity-0 group-hover:opacity-100 shadow-xl transform translate-y-2 group-hover:translate-y-0"
           title="Phát lại ký hiệu"
-          aria-label="Phát lại ký hiệu"
         >
-          <RefreshCw size={13} className="text-primary" />
-          <span>Ký hiệu lại</span>
+          <RefreshCw size={16} className="text-sky-400" />
+          <span className="text-sm font-medium">Phát lại</span>
         </button>
       )}
     </div>
   );
 };
+

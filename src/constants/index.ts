@@ -16,9 +16,9 @@ export const DEFAULT_ACCESSIBILITY_SETTINGS: AccessibilitySettings = {
   voiceAccessEnabled: false,
   spokenFeedbackEnabled: true,
   doubleTapShortcutEnabled: false,
-  vslAccessibilityEnabled: false,
   preferredAIProvider: 'groq',
   geminiFallbackPolicy: 'ask',
+  vslAccessibilityEnabled: false,
 };
 
 export const APP_NAME = 'Lovira';

@@ -30,6 +30,7 @@ import { AgentProvider, useAgent } from './agent/AgentController';
 import { AgentBar } from './components/agent/AgentBar';
 import { LifeScenarioPicker } from './components/agent/LifeScenarioPicker';
 import { AgentDebugPanel } from './components/agent/AgentDebugPanel';
+import { VSLAccessibilityPanel } from './components/vsl-avatar/VSLAccessibilityPanel';
 
 function AppContent({
   currentRoute,
@@ -168,6 +169,13 @@ function AppContent({
 
       {/* Persistent Floating Agent Bar */}
       <AgentBar settings={settings} onNavigate={navigateTo} />
+
+      {/* Floating Vietnamese Sign Language (VSL) Accessibility Panel */}
+      <VSLAccessibilityPanel
+        settings={settings}
+        onUpdateSettings={handleUpdateSettings}
+        onNavigate={navigateTo}
+      />
 
       {/* Life Scenarios Modal */}
       <LifeScenarioPicker

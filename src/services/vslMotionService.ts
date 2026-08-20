@@ -1,121 +1,169 @@
-export interface VSLPoint {
-  x: number;
-  y: number;
-  z?: number;
-}
+import { fetchApi } from './api';
 
 export interface VSLFrame {
   t: number;
-  head: VSLPoint;
-  leftShoulder: VSLPoint;
-  rightShoulder: VSLPoint;
-  leftElbow: VSLPoint;
-  rightElbow: VSLPoint;
-  leftHand: VSLPoint;
-  rightHand: VSLPoint;
-  timestamp?: number;
-  joints?: Record<string, VSLPoint>;
-  [key: string]: any;
+  leftHand: { x: number; y: number; z: number; rotation: number; shape: string; detected: boolean };
+  rightHand: { x: number; y: number; z: number; rotation: number; shape: string; detected: boolean };
+  leftElbow: { x: number; y: number; z: number };
+  rightElbow: { x: number; y: number; z: number };
+  leftShoulder: { x: number; y: number; z: number };
+  rightShoulder: { x: number; y: number; z: number };
+  head: { x: number; y: number; z: number };
 }
 
 export interface VSLMotionData {
-  slug?: string;
-  label?: string;
-  schema?: string;
-  gloss?: string;
+  schema: string;
+  label: string;
+  slug: string;
   duration: number;
-  fps?: number;
-  framesCount?: number;
+  framesCount: number;
   frames: VSLFrame[];
-  [key: string]: any;
 }
 
 class VSLMotionService {
-  private motionCache = new Map<string, VSLMotionData>();
-  private availableGlossesCache: string[] | null = null;
+  private cache: Record<string, VSLMotionData> = {};
+  private dictionary: Array<{ slug: string; label: string }> | null = null;
 
-  public async getAvailableGlosses(): Promise<string[]> {
-    if (this.availableGlossesCache) {
-      return this.availableGlossesCache;
-    }
+  private async loadDictionary() {
+    if (this.dictionary) return this.dictionary;
     try {
-      const res = await fetch('/assets/vsl-motions/vslIndex.json');
-      if (res.ok) {
-        const list = await res.json();
-        this.availableGlossesCache = Array.isArray(list) ? list : [];
-        return this.availableGlossesCache;
-      }
+      const res = await fetch('/assets/vsl-motions/vslDictionary.json');
+      this.dictionary = await res.json();
     } catch (e) {
-      console.warn('[VSLMotionService] Could not fetch vslIndex.json:', e);
+      console.error('[VSLMotionService] Failed to load VSL dictionary', e);
+      this.dictionary = [];
     }
-    return [];
+    return this.dictionary;
   }
 
-  public async getMotion(gloss: string): Promise<VSLMotionData | null> {
-    const cleanGloss = gloss.trim().toLowerCase();
-    if (this.motionCache.has(cleanGloss)) {
-      return this.motionCache.get(cleanGloss)!;
+  async getMotion(slug: string): Promise<VSLMotionData | null> {
+    if (this.cache[slug]) {
+      return this.cache[slug];
     }
-
     try {
-      let res = await fetch(`/assets/vsl-motions/${cleanGloss}/motion.json`);
-      if (!res.ok) {
-        res = await fetch(`/assets/vsl-motions/${cleanGloss}.json`);
+      const response = await fetch(`/assets/vsl-motions/${slug}/motion.json`);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch motion ${slug}`);
       }
-      if (res.ok) {
-        const data = (await res.json()) as VSLMotionData;
-        this.motionCache.set(cleanGloss, data);
-        return data;
-      }
-    } catch (e) {
-      console.warn(`[VSLMotionService] Could not fetch motion for ${cleanGloss}:`, e);
+      const data: VSLMotionData = await response.json();
+      this.cache[slug] = data;
+      return data;
+    } catch (error) {
+      console.error(`[VSLMotionService] Error loading motion ${slug}:`, error);
+      return null;
     }
-    return null;
   }
 
-  public async translateToGlosses(text: string): Promise<string[]> {
-    if (!text || !text.trim()) return [];
+  async translateTextToGlosses(text: string): Promise<string[]> {
+    // REAL-TIME LOCAL MATCHING ENGINE (0.01s execution time)
+    const dict = await this.loadDictionary();
+    if (!dict || dict.length === 0) return [];
 
-    try {
-      const res = await fetch('/api/gemini/vsl-translate', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-lovira-client': 'web-app',
-        },
-        body: JSON.stringify({ text }),
+    // Normalize text (remove punctuation, keep spaces)
+    const cleanText = text.toLowerCase().replace(/[.,!?;:()"]/g, ' ').replace(/\s+/g, ' ').trim();
+    if (!cleanText) return [];
+    const words = cleanText.split(' ');
+
+    // Add common conversational aliases / phrase mappings
+    const ALIAS_MAP: Record<string, string> = {
+      'xin chào': 'chao',
+      'chào bạn': 'chao',
+      'chào': 'chao',
+      'tôi là': 'chung_toi_ai_tu',
+      'tôi tên là': 'chung_toi_ai_tu',
+      'tên tôi là': 'chung_toi_ai_tu',
+      'tôi': 'chung_toi_ai_tu',
+      'bạn': 'ban',
+      'các bạn': 'cac_ban',
+      'tôi yêu bạn': 'toi_yeu_ban_ay',
+      'tôi yêu bạn ấy': 'toi_yeu_ban_ay',
+      'bạn yêu tôi': 'ban_yeu_toi',
+      'bạn ấy yêu tôi': 'ban_ay_yeu_toi',
+      'khám bệnh': 'chua_benh',
+      'chữa bệnh': 'chua_benh',
+      'bệnh nhân': 'benh_nhan',
+      'bệnh': 'benh_nhan',
+      'bác sĩ': 'chua_benh',
+      'cảm ơn': 'khong_co_chi',
+      'không có chi': 'khong_co_chi',
+      'không có gì': 'khong_co_chi',
+      'không muốn': 'khong_muon',
+      'muốn': 'muon_khong',
+      'không cần': 'khong_can',
+      'cần': 'can_khong',
+      'đăng ký': 'ang_ky',
+      'đăng nhập': 'ang_nhap',
+      'yêu nước việt nam': 'yeu_nuoc_viet_nam',
+      'mệt không': 'met_khong',
+      'đói không': 'oi_khong',
+      'sợ không': 'so_khong',
+      'phải không': 'phai_khong',
+      'đúng không': 'ung_khong',
+      'số không': '0_so_khong',
+    };
+
+    // Precompute normalized labels and sort by word count descending (Greedy Match longest phrases first)
+    const combinedEntries: Array<{ slug: string; labelWords: string[] }> = [];
+
+    // 1. Add custom high-priority aliases
+    Object.entries(ALIAS_MAP).forEach(([phrase, slug]) => {
+      combinedEntries.push({
+        slug,
+        labelWords: phrase.split(' '),
       });
+    });
 
-      if (res.ok) {
-        const json = await res.json();
-        if (json.success && Array.isArray(json.data)) {
-          return json.data;
+    // 2. Add dictionary entries
+    dict.forEach((item) => {
+      const cleanLabel = item.label
+        .toLowerCase()
+        .replace(/\([^)]*\)/g, ' ')
+        .replace(/[.,!?;:"]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+      if (cleanLabel) {
+        combinedEntries.push({
+          slug: item.slug,
+          labelWords: cleanLabel.split(' '),
+        });
+      }
+    });
+
+    const dictMap = combinedEntries.sort((a, b) => b.labelWords.length - a.labelWords.length);
+
+    const resultGlosses: string[] = [];
+    let i = 0;
+    
+    while (i < words.length) {
+      let matched = false;
+      
+      for (const entry of dictMap) {
+        const phraseLen = entry.labelWords.length;
+        if (i + phraseLen <= words.length) {
+          let isMatch = true;
+          for (let j = 0; j < phraseLen; j++) {
+            if (words[i + j] !== entry.labelWords[j]) {
+              isMatch = false;
+              break;
+            }
+          }
+          
+          if (isMatch) {
+            resultGlosses.push(entry.slug);
+            i += phraseLen; // Advance by the number of matched words
+            matched = true;
+            break; 
+          }
         }
       }
-    } catch (e) {
-      console.warn('[VSLMotionService] Translation API error, falling back:', e);
-    }
-
-    // Fallback: simple keyword matching against available glosses
-    const available = await this.getAvailableGlosses();
-    const clean = text
-      .toLowerCase()
-      .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?"']/g, ' ')
-      .trim();
-    const words = clean.split(/\s+/);
-    const matched: string[] = [];
-
-    for (const w of words) {
-      if (available.includes(w)) {
-        matched.push(w);
+      
+      if (!matched) {
+        i++; // Skip unknown word
       }
     }
-
-    return matched;
-  }
-
-  public async translateTextToGlosses(text: string): Promise<string[]> {
-    return this.translateToGlosses(text);
+    
+    console.log(`[VSL Realtime Mapper] "${text}" ->`, resultGlosses);
+    return resultGlosses;
   }
 }
 

@@ -1,4 +1,5 @@
 import { getAvailableVietnameseVoices } from '../../lib/speech';
+import { vslAccessibilityService } from '../../services/vslAccessibilityService';
 
 class SpeechManager {
   private currentUtterance: SpeechSynthesisUtterance | null = null;
@@ -14,6 +15,9 @@ class SpeechManager {
       onError?: () => void;
     }
   ) {
+    // Concurrently dispatch to VSL accessibility service
+    vslAccessibilityService.dispatchText(text);
+
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
       console.warn('[SpeechManager] Web Speech Synthesis is not supported in this browser.');
       options.onError?.();
@@ -34,12 +38,6 @@ class SpeechManager {
         this.currentUtterance.onstart = null;
         this.currentUtterance.onend = null;
         this.currentUtterance.onerror = null;
-      }
-
-      try {
-        window.speechSynthesis.resume();
-      } catch {
-        // ignore
       }
 
       this.currentUtterance = new SpeechSynthesisUtterance(cleanText);

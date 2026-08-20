@@ -26,7 +26,12 @@
 - **Tóm tắt & Trích xuất hồ sơ**: Liệt kê các giấy tờ cần chuẩn bị, thời hạn và quy trình làm thủ tục hành chính.
 - **Hỏi đáp thông minh**: Trả lời bất kỳ câu hỏi nào dựa trên nội dung tài liệu.
 
-### 5. ⚙️ Hệ Thống Trợ Năng & Đồng Bộ Firebase
+### 5. 🤟 Ngôn ngữ Ký hiệu Việt Nam (VSL Avatar)
+- **Hình nhân ký hiệu 5 ngón & khớp xương**: Mô phỏng trực quan động tác bàn tay và ngón tay dựa trên ngữ pháp Ngôn ngữ Ký hiệu Việt Nam.
+- **Đồng bộ tự động với Voice Action**: Tự động hiển thị và ký hiệu câu thoại khi hệ thống hoặc trợ lý ảo phát âm thanh.
+- **Khung nổi cố định thông minh**: Hiển thị ở góc dưới bên phải với chế độ thu nhỏ con nhộng và phát lại (Replay).
+
+### 6. ⚙️ Hệ Thống Trợ Năng & Đồng Bộ Firebase
 - **Điều chỉnh giao diện**: Cỡ chữ linh hoạt (100% - 200%), Chế độ tương phản cao (High Contrast), Giảm chuyển động (Reduced Motion).
 - **Giọng đọc tự động (Text-to-Speech)**: Đọc kết quả tự động với tốc độ tùy chỉnh (0.75x - 1.5x).
 - **Lưu trữ đám mây (Firebase Firestore & Auth)**: Tự động lưu lịch sử hoạt động và cài đặt cá nhân, truy cập liên thiết bị an toàn.

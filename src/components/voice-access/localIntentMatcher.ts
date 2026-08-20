@@ -483,55 +483,53 @@ export function matchLocalIntent(
     };
   }
 
-  // VSL Sign Language Accessibility
+  // VSL (Vietnamese Sign Language) Accessibility Controls
   if (
     norm === 'bat ngon ngu ky hieu' ||
     norm === 'bat ky hieu' ||
-    norm === 'bat tro nang ky hieu' ||
     norm === 'bat vsl' ||
-    norm === 'mo ngon ngu ky hieu' ||
-    norm === 'hien thi nguoi que' ||
-    norm === 'hien thi ky hieu' ||
-    norm === 'bat phien dich ky hieu' ||
-    norm === 'mo nguoi que ky hieu'
+    norm === 'bat nguoi ky hieu' ||
+    norm === 'hien ngon ngu ky hieu' ||
+    norm === 'hien ky hieu' ||
+    norm === 'bat hinh nhan ky hieu' ||
+    norm === 'bat tro nang ky hieu'
   ) {
     return {
       action: 'accessibility.enableVSL',
       confidence: 1.0,
       confirmationRequired: false,
-      feedback: 'Lovira đã bật trợ năng Ngôn ngữ Ký hiệu Việt Nam VSL.',
+      feedback: 'Lovira đã bật Ngôn ngữ ký hiệu Việt Nam VSL.',
     };
   }
 
   if (
     norm === 'tat ngon ngu ky hieu' ||
     norm === 'tat ky hieu' ||
-    norm === 'tat tro nang ky hieu' ||
     norm === 'tat vsl' ||
-    norm === 'dong ky hieu' ||
-    norm === 'an nguoi que' ||
-    norm === 'tat phien dich ky hieu'
+    norm === 'tat nguoi ky hieu' ||
+    norm === 'an ngon ngu ky hieu' ||
+    norm === 'an ky hieu'
   ) {
     return {
       action: 'accessibility.disableVSL',
       confidence: 1.0,
       confirmationRequired: false,
-      feedback: 'Lovira đã tắt trợ năng Ngôn ngữ Ký hiệu.',
+      feedback: 'Lovira đã tắt Ngôn ngữ ký hiệu VSL.',
     };
   }
 
   if (
+    norm === 'mo ngon ngu ky hieu' ||
     norm === 'mo thu nghiem ky hieu' ||
-    norm === 'thu nghiem ky hieu' ||
-    norm === 'mo vsl playground' ||
+    norm === 'mo vsl' ||
     norm === 'vsl playground' ||
-    norm === 'phong thu nghiem ky hieu'
+    norm === 'thu nghiem ky hieu'
   ) {
     return {
-      action: 'navigation.openVSLPlayground',
+      action: 'navigation.openVSL',
       confidence: 1.0,
       confirmationRequired: false,
-      feedback: 'Lovira đã mở Thử nghiệm Ký hiệu VSL.',
+      feedback: 'Lovira đã mở Thử nghiệm Ngôn ngữ Ký hiệu VSL.',
     };
   }
 

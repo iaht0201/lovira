@@ -16,7 +16,8 @@ Phiên bản: 1.2.0 (Hỗ trợ PWA, Voice Access On-Demand & Dual AI)
 8. [Đồng Bộ Dữ Liệu Với Firebase](#8-đồng-bộ-dữ-liệu-với-firebase)
 9. [Cài Đặt Ứng Dụng Trên Màn Hình Chính (PWA)](#9-cài-đặt-ứng-dụng-trên-màn-hình-chính-pwa)
 10. [Điều Khiển Bằng Giọng Nói (Voice Access 2-Click)](#10-điều-khiển-bằng-giọng-nói-voice-access-2-click)
-11. [Lựa Chọn Nhà Cung Cấp AI & Bảo Mật Khóa Riêng (BYOK)](#11-lựa-chọn-nhà-cung-cấp-ai--bảo-mật-khóa-riêng-byok)
+11. [Trợ Năng Ngôn Ngữ Ký Hiệu Việt Nam (VSL Avatar)](#11-trợ-năng-ngôn-ngữ-ký-hiệu-việt-nam-vsl-avatar)
+12. [Lựa Chọn Nhà Cung Cấp AI & Bảo Mật Khóa Riêng (BYOK)](#12-lựa-chọn-nhà-cung-cấp-ai--bảo-mật-khóa-riêng-byok)
 
 ---
 
@@ -164,7 +165,36 @@ Hỗ trợ điều khiển Lovira hoàn toàn bằng giọng nói tiếng Việt
 
 ---
 
-## 11. Lựa Chọn Nhà Cung Cấp AI & Bảo Mật Khóa Riêng (BYOK)
+## 11. Trợ Năng Ngôn Ngữ Ký Hiệu Việt Nam (VSL Avatar)
+Lovira tích hợp hình nhân mô phỏng **Ngôn ngữ Ký hiệu Việt Nam (VSL)** với đầy đủ **5 ngón tay độc lập và các khớp đốt xương**, hỗ trợ tối đa cho người Điếc và người khiếm thính.
+
+### 1. Cơ Chế Hoạt Động & Đồng Bộ Voice Action
+- **Tự động đồng bộ câu thoại**: Bất cứ khi nào Voice Action hoặc hệ thống phát câu nói tiếng Việt (phản hồi tác vụ, đọc nội dung), câu văn sẽ tự động được gửi tới hình nhân VSL để diễn giải thành động tác ký hiệu.
+- **Độc lập hoàn toàn với âm thanh**: Ngay cả khi thiết bị tắt âm lượng hoặc không có loa, hình nhân VSL vẫn tiếp tục ký hiệu trực quan giúp bạn nắm bắt đầy đủ thông tin.
+- **Từ điển cử chỉ & Đánh vần chữ cái**: Hệ thống tự động chuyển đổi giữa từ vựng ký hiệu có sẵn và cơ chế đánh vần từng chữ cái (Fingerspelling A-Z, 0-9) cho các danh từ riêng.
+
+### 2. Mô Tả Các Trạng Thái Khung Ký Hiệu Nổi (Fixed Floating Panel)
+- **Vị trí cố định**: Nằm ở góc dưới bên phải màn hình (`bottom-right`), không bị trôi lệch và không che lấp các nút bấm chính.
+- **Huy hiệu trạng thái**:
+  - 🔵 *Sẵn sàng*: Đang chờ câu thoại tiếp theo.
+  - 🟡 *Đang dịch*: Đang phân giải câu tiếng Việt sang chuỗi cử chỉ tay.
+  - 🟢 *Đang ký hiệu*: Hình nhân đang chuyển động khớp xương và ngón tay.
+- **Nút điều khiển trên khung**:
+  - 🔄 **Phát lại (Replay)**: Xem lại động tác ký hiệu của câu thoại vừa rồi.
+  - 🗕 **Thu nhỏ (Minimize)**: Thu gọn thành nút con nhộng tròn gọn gàng.
+  - ✕ **Đóng**: Tắt khung trợ năng ký hiệu.
+  - 📄 **Xem câu thoại**: Bấm mũi tên mở rộng để đọc toàn văn câu nói đang được ký hiệu.
+
+### 3. Cách Bật/Tắt và Điều Khiển Bằng Giọng Nói
+- **Cách 1 - Qua Cài đặt**: Vào mục **Cài đặt** -> Bật tùy chọn **"Bật trợ năng Ngôn ngữ ký hiệu VSL"**.
+- **Cách 2 - Qua Khẩu lệnh Voice Access**:
+  - *"Bật ngôn ngữ ký hiệu"* hoặc *"Bật ký hiệu"* ➔ Tự động mở khung hình nhân VSL.
+  - *"Tắt ngôn ngữ ký hiệu"* hoặc *"Tắt ký hiệu"* ➔ Thu hồi khung hình nhân.
+  - *"Mở ngôn ngữ ký hiệu"* hoặc *"Mở thử nghiệm ký hiệu"* ➔ Mở trang phòng thử nghiệm chuyên sâu.
+
+---
+
+## 12. Lựa Chọn Nhà Cung Cấp AI & Bảo Mật Khóa Riêng (BYOK)
 Lovira áp dụng cơ chế kiến trúc Dual AI linh hoạt:
 
 ### 1. Chế độ Lovira Mặc định (Groq Server-Side)
