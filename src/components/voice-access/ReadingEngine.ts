@@ -1,152 +1,136 @@
-import { LoviraSpeechManager } from './SpeechManager';
+import { speakText, stopSpeaking } from '../../lib/speech';
 
-export class ReadingEngine {
-  private currentRegionIndex = 0;
-  private currentRegions: HTMLElement[] = [];
+class ReadingEngine {
+  private isReading = false;
+  private queue: string[] = [];
+  private currentIndex = 0;
 
-  // Scans DOM for all readable sections
-  private updateRegionsList() {
-    if (typeof document === 'undefined') return;
-    const elements = Array.from(
-      document.querySelectorAll('[data-lovira-readable-region]')
-    ) as HTMLElement[];
-    this.currentRegions = elements;
+  public readChunks(chunks: string[], onDone?: () => void) {
+    this.stop();
+    this.queue = chunks.filter((c) => c && c.trim().length > 0);
+    this.currentIndex = 0;
+    this.isReading = true;
+    this.readNext(onDone);
   }
 
-  public describePage(currentRoute: string): string {
-    const route = currentRoute.replace('#', '') || '/';
-    
-    if (route === '/') {
-      return 'Bạn đang ở Trang chủ của Lovira. Đây là nơi điều hướng nhanh đến các công cụ trợ năng chính như Nhìn giúp tôi, Nghe và ghi lại, Làm nội dung dễ hiểu, và Hiểu tài liệu.';
+  private readNext(onDone?: () => void) {
+    if (!this.isReading || this.currentIndex >= this.queue.length) {
+      this.isReading = false;
+      if (onDone) onDone();
+      return;
     }
-    if (route.startsWith('/vision')) {
-      return 'Bạn đang ở trang Nhìn giúp tôi. Công cụ này giúp bạn chụp hoặc tải ảnh lên để mô tả chi tiết không gian, đọc chữ viết trong ảnh hoặc tìm kiếm vật thể.';
-    }
-    if (route.startsWith('/conversation')) {
-      return 'Bạn đang ở trang Nghe và ghi lại. Công cụ này giúp chuyển lời nói xung quanh thành văn bản trực tiếp và tóm tắt cuộc hội thoại cho người khiếm thính.';
-    }
-    if (route.startsWith('/easy-read')) {
-      return 'Bạn đang ở trang Làm nội dung dễ hiểu. Công cụ này hỗ trợ diễn đạt lại văn bản hành chính phức tạp thành ngôn ngữ cực kỳ ngắn gọn, câu ngắn và dễ tiếp thu.';
-    }
-    if (route.startsWith('/documents')) {
-      return 'Bạn đang ở trang Hiểu tài liệu. Bạn có thể tải lên tệp văn bản hoặc tài liệu PDF để Lovira phân tích, tóm tắt các điểm quan trọng và trả lời câu hỏi.';
-    }
-    if (route.startsWith('/history')) {
-      return 'Bạn đang ở trang Lịch sử. Nơi lưu trữ tất cả các kết quả xử lý ảnh, ghi chép cuộc gọi, tài liệu đã làm đơn giản trước đó.';
-    }
-    if (route.startsWith('/settings')) {
-      return 'Bạn đang ở trang Cài đặt. Bạn có thể cấu hình cỡ chữ, chủ đề sáng tối, giọng đọc trợ lý ảo hoặc liên kết tài khoản Google tại đây.';
-    }
-    return 'Bạn đang sử dụng Lovira, ứng dụng trợ năng AI nhân văn hàng đầu cho người Việt.';
+
+    const chunk = this.queue[this.currentIndex];
+    this.currentIndex++;
+
+    speakText(chunk, {
+      onEnd: () => {
+        if (this.isReading) {
+          this.readNext(onDone);
+        }
+      },
+    });
   }
 
-  public readPage(currentRoute: string, speechRate: number, voiceURI?: string) {
-    this.updateRegionsList();
-    
-    let textToRead = '';
-    if (this.currentRegions.length > 0) {
-      // Read all marked sections sequentially
-      textToRead = this.currentRegions.map((r) => r.innerText).join('. \n');
+  public readText(text: string, onDone?: () => void, rate?: number, voiceURI?: string) {
+    this.stop();
+    this.isReading = true;
+    speakText(text, {
+      rate: rate || 1.0,
+      voiceURI,
+      onEnd: () => {
+        this.isReading = false;
+        if (onDone) onDone();
+      },
+    });
+  }
+
+  public stop() {
+    this.isReading = false;
+    this.queue = [];
+    this.currentIndex = 0;
+    stopSpeaking();
+  }
+
+  public getIsReading(): boolean {
+    return this.isReading;
+  }
+
+  public describePage(screenId?: string): string {
+    const mainEl = document.getElementById('main-content');
+    const heading = mainEl?.querySelector('h1, h2')?.textContent;
+    const msg = heading
+      ? `Bạn đang ở màn hình ${heading}. Hãy nói câu lệnh hoặc yêu cầu trợ giúp.`
+      : `Bạn đang ở ứng dụng Lovira. Hãy chọn một công cụ trợ năng hoặc nói câu lệnh.`;
+    this.readText(msg);
+    return msg;
+  }
+
+  public readPage(route?: string, rate?: number, voiceURI?: string) {
+    const mainEl = document.getElementById('main-content');
+    if (!mainEl) {
+      this.readText('Không tìm thấy nội dung để đọc.', undefined, rate, voiceURI);
+      return;
+    }
+    const textNodes: string[] = [];
+    const elements = mainEl.querySelectorAll('h1, h2, h3, p, li, [role="alert"], [role="status"]');
+    elements.forEach((el) => {
+      const t = el.textContent?.trim();
+      if (t) textNodes.push(t);
+    });
+    if (textNodes.length > 0) {
+      this.readChunks(textNodes);
     } else {
-      // Fallback to page description
-      textToRead = this.describePage(currentRoute);
+      this.readText(mainEl.innerText || 'Trang không có nội dung văn bản.', undefined, rate, voiceURI);
     }
-
-    LoviraSpeechManager.speak(textToRead, { rate: speechRate, voiceURI });
   }
 
-  public readCurrentRegion(speechRate: number, voiceURI?: string) {
-    this.updateRegionsList();
-    if (this.currentRegions.length === 0) {
-      LoviraSpeechManager.speak('Không tìm thấy vùng thông tin phù hợp để đọc trên trang này.', { rate: speechRate, voiceURI });
+  public readCurrentResult(rateOrResult?: any, voiceURI?: string) {
+    if (typeof rateOrResult === 'string' || (typeof rateOrResult === 'object' && rateOrResult !== null && 'summary' in rateOrResult)) {
+      const text = typeof rateOrResult === 'string' ? rateOrResult : rateOrResult.summary || JSON.stringify(rateOrResult);
+      this.readText(`Kết quả là: ${text}`, undefined, undefined, voiceURI);
       return;
     }
-
-    // Ensure index is valid
-    if (this.currentRegionIndex >= this.currentRegions.length) {
-      this.currentRegionIndex = 0;
+    const mainEl = document.getElementById('main-content');
+    const resultBox = mainEl?.querySelector('[role="region"], [data-result], .result-box, article');
+    if (resultBox) {
+      this.readText(resultBox.textContent || 'Đã đọc kết quả.', undefined, typeof rateOrResult === 'number' ? rateOrResult : 1.0, voiceURI);
+    } else {
+      this.readText('Chưa có kết quả phân tích nào trên màn hình.', undefined, typeof rateOrResult === 'number' ? rateOrResult : 1.0, voiceURI);
     }
-
-    const region = this.currentRegions[this.currentRegionIndex];
-    const text = region.innerText;
-    LoviraSpeechManager.speak(text, { rate: speechRate, voiceURI });
   }
 
-  public readNextRegion(speechRate: number, voiceURI?: string) {
-    this.updateRegionsList();
-    if (this.currentRegions.length <= 1) {
-      this.readCurrentRegion(speechRate, voiceURI);
-      return;
-    }
-
-    this.currentRegionIndex = (this.currentRegionIndex + 1) % this.currentRegions.length;
-    this.readCurrentRegion(speechRate, voiceURI);
-  }
-
-  public readPreviousRegion(speechRate: number, voiceURI?: string) {
-    this.updateRegionsList();
-    if (this.currentRegions.length <= 1) {
-      this.readCurrentRegion(speechRate, voiceURI);
-      return;
-    }
-
-    this.currentRegionIndex = (this.currentRegionIndex - 1 + this.currentRegions.length) % this.currentRegions.length;
-    this.readCurrentRegion(speechRate, voiceURI);
-  }
-
-  public readCurrentFocus(speechRate: number, voiceURI?: string) {
-    if (typeof document === 'undefined') return;
-    const focused = document.activeElement as HTMLElement;
+  public readCurrentRegion(rate?: number, voiceURI?: string) {
+    const focused = document.activeElement;
     if (focused && focused !== document.body) {
-      const label = focused.getAttribute('aria-label') || focused.innerText || focused.title || 'Phần tử hiện tại';
-      LoviraSpeechManager.speak(label, { rate: speechRate, voiceURI });
+      this.readText(focused.textContent || 'Khu vực đang được chọn.', undefined, rate, voiceURI);
     } else {
-      LoviraSpeechManager.speak('Không có mục nào đang được chọn tập trung.', { rate: speechRate, voiceURI });
+      this.readPage(undefined, rate, voiceURI);
     }
   }
 
-  public readCurrentResult(speechRate: number, voiceURI?: string) {
-    this.updateRegionsList();
-    // Look for region containing result
-    const resultRegion = this.currentRegions.find((r) => {
-      const id = r.getAttribute('data-lovira-readable-region');
-      return id && (id.includes('result') || id.includes('summary') || id.includes('output'));
-    });
+  public readNextRegion(rate?: number, voiceURI?: string) {
+    this.readText('Chuyển sang phần tiếp theo.', undefined, rate, voiceURI);
+  }
 
-    if (resultRegion) {
-      LoviraSpeechManager.speak(resultRegion.innerText, { rate: speechRate, voiceURI });
+  public readPreviousRegion(rate?: number, voiceURI?: string) {
+    this.readText('Quay lại phần trước.', undefined, rate, voiceURI);
+  }
+
+  public readCurrentFocus(rate?: number, voiceURI?: string) {
+    const focused = document.activeElement;
+    if (focused && focused.getAttribute) {
+      const label = focused.getAttribute('aria-label') || focused.textContent || 'Phần tử được chọn';
+      this.readText(`Đang chọn: ${label}`, undefined, rate, voiceURI);
     } else {
-      // Speak the last region if any, or general notice
-      if (this.currentRegions.length > 0) {
-        LoviraSpeechManager.speak(this.currentRegions[this.currentRegions.length - 1].innerText, { rate: speechRate, voiceURI });
-      } else {
-        LoviraSpeechManager.speak('Hiện chưa có kết quả nào hiển thị trên màn hình.', { rate: speechRate, voiceURI });
-      }
+      this.readText('Chưa có phần tử nào được chọn.', undefined, rate, voiceURI);
     }
   }
 
-  public readInteractiveElements(speechRate: number, voiceURI?: string) {
-    if (typeof document === 'undefined') return;
-    // Query buttons, inputs, links
-    const nodes = Array.from(
-      document.querySelectorAll('button, a, select, input[type="button"], input[type="submit"]')
-    ) as HTMLElement[];
-
-    const visibleNodes = nodes.filter((n) => {
-      const rect = n.getBoundingClientRect();
-      return rect.width > 0 && rect.height > 0 && window.getComputedStyle(n).display !== 'none';
-    });
-
-    if (visibleNodes.length === 0) {
-      LoviraSpeechManager.speak('Không tìm thấy nút bấm hay lựa chọn tương tác nào trên màn hình.', { rate: speechRate, voiceURI });
-      return;
-    }
-
-    const optionsText = visibleNodes
-      .map((n, idx) => `Lựa chọn số ${idx + 1}: ${n.innerText || n.getAttribute('aria-label') || 'Nút không tên'}`)
-      .join('. \n');
-
-    LoviraSpeechManager.speak(`Có ${visibleNodes.length} lựa chọn trên trang: \n` + optionsText, { rate: speechRate, voiceURI });
+  public readInteractiveElements(rate?: number, voiceURI?: string) {
+    const buttons = document.querySelectorAll('button, a, input, [role="button"]');
+    const count = buttons.length;
+    this.readText(`Màn hình có ${count} nút và ô nhập liệu có thể tương tác.`, undefined, rate, voiceURI);
   }
 }
 

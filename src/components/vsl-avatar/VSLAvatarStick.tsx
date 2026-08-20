@@ -1,17 +1,38 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { vslMotionService, VSLMotionData, VSLFrame } from '../../services/vslMotionService';
+import { vslAccessibilityService } from '../../services/vslAccessibilityService';
 import { RefreshCw } from 'lucide-react';
 
-interface VSLAvatarStickProps {
+export interface VSLAvatarStickProps {
   text: string;
-  width?: number;
-  height?: number;
+  responseId?: number;
+  width?: number | string;
+  height?: number | string;
+  className?: string;
+  showControls?: boolean;
+  onStatusChange?: (status: {
+    isTranslating: boolean;
+    isPlaying: boolean;
+    glosses: string[];
+    currentGloss: string | null;
+  }) => void;
+  onFinished?: () => void;
 }
 
-export const VSLAvatarStick: React.FC<VSLAvatarStickProps> = ({ text, width = 400, height = 400 }) => {
+export const VSLAvatarStick: React.FC<VSLAvatarStickProps> = ({
+  text,
+  responseId,
+  width = 400,
+  height = 400,
+  className = '',
+  showControls = true,
+  onStatusChange,
+  onFinished,
+}) => {
   const [isTranslating, setIsTranslating] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [playCount, setPlayCount] = useState(0);
+  const [currentGloss, setCurrentGloss] = useState<string | null>(null);
 
   // Animation state
   const requestRef = useRef<number>(0);
@@ -19,7 +40,10 @@ export const VSLAvatarStick: React.FC<VSLAvatarStickProps> = ({ text, width = 40
   const startTimeRef = useRef<number>(0);
   const motionQueueRef = useRef<VSLMotionData[]>([]);
   const isPlayingRef = useRef(false);
-  const lastRenderedPoseRef = useRef<Record<string, {x: number, y: number}> | null>(null);
+  const lastRenderedPoseRef = useRef<Record<string, { x: number; y: number }> | null>(null);
+  const activeResponseIdRef = useRef<number | undefined>(responseId);
+  const currentGlossesRef = useRef<string[]>([]);
+  const currentGlossIndexRef = useRef<number>(-1);
 
   // DOM Refs for direct SVG manipulation (60FPS performance)
   const svgRef = useRef<SVGSVGElement>(null);
@@ -54,11 +78,11 @@ export const VSLAvatarStick: React.FC<VSLAvatarStickProps> = ({ text, width = 40
     // Note: Screen Left = Dataset Right Arm, Screen Right = Dataset Left Arm
     return {
       cx: 300 - x * scale, // Flip X so it mirrors like a camera
-      cy: 250 + y * scale
+      cy: 250 + y * scale,
     };
   };
 
-  const updateSVG = (frame: Record<string, {x: number, y: number}>) => {
+  const updateSVG = (frame: Record<string, { x: number; y: number }>) => {
     const head = mapCoord(frame.head.x, frame.head.y);
     const ls = mapCoord(frame.leftShoulder.x, frame.leftShoulder.y);
     const rs = mapCoord(frame.rightShoulder.x, frame.rightShoulder.y);
@@ -130,7 +154,20 @@ export const VSLAvatarStick: React.FC<VSLAvatarStickProps> = ({ text, width = 40
     if (motionQueueRef.current.length === 0) {
       isPlayingRef.current = false;
       setIsPlaying(false);
+      setCurrentGloss(null);
       setRestPose();
+
+      if (activeResponseIdRef.current !== undefined) {
+        vslAccessibilityService.finishSigning(activeResponseIdRef.current);
+      }
+
+      onFinished?.();
+      onStatusChange?.({
+        isTranslating: false,
+        isPlaying: false,
+        glosses: currentGlossesRef.current,
+        currentGloss: null,
+      });
       return;
     }
 
@@ -139,20 +176,62 @@ export const VSLAvatarStick: React.FC<VSLAvatarStickProps> = ({ text, width = 40
     const motion = motionQueueRef.current.shift()!;
     currentMotionRef.current = motion;
     startTimeRef.current = performance.now();
+
+    currentGlossIndexRef.current += 1;
+    const glossLabel = motion.slug !== 'rest' ? motion.label || motion.slug : null;
+    setCurrentGloss(glossLabel);
+
+    if (activeResponseIdRef.current !== undefined) {
+      vslAccessibilityService.updateGlossProgress(
+        activeResponseIdRef.current,
+        currentGlossIndexRef.current,
+        glossLabel
+      );
+    }
+
+    onStatusChange?.({
+      isTranslating: false,
+      isPlaying: true,
+      glosses: currentGlossesRef.current,
+      currentGloss: glossLabel,
+    });
   };
 
   useEffect(() => {
-    if (!text) return;
-    
+    activeResponseIdRef.current = responseId;
+  }, [responseId]);
+
+  useEffect(() => {
+    if (!text || !text.trim()) {
+      motionQueueRef.current = [];
+      currentMotionRef.current = null;
+      isPlayingRef.current = false;
+      setIsPlaying(false);
+      setIsTranslating(false);
+      setCurrentGloss(null);
+      setRestPose();
+      return;
+    }
+
+    let isCancelled = false;
+
     const trimMotion = (motion: VSLMotionData) => {
       let startIndex = 0;
       // Trục Y của MediaPipe: Số càng lớn là càng hướng xuống đất. Mốc y > 1.2 là tay đang thõng xuống dưới hông.
-      while (startIndex < motion.frames.length - 1 && motion.frames[startIndex].leftHand.y > 1.2 && motion.frames[startIndex].rightHand.y > 1.2) {
+      while (
+        startIndex < motion.frames.length - 1 &&
+        motion.frames[startIndex].leftHand.y > 1.2 &&
+        motion.frames[startIndex].rightHand.y > 1.2
+      ) {
         startIndex++;
       }
-      
+
       let endIndex = motion.frames.length - 1;
-      while (endIndex > startIndex && motion.frames[endIndex].leftHand.y > 1.2 && motion.frames[endIndex].rightHand.y > 1.2) {
+      while (
+        endIndex > startIndex &&
+        motion.frames[endIndex].leftHand.y > 1.2 &&
+        motion.frames[endIndex].rightHand.y > 1.2
+      ) {
         endIndex--;
       }
 
@@ -162,28 +241,50 @@ export const VSLAvatarStick: React.FC<VSLAvatarStickProps> = ({ text, width = 40
 
       const trimmed = motion.frames.slice(startIndex, endIndex + 1);
       const startTime = trimmed[0].t;
-      
+
       return {
         ...motion,
-        frames: trimmed.map(f => ({ ...f, t: f.t - startTime })),
-        duration: trimmed[trimmed.length - 1].t - startTime
+        frames: trimmed.map((f) => ({ ...f, t: f.t - startTime })),
+        duration: trimmed[trimmed.length - 1].t - startTime,
       };
     };
 
     const translateAndPlay = async () => {
       setIsTranslating(true);
+      onStatusChange?.({
+        isTranslating: true,
+        isPlaying: false,
+        glosses: [],
+        currentGloss: null,
+      });
+
+      const currentRespId = activeResponseIdRef.current;
       const glosses = await vslMotionService.translateTextToGlosses(text);
-      
+
+      if (isCancelled) return;
+
+      currentGlossesRef.current = glosses;
+      currentGlossIndexRef.current = -1;
+
+      if (currentRespId !== undefined) {
+        vslAccessibilityService.setGlosses(currentRespId, glosses);
+      }
+
       const motions: VSLMotionData[] = [];
       for (const slug of glosses) {
+        if (isCancelled) return;
         const m = await vslMotionService.getMotion(slug);
         if (m && m.frames && m.frames.length > 0) {
           motions.push(trimMotion(m));
+        } else {
+          console.log(`[VSL] No animation frames available for slug: "${slug}"`);
         }
       }
-      
+
+      if (isCancelled) return;
+
       setIsTranslating(false);
-      
+
       if (motions.length > 0) {
         // Thêm một motion "nghỉ" ảo ở cuối để tay tự động hạ xuống mượt mà khi kết thúc câu
         motions.push({
@@ -195,21 +296,34 @@ export const VSLAvatarStick: React.FC<VSLAvatarStickProps> = ({ text, width = 40
           frames: [
             { t: 0, ...defaultPose } as VSLFrame,
             { t: 0.5, ...defaultPose } as VSLFrame,
-          ]
+          ],
         });
 
         motionQueueRef.current = motions;
-        if (!isPlayingRef.current) {
-          processQueue();
-        }
+        currentMotionRef.current = null;
+        processQueue();
       } else {
         isPlayingRef.current = false;
         setIsPlaying(false);
         setRestPose();
+        onStatusChange?.({
+          isTranslating: false,
+          isPlaying: false,
+          glosses: [],
+          currentGloss: null,
+        });
+        if (currentRespId !== undefined) {
+          vslAccessibilityService.finishSigning(currentRespId);
+        }
       }
     };
+
     translateAndPlay();
-  }, [text, playCount]);
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [text, playCount, responseId]);
 
   useEffect(() => {
     setRestPose(); // Set initial pose on mount
@@ -235,9 +349,9 @@ export const VSLAvatarStick: React.FC<VSLAvatarStickProps> = ({ text, width = 40
       let progress = 0;
 
       for (let i = 0; i < motion.frames.length - 1; i++) {
-        if (elapsed >= motion.frames[i].t && elapsed < motion.frames[i+1].t) {
+        if (elapsed >= motion.frames[i].t && elapsed < motion.frames[i + 1].t) {
           currentFrame = motion.frames[i];
-          nextFrame = motion.frames[i+1];
+          nextFrame = motion.frames[i + 1];
           progress = (elapsed - currentFrame.t) / (nextFrame.t - currentFrame.t);
           break;
         }
@@ -261,13 +375,13 @@ export const VSLAvatarStick: React.FC<VSLAvatarStickProps> = ({ text, width = 40
 
       // Blend Time: 250ms chuyển mượt giữa từ trước và từ sau
       let finalFrame = interpolatedFrame;
-      const blendDuration = 0.25; 
-      
+      const blendDuration = 0.25;
+
       if (lastRenderedPoseRef.current && elapsed < blendDuration) {
-        let blendFactor = elapsed / blendDuration;
+        const blendFactor = elapsed / blendDuration;
         // SmoothStep easing function cho cảm giác tự nhiên
-        const easedFactor = blendFactor * blendFactor * (3 - 2 * blendFactor); 
-        
+        const easedFactor = blendFactor * blendFactor * (3 - 2 * blendFactor);
+
         const prev = lastRenderedPoseRef.current;
         const blendCoord = (c1: any, c2: any) => ({
           x: c1.x + (c2.x - c1.x) * easedFactor,
@@ -291,15 +405,26 @@ export const VSLAvatarStick: React.FC<VSLAvatarStickProps> = ({ text, width = 40
     };
 
     requestRef.current = requestAnimationFrame(animate);
-    return () => cancelAnimationFrame(requestRef.current!);
+    return () => {
+      if (requestRef.current) {
+        cancelAnimationFrame(requestRef.current);
+      }
+    };
   }, []);
 
   return (
-    <div 
-      className="relative overflow-hidden rounded-xl bg-gray-900 border border-gray-800 shadow-inner group flex items-center justify-center"
+    <div
+      className={`relative overflow-hidden rounded-xl bg-gray-900 border border-gray-800 shadow-inner group flex items-center justify-center ${className}`}
       style={{ width, height }}
     >
-      <svg ref={svgRef} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 750" width="100%" height="100%">
+      <svg
+        ref={svgRef}
+        xmlns="http://www.w3.org/2000/svg"
+        viewBox="0 0 600 750"
+        width="100%"
+        height="100%"
+        className="w-full h-full object-contain"
+      >
         {/* Glow Effects */}
         <defs>
           <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
@@ -350,19 +475,27 @@ export const VSLAvatarStick: React.FC<VSLAvatarStickProps> = ({ text, width = 40
       {isTranslating && (
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-900/80 backdrop-blur-sm z-10 p-4 text-center">
           <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mb-3"></div>
-          <p className="text-white font-medium text-sm">Đang tải ký hiệu Người Que...</p>
+          <p className="text-white font-medium text-xs sm:text-sm">Đang tải ký hiệu Người Que...</p>
+        </div>
+      )}
+
+      {/* Current Gloss Label Badge */}
+      {currentGloss && isPlaying && (
+        <div className="absolute top-3 left-1/2 -translate-x-1/2 px-2.5 py-1 rounded-full bg-primary/80 backdrop-blur-md border border-white/20 text-white text-[11px] font-bold shadow-md uppercase tracking-wide pointer-events-none transition-all">
+          {currentGloss}
         </div>
       )}
 
       {/* Replay Button */}
-      {!isTranslating && !isPlaying && text && (
+      {showControls && !isTranslating && !isPlaying && text && (
         <button
-          onClick={() => setPlayCount(c => c + 1)}
-          className="absolute bottom-4 right-4 flex items-center gap-2 px-3 py-2 bg-gray-900/60 hover:bg-gray-800/80 backdrop-blur-md border border-gray-700/50 rounded-lg text-gray-300 hover:text-white transition-all duration-200 opacity-0 group-hover:opacity-100 shadow-lg transform translate-y-2 group-hover:translate-y-0"
+          onClick={() => setPlayCount((c) => c + 1)}
+          className="absolute bottom-3 right-3 flex items-center gap-1.5 px-2.5 py-1.5 bg-gray-900/80 hover:bg-gray-800 backdrop-blur-md border border-gray-700/50 rounded-lg text-gray-200 hover:text-white text-xs font-semibold transition-all duration-200 shadow-md focus:outline-none focus:ring-2 focus:ring-primary"
           title="Phát lại ký hiệu"
+          aria-label="Phát lại ký hiệu"
         >
-          <RefreshCw size={16} className="text-primary" />
-          <span className="text-sm font-medium">Đọc lại</span>
+          <RefreshCw size={13} className="text-primary" />
+          <span>Ký hiệu lại</span>
         </button>
       )}
     </div>

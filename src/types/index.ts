@@ -15,6 +15,7 @@ export interface AccessibilitySettings {
   speechRate: number; // 0.8, 1, 1.2
   voiceVariant?: 'female1' | 'male1' | 'female2' | string;
   voiceURI?: string;
+  preferredVoiceURI?: string;
   voiceAccessEnabled?: boolean;
   spokenFeedbackEnabled?: boolean;
   doubleTapShortcutEnabled?: boolean;

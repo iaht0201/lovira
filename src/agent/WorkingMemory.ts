@@ -1,79 +1,112 @@
-export interface WorkingMemoryTurn {
-  userUtterance: string;
-  intent: string;
-  plan: Array<{ action: string; parameters?: Record<string, unknown>; reason?: string }>;
-  feedback: string;
-  timestamp: number;
+export interface MemoryTurn {
+  role: string;
+  content: string;
+  action?: string;
+  intent?: string;
+  parameters?: any;
+  plan?: any;
+  feedback?: string;
+  timestamp: string;
 }
 
-const STORAGE_KEY = 'lovira_agent_working_memory_v1';
+class WorkingMemory {
+  private recentTurns: MemoryTurn[] = [];
+  private lastAction: { action: string; parameters?: any; timestamp: string } | null = null;
+  private lastPlan: any = null;
+  private maxTurns = 10;
 
-export class AgentWorkingMemory {
-  private static turns: WorkingMemoryTurn[] = (() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
+  public addTurn(
+    arg1: any,
+    arg2?: any,
+    arg3?: any,
+    arg4?: any
+  ) {
+    let role = 'user';
+    let content = '';
+    let actionOrIntent: string | undefined;
+    let plan: any;
+    let feedback: string | undefined;
+
+    if (typeof arg1 === 'string' && (arg1 === 'user' || arg1 === 'assistant')) {
+      role = arg1;
+      content = arg2 || '';
+      actionOrIntent = arg3;
+      plan = arg4;
+    } else {
+      content = String(arg1 || '');
+      actionOrIntent = typeof arg2 === 'string' ? arg2 : undefined;
+      plan = arg3;
+      feedback = typeof arg4 === 'string' ? arg4 : undefined;
     }
-  })();
 
-  private static lastGoal: string | null = null;
+    if (plan && Array.isArray(plan)) {
+      this.lastPlan = plan;
+    }
+    if (actionOrIntent) {
+      this.lastAction = { action: actionOrIntent, parameters: plan, timestamp: new Date().toISOString() };
+    }
 
-  public static recordTurn(
-    userUtterance: string,
-    intent: string,
-    plan: Array<{ action: string; parameters?: Record<string, unknown>; reason?: string }>,
-    feedback: string
-  ): void {
-    const turn: WorkingMemoryTurn = {
-      userUtterance,
-      intent,
+    this.recentTurns.push({
+      role,
+      content,
+      action: actionOrIntent,
+      intent: actionOrIntent,
       plan,
       feedback,
-      timestamp: Date.now(),
+      timestamp: new Date().toISOString(),
+    });
+
+    if (this.recentTurns.length > this.maxTurns) {
+      this.recentTurns.shift();
+    }
+  }
+
+  public recordTurn(
+    arg1: any,
+    arg2?: any,
+    arg3?: any,
+    arg4?: any
+  ) {
+    this.addTurn(arg1, arg2, arg3, arg4);
+  }
+
+  public setLastAction(action: string, parameters?: any) {
+    this.lastAction = {
+      action,
+      parameters,
+      timestamp: new Date().toISOString(),
     };
+  }
 
-    this.turns.push(turn);
-    if (this.turns.length > 20) {
-      this.turns.shift();
+  public setLastPlan(plan: any) {
+    this.lastPlan = plan;
+  }
+
+  public getLastAction() {
+    return this.lastAction;
+  }
+
+  public getLastPlan() {
+    return this.lastPlan;
+  }
+
+  public getLastTurn(): MemoryTurn | null {
+    if (this.recentTurns.length === 0) return null;
+    return this.recentTurns[this.recentTurns.length - 1];
+  }
+
+  public getRecentTurns(limit?: number) {
+    if (limit && limit > 0) {
+      return this.recentTurns.slice(-limit);
     }
-
-    if (intent && intent !== 'UNKNOWN' && intent !== 'EMPTY_INPUT') {
-      this.lastGoal = userUtterance;
-    }
-
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(this.turns.slice(-10)));
-    } catch {
-      // ignore
-    }
+    return [...this.recentTurns];
   }
 
-  public static getRecentTurns(limit: number = 5): WorkingMemoryTurn[] {
-    return this.turns.slice(-limit);
-  }
-
-  public static getLastTurn(): WorkingMemoryTurn | undefined {
-    return this.turns[this.turns.length - 1];
-  }
-
-  public static getLastPlan(): Array<{ action: string; parameters?: Record<string, unknown>; reason?: string }> | null {
-    const last = this.getLastTurn();
-    return last?.plan && last.plan.length > 0 ? last.plan : null;
-  }
-
-  public static getLastGoal(): string | null {
-    return this.lastGoal || this.getLastTurn()?.userUtterance || null;
-  }
-
-  public static clear(): void {
-    this.turns = [];
-    this.lastGoal = null;
-    try {
-      localStorage.removeItem(STORAGE_KEY);
-    } catch {
-      // ignore
-    }
+  public clear() {
+    this.recentTurns = [];
+    this.lastAction = null;
+    this.lastPlan = null;
   }
 }
+
+export const AgentWorkingMemory = new WorkingMemory();

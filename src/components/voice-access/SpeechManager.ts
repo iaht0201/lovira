@@ -36,6 +36,12 @@ class SpeechManager {
         this.currentUtterance.onerror = null;
       }
 
+      try {
+        window.speechSynthesis.resume();
+      } catch {
+        // ignore
+      }
+
       this.currentUtterance = new SpeechSynthesisUtterance(cleanText);
       this.currentUtterance.rate = Math.max(0.6, Math.min(2.0, options.rate));
       this.currentUtterance.lang = 'vi-VN';

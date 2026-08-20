@@ -1,81 +1,57 @@
-export type MicOwner = 'VOICE_ACCESS' | 'CONVERSATION' | 'AGENT_COMMAND' | 'NONE';
+export type MicConsumer =
+  | 'voice-access'
+  | 'conversation'
+  | 'agent-command'
+  | 'none'
+  | 'VOICE_ACCESS'
+  | 'CONVERSATION'
+  | 'AGENT_COMMAND'
+  | 'NONE';
 
-class MicrophoneCoordinator {
-  private currentOwner: MicOwner = 'NONE';
-  private onOwnerChangeCallbacks: Set<(owner: MicOwner) => void> = new Set();
+class MicCoordinator {
+  private activeConsumer: MicConsumer = 'NONE';
+  private listeners: Array<(consumer: MicConsumer) => void> = [];
 
-  public requestMic(owner: MicOwner): boolean {
-    console.log(`[MicCoordinator] Mic requested by: ${owner}. Current owner: ${this.currentOwner}`);
-    
-    if (this.currentOwner === owner) {
-      return true; // Already owns it
-    }
-
-    if (owner === 'CONVERSATION') {
-      // Conversation takes absolute highest priority
-      this.currentOwner = 'CONVERSATION';
-      this.notifyChange();
-      return true;
-    }
-
-    if (owner === 'AGENT_COMMAND') {
-      if (this.currentOwner === 'CONVERSATION') {
-        console.warn('[MicCoordinator] Agent Command requested mic, but Conversation currently active. Rejecting.');
-        return false;
-      }
-      this.currentOwner = 'AGENT_COMMAND';
-      this.notifyChange();
-      return true;
-    }
-
-    if (owner === 'VOICE_ACCESS') {
-      if (this.currentOwner === 'CONVERSATION' || this.currentOwner === 'AGENT_COMMAND') {
-        console.warn(`[MicCoordinator] Voice Access requested mic, but ${this.currentOwner} currently active. Rejecting.`);
-        return false;
-      }
-      this.currentOwner = 'VOICE_ACCESS';
-      this.notifyChange();
-      return true;
-    }
-
-    return false;
+  public getActiveConsumer(): MicConsumer {
+    return this.activeConsumer;
   }
 
-  public releaseMic(owner: MicOwner) {
-    if (this.currentOwner === owner) {
-      console.log(`[MicCoordinator] Mic released by: ${owner}`);
-      this.currentOwner = 'NONE';
-      this.notifyChange();
+  public requestAccess(consumer: MicConsumer): boolean {
+    return this.requestMic(consumer);
+  }
+
+  public releaseAccess(consumer: MicConsumer) {
+    this.releaseMic(consumer);
+  }
+
+  public requestMic(consumer: MicConsumer): boolean {
+    this.activeConsumer = consumer;
+    this.notify();
+    return true;
+  }
+
+  public releaseMic(consumer: MicConsumer) {
+    if (
+      this.activeConsumer === consumer ||
+      (consumer === 'VOICE_ACCESS' && this.activeConsumer === 'voice-access') ||
+      (consumer === 'CONVERSATION' && this.activeConsumer === 'conversation') ||
+      (consumer === 'AGENT_COMMAND' && this.activeConsumer === 'agent-command')
+    ) {
+      this.activeConsumer = 'NONE';
+      this.notify();
     }
   }
 
-  public getCurrentOwner(): MicOwner {
-    return this.currentOwner;
-  }
-
-  public isAvailableFor(owner: MicOwner): boolean {
-    if (this.currentOwner === 'NONE' || this.currentOwner === owner) return true;
-    if (owner === 'CONVERSATION') return true;
-    return false;
-  }
-
-  public subscribe(callback: (owner: MicOwner) => void): () => void {
-    this.onOwnerChangeCallbacks.add(callback);
+  public subscribe(cb: (consumer: MicConsumer) => void): () => void {
+    this.listeners.push(cb);
     return () => {
-      this.onOwnerChangeCallbacks.delete(callback);
+      this.listeners = this.listeners.filter((l) => l !== cb);
     };
   }
 
-  private notifyChange() {
-    this.onOwnerChangeCallbacks.forEach((cb) => {
-      try {
-        cb(this.currentOwner);
-      } catch (e) {
-        console.error('[MicCoordinator] Callback error:', e);
-      }
-    });
+  private notify() {
+    this.listeners.forEach((cb) => cb(this.activeConsumer));
   }
 }
 
-export const LoviraMicCoordinator = new MicrophoneCoordinator();
-
+export const LoviraMicCoordinator = new MicCoordinator();

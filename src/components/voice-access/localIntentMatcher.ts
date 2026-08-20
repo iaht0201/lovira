@@ -483,6 +483,58 @@ export function matchLocalIntent(
     };
   }
 
+  // VSL Sign Language Accessibility
+  if (
+    norm === 'bat ngon ngu ky hieu' ||
+    norm === 'bat ky hieu' ||
+    norm === 'bat tro nang ky hieu' ||
+    norm === 'bat vsl' ||
+    norm === 'mo ngon ngu ky hieu' ||
+    norm === 'hien thi nguoi que' ||
+    norm === 'hien thi ky hieu' ||
+    norm === 'bat phien dich ky hieu' ||
+    norm === 'mo nguoi que ky hieu'
+  ) {
+    return {
+      action: 'accessibility.enableVSL',
+      confidence: 1.0,
+      confirmationRequired: false,
+      feedback: 'Lovira đã bật trợ năng Ngôn ngữ Ký hiệu Việt Nam VSL.',
+    };
+  }
+
+  if (
+    norm === 'tat ngon ngu ky hieu' ||
+    norm === 'tat ky hieu' ||
+    norm === 'tat tro nang ky hieu' ||
+    norm === 'tat vsl' ||
+    norm === 'dong ky hieu' ||
+    norm === 'an nguoi que' ||
+    norm === 'tat phien dich ky hieu'
+  ) {
+    return {
+      action: 'accessibility.disableVSL',
+      confidence: 1.0,
+      confirmationRequired: false,
+      feedback: 'Lovira đã tắt trợ năng Ngôn ngữ Ký hiệu.',
+    };
+  }
+
+  if (
+    norm === 'mo thu nghiem ky hieu' ||
+    norm === 'thu nghiem ky hieu' ||
+    norm === 'mo vsl playground' ||
+    norm === 'vsl playground' ||
+    norm === 'phong thu nghiem ky hieu'
+  ) {
+    return {
+      action: 'navigation.openVSLPlayground',
+      confidence: 1.0,
+      confirmationRequired: false,
+      feedback: 'Lovira đã mở Thử nghiệm Ký hiệu VSL.',
+    };
+  }
+
   // 5. Speech Reading Controls
   if (
     norm === 'doc cham hon' ||

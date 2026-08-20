@@ -217,8 +217,8 @@ export default function App() {
 
   // Initialize Firebase Auth
   useEffect(() => {
-    initAnonymousAuth().then((profile) => {
-      setUserProfile(profile);
+    initAnonymousAuth().then((res) => {
+      setUserProfile(res.profile);
     });
   }, []);
 

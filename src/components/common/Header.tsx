@@ -1,11 +1,12 @@
-import React from 'react';
-import { HeartHandshake, Sun, Moon, Contrast, User, Type } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Sun, Moon, Mic, Sparkles, CheckCircle2, AlertCircle } from 'lucide-react';
 import { AccessibilitySettings, UserProfile } from '../../types';
+import { useVoiceAccess } from '../voice-access/VoiceSessionManager';
 
 interface HeaderProps {
   settings: AccessibilitySettings;
   onUpdateSettings: (newSettings: Partial<AccessibilitySettings>) => void;
-  userProfile?: UserProfile | null;
+  userProfile: UserProfile | null;
   onNavigate: (route: string) => void;
 }
 
@@ -15,132 +16,106 @@ export const Header: React.FC<HeaderProps> = ({
   userProfile,
   onNavigate,
 }) => {
-  const toggleContrast = () => {
-    onUpdateSettings({ highContrast: !settings.highContrast });
-  };
+  const { voiceState, activateSession, deactivateSession } = useVoiceAccess();
+  const [healthStatus, setHealthStatus] = useState<'checking' | 'ready' | 'offline'>('checking');
 
-  const setFontScale = (scaleStr: '100' | '125' | '150' | '175') => {
-    onUpdateSettings({ fontScale: scaleStr });
-  };
-
-  const cycleFontScale = () => {
-    const scales: Array<'100' | '125' | '150' | '175'> = ['100', '125', '150', '175'];
-    const currentIndex = scales.indexOf(settings.fontScale as any);
-    const nextIndex = currentIndex === -1 ? 1 : (currentIndex + 1) % scales.length;
-    setFontScale(scales[nextIndex]);
-  };
-
-  const isDark =
-    settings.theme === 'dark' ||
-    (settings.theme === 'system' &&
-      typeof window !== 'undefined' &&
-      window.matchMedia('(prefers-color-scheme: dark)').matches);
+  useEffect(() => {
+    fetch('/api/health')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.status === 'ok') {
+          setHealthStatus('ready');
+        } else {
+          setHealthStatus('offline');
+        }
+      })
+      .catch(() => setHealthStatus('offline'));
+  }, []);
 
   const toggleTheme = () => {
-    onUpdateSettings({ theme: isDark ? 'light' : 'dark' });
+    const nextTheme = settings.theme === 'dark' ? 'light' : 'dark';
+    onUpdateSettings({ theme: nextTheme });
+  };
+
+  const toggleVoiceAccess = () => {
+    if (voiceState === 'listening') {
+      deactivateSession();
+    } else {
+      activateSession();
+    }
   };
 
   return (
-    <header className="h-14 sm:h-16 bg-surface/95 border-b border-slate-200 dark:border-slate-800 px-3 sm:px-4 lg:px-8 flex items-center justify-between z-20 shrink-0 sticky top-0 backdrop-blur-md transition-colors">
-      {/* Left branding on mobile / spacer on desktop */}
-      <div className="flex items-center gap-2 min-w-0">
-        <button
-          onClick={() => onNavigate('/')}
-          className="flex items-center gap-2 text-left focus:outline-hidden md:hidden group"
-          aria-label="Trang chủ Lovira"
-        >
-          <div className="w-8 h-8 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0 group-hover:bg-primary group-hover:text-white transition-colors">
-            <HeartHandshake className="w-4 h-4" />
+    <header className="h-16 px-4 sm:px-6 lg:px-8 border-b border-border bg-surface flex items-center justify-between flex-shrink-0 z-10">
+      <div className="flex items-center gap-3">
+        <div className="md:hidden flex items-center gap-2">
+          <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-white font-bold">
+            L
           </div>
-          <span className="font-bold text-base text-text-primary tracking-tight">Lovira</span>
-        </button>
-      </div>
-
-      {/* Quick Accessibility & User Controls */}
-      <div className="flex items-center gap-1.5 sm:gap-2.5 md:gap-3 min-w-0 shrink-0">
-        {/* Font Scale: Mobile compact cycle button */}
-        <button
-          onClick={cycleFontScale}
-          aria-label={`Đổi cỡ chữ, hiện tại là ${settings.fontScale}%`}
-          title={`Cỡ chữ: ${settings.fontScale}% (Nhấn để chuyển nấc tiếp theo)`}
-          className="sm:hidden flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-surface-subtle border border-slate-200 dark:border-slate-800 text-xs font-bold text-text-primary hover:bg-surface hover:border-primary/40 active:scale-95 transition-all shrink-0"
-        >
-          <Type className="w-3.5 h-3.5 text-primary shrink-0" />
-          <span>{settings.fontScale}%</span>
-        </button>
-
-        {/* Font Scale: Tablet/Desktop segmented bar */}
-        <div className="hidden sm:flex items-center gap-0.5 bg-surface-subtle p-1 rounded-xl border border-slate-200 dark:border-slate-800 shrink-0">
-          {(['100', '125', '150', '175'] as const).map((scale) => (
-            <button
-              key={scale}
-              onClick={() => setFontScale(scale)}
-              title={`Cỡ chữ ${scale}%`}
-              aria-label={`Đặt cỡ chữ ${scale}%`}
-              className={`px-2.5 py-1 text-xs font-bold rounded-lg transition-all ${
-                settings.fontScale === scale
-                  ? 'bg-primary text-white shadow-xs font-extrabold'
-                  : 'text-text-primary hover:bg-surface'
-              }`}
-            >
-              {scale}%
-            </button>
-          ))}
+          <span className="font-bold text-base text-text-primary">Lovira</span>
         </div>
 
-        {/* Theme Toggle Button */}
-        <button
-          onClick={toggleTheme}
-          aria-label="Đổi giao diện sáng/tối"
-          title={isDark ? 'Chuyển sang giao diện sáng' : 'Chuyển sang giao diện tối'}
-          className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-surface border border-slate-200 dark:border-slate-700 flex items-center justify-center text-text-primary hover:bg-surface-subtle active:scale-95 transition-all shrink-0"
+        {/* System Health Status Pill (Truthful status) */}
+        <div
+          className="hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-surface-subtle border border-border"
+          title={healthStatus === 'ready' ? 'Hệ thống AI Lovira đang sẵn sàng' : 'Đang kiểm tra máy chủ AI'}
         >
-          {isDark ? (
-            <Sun className="w-4 h-4 sm:w-5 sm:h-5 text-amber-400 shrink-0" />
+          {healthStatus === 'ready' ? (
+            <>
+              <span className="w-2 h-2 rounded-full bg-emerald-500" />
+              <span className="text-text-secondary">AI Sẵn sàng</span>
+            </>
           ) : (
-            <Moon className="w-4 h-4 sm:w-5 sm:h-5 text-slate-700 dark:text-slate-300 shrink-0" />
+            <>
+              <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+              <span className="text-text-secondary">Đang kết nối AI...</span>
+            </>
           )}
-        </button>
+        </div>
+      </div>
 
-        {/* High Contrast Toggle Button */}
+      <div className="flex items-center gap-2">
+        {/* Voice Access Mic Toggle */}
         <button
-          onClick={toggleContrast}
-          aria-label="Bật/Tắt chế độ tương phản cao"
-          title="Bật/Tắt chế độ tương phản cao"
-          className={`h-9 sm:h-10 px-2.5 sm:px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 shrink-0 border-2 active:scale-95 ${
-            settings.highContrast
-              ? '!bg-amber-300 !text-slate-950 !border-amber-400 font-black shadow-xs'
-              : 'bg-surface border-slate-200 dark:border-slate-700 text-text-primary hover:bg-surface-subtle'
+          onClick={toggleVoiceAccess}
+          className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold border transition-all ${
+            voiceState === 'listening'
+              ? 'bg-red-500 text-white border-red-600 shadow-sm animate-pulse'
+              : 'bg-surface-subtle text-text-primary border-border hover:bg-surface'
           }`}
+          title="Bật/Tắt điều khiển bằng giọng nói"
+          aria-label="Điều khiển bằng giọng nói"
         >
-          <Contrast className="w-4 h-4 shrink-0" />
-          <span className="hidden md:inline">
-            {settings.highContrast ? 'Tương phản cao' : 'Tương phản'}
+          <Mic className="w-4 h-4" />
+          <span className="hidden sm:inline">
+            {voiceState === 'listening' ? 'Đang nghe...' : 'Nói với Lovira'}
           </span>
         </button>
 
-        <div className="h-5 w-[1px] bg-slate-200 dark:bg-slate-800 hidden md:block shrink-0"></div>
+        {/* Dark Mode Toggle */}
+        <button
+          onClick={toggleTheme}
+          className="p-2.5 rounded-xl text-text-secondary hover:text-text-primary bg-surface-subtle border border-border hover:bg-surface transition-colors"
+          title="Chuyển đổi sáng / tối"
+          aria-label="Đổi giao diện sáng tối"
+        >
+          {settings.theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+        </button>
 
-        {/* Account Info */}
+        {/* User Identity / Settings Shortcut */}
         <button
           onClick={() => onNavigate('/settings')}
-          aria-label="Cài đặt tài khoản"
-          className="flex items-center gap-2.5 text-left focus:outline-hidden p-0.5 rounded-xl hover:bg-surface-subtle transition-colors shrink-0"
+          className="flex items-center gap-2 pl-2 pr-3 py-1.5 rounded-xl text-xs font-medium text-text-secondary hover:text-text-primary bg-surface-subtle border border-border"
+          title="Tài khoản & Cài đặt"
         >
-          <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-primary/10 text-primary font-bold flex items-center justify-center text-sm shrink-0 border border-primary/20">
-            <User className="w-4 h-4 shrink-0" />
+          <div className="w-6 h-6 rounded-full bg-primary/20 text-primary flex items-center justify-center font-bold text-xs">
+            {userProfile?.displayName ? userProfile.displayName.charAt(0).toUpperCase() : 'K'}
           </div>
-          <div className="text-left hidden lg:block min-w-0">
-            <p className="text-xs font-semibold text-text-primary truncate max-w-[110px]">
-              {userProfile?.displayName || 'Khách'}
-            </p>
-            <p className="text-[11px] text-text-secondary truncate max-w-[110px]">
-              {userProfile?.isAnonymous ? 'Ẩn danh' : userProfile?.email || 'Người dùng'}
-            </p>
-          </div>
+          <span className="hidden md:inline max-w-[100px] truncate">
+            {userProfile?.displayName || 'Khách Lovira'}
+          </span>
         </button>
       </div>
     </header>
   );
 };
-

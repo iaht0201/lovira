@@ -4,6 +4,7 @@ import { matchLocalIntent } from './localIntentMatcher';
 import { LoviraSpeechManager } from './SpeechManager';
 import { LoviraMicCoordinator } from './MicrophoneCoordinator';
 import { LoviraReadingEngine } from './ReadingEngine';
+import { vslAccessibilityService } from '../../services/vslAccessibilityService';
 import { AccessibilitySettings, UserProfile } from '../../types';
 import { useScreenActionContext, GLOBAL_APP_ACTIONS } from './ScreenActionRegistry';
 import { AgentWorkingMemory } from '../../agent/WorkingMemory';
@@ -115,12 +116,19 @@ export const VoiceAccessProvider: React.FC<ProviderProps> = ({
   // Stop TTS reading
   const stopSpeaking = () => {
     LoviraSpeechManager.stop();
+    vslAccessibilityService.stopSigning();
     isSpeakingRef.current = false;
     deactivateSession();
   };
 
-  // Speaks feedback text with prevention of self-recognition
+  // Speaks feedback text with prevention of self-recognition and simultaneous VSL output
   const speakText = (text: string, onEnd?: () => void) => {
+    // 1. Simultaneous VSL signing if enabled
+    if (settings.vslAccessibilityEnabled && text) {
+      vslAccessibilityService.presentSignResponse(text, 'voice-action');
+    }
+
+    // 2. Voice Output
     if (!settings.spokenFeedbackEnabled) {
       onEnd?.();
       return;
@@ -153,6 +161,7 @@ export const VoiceAccessProvider: React.FC<ProviderProps> = ({
     
     if (isSpeakingRef.current) {
       LoviraSpeechManager.stop();
+      vslAccessibilityService.stopSigning();
       isSpeakingRef.current = false;
     }
 
@@ -183,14 +192,23 @@ export const VoiceAccessProvider: React.FC<ProviderProps> = ({
   const executeAction = async (intent: LoviraVoiceIntent) => {
     const { action, feedback, parameters, chainAction } = intent;
     console.log(`[PWA Voice] Executing action: ${action} with parameters:`, parameters);
-    setLastAction(action);
+    setLastAction(intent);
 
     const finishWithFeedback = (fb: string, onDone?: () => void) => {
-      if (settings.spokenFeedbackEnabled && fb) {
-        speakText(fb, () => {
+      if (fb) {
+        if (settings.spokenFeedbackEnabled) {
+          speakText(fb, () => {
+            onDone?.();
+            deactivateSession();
+          });
+        } else {
+          // If spoken feedback is off but VSL is on, present to VSL
+          if (settings.vslAccessibilityEnabled) {
+            vslAccessibilityService.presentSignResponse(fb, 'voice-action');
+          }
           onDone?.();
           deactivateSession();
-        });
+        }
       } else {
         onDone?.();
         deactivateSession();
@@ -338,7 +356,12 @@ export const VoiceAccessProvider: React.FC<ProviderProps> = ({
         onNavigate('/settings');
         if (chainAction) {
           setTimeout(() => {
-            executeAction({ action: chainAction.action as any, parameters: chainAction.parameters, confidence: 1.0 });
+            executeAction({
+              action: chainAction.action as any,
+              parameters: chainAction.parameters,
+              confidence: 1.0,
+              feedback: chainAction.feedback || '',
+            });
           }, 450);
         }
         finishWithFeedback(feedback || 'Lovira đã mở Cài đặt & Trợ năng.');
@@ -420,6 +443,29 @@ export const VoiceAccessProvider: React.FC<ProviderProps> = ({
       case 'accessibility.disableLargeControls':
         onUpdateSettings({ largeControls: false });
         finishWithFeedback(feedback || 'Lovira đã trở về kích thước nút bấm tiêu chuẩn.');
+        break;
+
+      case 'ENABLE_VSL':
+      case 'accessibility.enableVSL':
+        onUpdateSettings({ vslAccessibilityEnabled: true });
+        vslAccessibilityService.setPanelOpen(true);
+        vslAccessibilityService.setPanelMinimized(false);
+        finishWithFeedback(feedback || 'Lovira đã bật trợ năng Ngôn ngữ Ký hiệu Việt Nam.');
+        break;
+
+      case 'DISABLE_VSL':
+      case 'accessibility.disableVSL':
+        onUpdateSettings({ vslAccessibilityEnabled: false });
+        vslAccessibilityService.stopSigning();
+        finishWithFeedback(feedback || 'Lovira đã tắt trợ năng Ngôn ngữ Ký hiệu.');
+        break;
+
+      case 'OPEN_VSL_PLAYGROUND':
+      case 'navigation.openVSLPlayground':
+      case 'navigation.vslPlayground':
+      case 'navigation.vsl':
+        onNavigate('/vsl-playground');
+        finishWithFeedback(feedback || 'Lovira đã mở Thử nghiệm Ký hiệu VSL.');
         break;
 
       case 'STOP_READING':
@@ -600,13 +646,13 @@ export const VoiceAccessProvider: React.FC<ProviderProps> = ({
     pauseRecognition();
 
     // Check fast local matcher with current screen available actions
-    const screenActions = currentScreenInfo?.actions.map((a) => ({
+    const screenActions = (currentScreenInfo?.actions || []).map((a) => ({
       id: a.id,
       label: a.label,
       aliases: a.aliases,
-      isSatisfied: a.prerequisites ? a.prerequisites.isSatisfied : true,
-      missingReason: a.prerequisites?.missingReason,
-      promptForMissing: a.prerequisites?.promptForMissing,
+      isSatisfied: a.prerequisites ? (a.prerequisites.isSatisfied ?? true) : (a.isSatisfied ?? true),
+      missingReason: a.prerequisites?.missingReason || a.missingReason,
+      promptForMissing: a.prerequisites?.promptForMissing || a.promptForMissing,
     }));
 
     const localMatch = matchLocalIntent(command, screenActions);
@@ -635,6 +681,12 @@ export const VoiceAccessProvider: React.FC<ProviderProps> = ({
   const startRecognitionInstance = () => {
     if (typeof window === 'undefined') return;
 
+    if (!window.isSecureContext && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+      console.warn('[PWA Voice] Microphone requires a secure HTTPS context.');
+      deactivateSession();
+      return;
+    }
+
     const SpeechRecognition =
       (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
 
@@ -658,8 +710,13 @@ export const VoiceAccessProvider: React.FC<ProviderProps> = ({
       recognitionRef.current = null;
     }
 
+    const isMobile =
+      typeof navigator !== 'undefined' &&
+      /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+
     const recognition = new SpeechRecognition();
-    recognition.continuous = true;
+    // Non-continuous on mobile prevents spontaneous WebKit speech engine aborts
+    recognition.continuous = isMobile ? false : true;
     recognition.interimResults = true;
     recognition.lang = 'vi-VN';
     recognition.maxAlternatives = 1;
@@ -761,6 +818,33 @@ export const VoiceAccessProvider: React.FC<ProviderProps> = ({
       }
     }
   };
+
+  // Mobile Lifecycle handler: release mic and pause recognition when app goes background
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        pauseRecognition();
+        LoviraMicCoordinator.releaseMic('VOICE_ACCESS');
+        if (voiceState === 'listening') {
+          deactivateSession();
+        }
+      }
+    };
+
+    const handlePageHide = () => {
+      pauseRecognition();
+      LoviraMicCoordinator.releaseMic('VOICE_ACCESS');
+      LoviraSpeechManager.stop();
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('pagehide', handlePageHide);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('pagehide', handlePageHide);
+    };
+  }, [voiceState]);
 
   // Handle settings trigger on voiceAccessEnabled
   useEffect(() => {

@@ -2,77 +2,54 @@ import React, { useEffect, useRef } from 'react';
 import { useVoiceAccess } from './VoiceSessionManager';
 import { AccessibilitySettings } from '../../types';
 
-interface ShortcutProps {
-  settings: AccessibilitySettings;
-}
-
-export const DoubleTapShortcutListener: React.FC<ShortcutProps> = ({ settings }) => {
-  const { activateSession } = useVoiceAccess();
+export const DoubleTapShortcutListener: React.FC<{ settings: AccessibilitySettings }> = ({ settings }) => {
+  const { activateSession, voiceState, deactivateSession } = useVoiceAccess();
   const lastTapRef = useRef<number>(0);
-  const activateSessionRef = useRef(activateSession);
 
   useEffect(() => {
-    activateSessionRef.current = activateSession;
-  }, [activateSession]);
+    if (!settings.doubleTapShortcutEnabled) return;
 
-  useEffect(() => {
-    if (!settings.doubleTapShortcutEnabled || !settings.voiceAccessEnabled) return;
+    const triggerToggle = () => {
+      if (voiceState === 'listening') {
+        deactivateSession();
+      } else {
+        activateSession();
+      }
+    };
 
-    const handleDoubleTap = (e: TouchEvent) => {
-      // Avoid firing if tapping on interactive elements like buttons, inputs, selects, links
-      const rawTarget = e.target as (Node | null);
-      const target = (rawTarget instanceof Element ? rawTarget : rawTarget?.parentElement) as HTMLElement | null;
-      if (!target) return;
-
-      if (
-        target.tagName === 'BUTTON' ||
-        target.tagName === 'INPUT' ||
-        target.tagName === 'SELECT' ||
-        target.tagName === 'TEXTAREA' ||
-        target.tagName === 'A' ||
-        (typeof target.closest === 'function' && (target.closest('button') || target.closest('a')))
-      ) {
+    const handleTouchEnd = (e: TouchEvent) => {
+      // Ignore taps on interactive inputs or buttons
+      const target = e.target as HTMLElement;
+      if (target.closest('button, input, textarea, select, a, [role="button"]')) {
         return;
       }
 
       const now = Date.now();
-      const DOUBLE_TAP_DELAY = 350;
-      if (now - lastTapRef.current < DOUBLE_TAP_DELAY) {
-        console.log('[PWA Voice] Double tap gesture detected. Launching active voice session.');
-        activateSessionRef.current();
+      const diff = now - lastTapRef.current;
+      if (diff > 0 && diff < 380) {
+        // Double tap detected
+        triggerToggle();
+        lastTapRef.current = 0;
+      } else {
+        lastTapRef.current = now;
       }
-      lastTapRef.current = now;
     };
 
-    const handleDoubleClick = (e: MouseEvent) => {
-      // Desktop fallback double click
-      const rawTarget = e.target as (Node | null);
-      const target = (rawTarget instanceof Element ? rawTarget : rawTarget?.parentElement) as HTMLElement | null;
-      if (!target) return;
-
-      if (
-        target.tagName === 'BUTTON' ||
-        target.tagName === 'INPUT' ||
-        target.tagName === 'SELECT' ||
-        target.tagName === 'TEXTAREA' ||
-        target.tagName === 'A' ||
-        (typeof target.closest === 'function' && (target.closest('button') || target.closest('a')))
-      ) {
+    const handleDblClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (target.closest('button, input, textarea, select, a, [role="button"]')) {
         return;
       }
-
-      console.log('[PWA Voice] Double click gesture detected. Launching active voice session.');
-      activateSessionRef.current();
+      triggerToggle();
     };
 
-    window.addEventListener('touchend', handleDoubleTap, { passive: true });
-    window.addEventListener('dblclick', handleDoubleClick);
-
+    window.addEventListener('touchend', handleTouchEnd);
+    window.addEventListener('dblclick', handleDblClick);
     return () => {
-      window.removeEventListener('touchend', handleDoubleTap);
-      window.removeEventListener('dblclick', handleDoubleClick);
+      window.removeEventListener('touchend', handleTouchEnd);
+      window.removeEventListener('dblclick', handleDblClick);
     };
-  }, [settings.doubleTapShortcutEnabled, settings.voiceAccessEnabled]);
+  }, [settings.doubleTapShortcutEnabled, voiceState, activateSession, deactivateSession]);
 
   return null;
 };

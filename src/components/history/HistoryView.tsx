@@ -1,202 +1,143 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
-  History as HistoryIcon,
-  Search,
-  Trash2,
   Clock,
   Eye,
   Mic,
-  FileText,
   BookOpen,
-  X,
-  Sparkles,
+  FileText,
+  Trash2,
+  Volume2,
+  Copy,
+  Check,
+  RefreshCw,
+  Search,
+  Filter,
 } from 'lucide-react';
-import { ActivityHistory, UserProfile } from '../../types';
-import { getActivityHistory, deleteActivityItem, clearActivityHistory } from '../../lib/firebase';
-import { ReadAloudButton } from '../common/ReadAloudButton';
-import { useRegisterScreenActions } from '../voice-access/ScreenActionRegistry';
+import { AccessibilitySettings, UserProfile, ActivityHistory } from '../../types';
+import { fetchActivitiesFromFirestore } from '../../lib/firebase';
+import { speakText, stopSpeaking } from '../../lib/speech';
+import { useScreenActionContext } from '../voice-access/ScreenActionRegistry';
 
 interface HistoryViewProps {
-  userProfile?: UserProfile | null;
+  userProfile: UserProfile | null;
+  settings: AccessibilitySettings;
 }
 
-export const HistoryView: React.FC<HistoryViewProps> = ({ userProfile }) => {
-  const [items, setItems] = useState<ActivityHistory[]>([]);
-  const [searchQuery, setSearchQuery] = useState('');
+export const HistoryView: React.FC<HistoryViewProps> = ({
+  userProfile,
+  settings,
+}) => {
+  const [activities, setActivities] = useState<ActivityHistory[]>([]);
   const [filterType, setFilterType] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
   const [selectedItem, setSelectedItem] = useState<ActivityHistory | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  const { registerAction, setCurrentScreenInfo } = useScreenActionContext();
 
   useEffect(() => {
-    if (userProfile?.uid) {
-      loadHistory();
-    }
-  }, [userProfile?.uid]);
+    setCurrentScreenInfo({
+      screenId: 'history',
+      title: 'Lịch sử hoạt động',
+      description: 'Xem lại các lần nhận diện ảnh, ghi âm cuộc nói chuyện và tài liệu',
+    });
+  }, [setCurrentScreenInfo]);
 
   const loadHistory = async () => {
     if (!userProfile?.uid) return;
-    const history = await getActivityHistory(userProfile.uid);
-    setItems(history);
-  };
-
-  const handleDeleteItem = async (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!userProfile?.uid) return;
-    await deleteActivityItem(userProfile.uid, id);
-    setItems((prev) => prev.filter((item) => item.id !== id));
-    if (selectedItem?.id === id) {
-      setSelectedItem(null);
+    setIsLoading(true);
+    try {
+      const items = await fetchActivitiesFromFirestore(userProfile.uid, 50);
+      setActivities(items);
+    } catch (e) {
+      console.warn('History load error:', e);
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const handleClearAll = async () => {
-    if (!userProfile?.uid) return;
-    if (window.confirm('Bạn có chắc chắn muốn xóa toàn bộ lịch sử hoạt động?')) {
-      await clearActivityHistory(userProfile.uid);
-      setItems([]);
-      setSelectedItem(null);
-    }
-  };
+  useEffect(() => {
+    loadHistory();
+  }, [userProfile?.uid]);
 
-  useRegisterScreenActions({
-    screenId: 'history',
-    screenTitle: 'Lịch sử hoạt động',
-    screenState: {
-      itemCount: items.length,
-      filterType,
-      searchQuery,
-      selectedItem: selectedItem ? selectedItem.title : null,
-    },
-    actions: [
-      {
-        id: 'filterAll',
-        label: 'Tất cả lịch sử',
-        aliases: ['tất cả', 'xem tất cả', 'toàn bộ'],
-        description: 'Hiển thị toàn bộ lịch sử các chức năng',
-        handler: () => setFilterType('all'),
-      },
-      {
-        id: 'filterVision',
-        label: 'Lọc Nhìn giúp tôi',
-        aliases: ['lọc ảnh', 'lọc nhìn giúp tôi', 'chỉ xem ảnh'],
-        description: 'Chỉ hiển thị các hoạt động phân tích hình ảnh',
-        handler: () => setFilterType('vision'),
-      },
-      {
-        id: 'filterConversation',
-        label: 'Lọc Nghe & ghi lại',
-        aliases: ['lọc cuộc trò chuyện', 'lọc nghe thoại', 'lọc ghi âm'],
-        description: 'Chỉ hiển thị các hoạt động ghi âm hội thoại',
-        handler: () => setFilterType('conversation'),
-      },
-      {
-        id: 'filterEasyRead',
-        label: 'Lọc Làm dễ hiểu',
-        aliases: ['lọc dễ hiểu', 'lọc văn bản dễ hiểu'],
-        description: 'Chỉ hiển thị các hoạt động làm dễ hiểu văn bản',
-        handler: () => setFilterType('easy-read'),
-      },
-      {
-        id: 'filterDocument',
-        label: 'Lọc Hiểu tài liệu',
-        aliases: ['lọc tài liệu', 'lọc file', 'lọc pdf'],
-        description: 'Chỉ hiển thị các hoạt động phân tích tài liệu',
-        handler: () => setFilterType('document'),
-      },
-      {
-        id: 'searchHistory',
-        label: 'Tìm kiếm lịch sử',
-        aliases: ['tìm kiếm', 'tìm trong lịch sử'],
-        description: 'Tìm kiếm hoạt động theo từ khóa',
-        handler: (params) => {
-          if (params?.query) {
-            setSearchQuery(params.query);
-          }
-        },
-      },
-      {
-        id: 'clearHistory',
-        label: 'Xóa toàn bộ lịch sử',
-        aliases: ['xóa lịch sử', 'xóa toàn bộ lịch sử', 'xóa hết lịch sử'],
-        description: 'Xóa sạch tất cả các mục trong lịch sử hoạt động',
-        prerequisites: {
-          isSatisfied: items.length > 0,
-          missingReason: 'Lịch sử hiện đang trống.',
-        },
-        handler: () => handleClearAll(),
-      },
-    ],
+  const filtered = activities.filter((act) => {
+    const matchFilter = filterType === 'all' || act.type === filterType;
+    const matchSearch =
+      !searchQuery ||
+      act.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      act.preview.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchFilter && matchSearch;
   });
 
-  const filteredItems = items.filter((item) => {
-    const matchesType = filterType === 'all' || item.type === filterType;
-    const matchesSearch =
-      item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.preview.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesType && matchesSearch;
-  });
-
-  const getTypeIcon = (type: string) => {
+  const getIcon = (type: ActivityHistory['type']) => {
     switch (type) {
       case 'vision':
-        return <Eye className="w-4 h-4 text-primary" />;
+        return <Eye className="w-5 h-5 text-indigo-600" />;
       case 'conversation':
-        return <Mic className="w-4 h-4 text-emerald-600" />;
+        return <Mic className="w-5 h-5 text-teal-600" />;
       case 'easy-read':
-        return <FileText className="w-4 h-4 text-amber-600" />;
+        return <BookOpen className="w-5 h-5 text-rose-600" />;
       case 'document':
-        return <BookOpen className="w-4 h-4 text-coral" />;
+        return <FileText className="w-5 h-5 text-blue-600" />;
       default:
-        return <Sparkles className="w-4 h-4 text-text-secondary" />;
+        return <Clock className="w-5 h-5 text-text-secondary" />;
     }
+  };
+
+  const handleCopy = (text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div className="max-w-4xl mx-auto space-y-6 animate-in fade-in duration-300">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-text-primary">Lịch sử hoạt động</h2>
-          <p className="text-sm text-text-secondary mt-1">
-            Xem lại các phân tích hình ảnh, tóm tắt cuộc trò chuyện và nội dung Easy Read bạn đã lưu.
+          <h1 className="text-2xl sm:text-3xl font-bold text-text-primary">Lịch sử hoạt động</h1>
+          <p className="text-sm text-text-secondary">
+            Xem lại các kết quả phân tích hình ảnh, cuộc trò chuyện và tài liệu đã lưu.
           </p>
         </div>
 
-        {items.length > 0 && (
-          <button
-            onClick={handleClearAll}
-            className="px-3.5 py-2 rounded-xl border border-rose-200 dark:border-rose-900 text-xs font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 flex items-center gap-1.5 shrink-0"
-          >
-            <Trash2 className="w-3.5 h-3.5" /> Xóa tất cả lịch sử
-          </button>
-        )}
+        <button
+          onClick={loadHistory}
+          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-surface-subtle border border-border hover:bg-surface text-xs font-semibold text-text-primary"
+        >
+          <RefreshCw className="w-4 h-4" />
+          <span>Làm mới</span>
+        </button>
       </div>
 
       {/* Filter and Search Bar */}
-      <div className="flex flex-col sm:flex-row gap-4 justify-between items-center bg-surface p-4 rounded-2xl border border-slate-200 dark:border-slate-800">
-        <div className="relative w-full sm:w-72">
-          <Search className="w-4 h-4 absolute left-3 top-2.5 text-text-secondary" />
+      <div className="flex flex-col sm:flex-row items-center gap-3">
+        <div className="relative flex-1 w-full">
+          <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-text-secondary" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Tìm kiếm lịch sử..."
-            className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-surface text-xs text-text-primary focus:border-primary"
+            placeholder="Tìm kiếm trong lịch sử..."
+            className="w-full pl-10 pr-4 py-2.5 rounded-2xl bg-surface border border-border text-sm text-text-primary focus:ring-2 focus:ring-primary focus:outline-none"
           />
         </div>
 
-        <div className="flex flex-wrap gap-1.5 w-full sm:w-auto">
+        <div className="flex items-center gap-1 p-1 bg-surface rounded-2xl border border-border w-full sm:w-auto overflow-x-auto">
           {[
             { id: 'all', label: 'Tất cả' },
-            { id: 'vision', label: 'Nhìn giúp tôi' },
-            { id: 'conversation', label: 'Nghe & ghi' },
-            { id: 'easy-read', label: 'Easy Read' },
+            { id: 'vision', label: 'Nhìn' },
+            { id: 'conversation', label: 'Nghe' },
+            { id: 'easy-read', label: 'Dễ hiểu' },
             { id: 'document', label: 'Tài liệu' },
           ].map((f) => (
             <button
               key={f.id}
               onClick={() => setFilterType(f.id)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+              className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
                 filterType === f.id
-                  ? 'bg-primary-soft text-primary font-bold'
+                  ? 'bg-primary text-white shadow-xs'
                   : 'text-text-secondary hover:text-text-primary'
               }`}
             >
@@ -206,129 +147,87 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ userProfile }) => {
         </div>
       </div>
 
-      {/* List Grid */}
-      {filteredItems.length === 0 ? (
-        <div className="bg-surface p-12 rounded-2xl border border-slate-200 dark:border-slate-800 text-center space-y-4">
-          <HistoryIcon className="w-10 h-10 text-text-secondary mx-auto opacity-60" />
-          <div className="space-y-1">
-            <p className="text-sm font-bold text-text-primary">Chưa có lịch sử hoạt động</p>
-            <p className="text-xs text-text-secondary max-w-sm mx-auto">
-              Trải nghiệm các tính năng của Lovira để kết quả xử lý tự động được lưu lại tại đây.
-            </p>
-          </div>
-          <div className="flex flex-wrap justify-center gap-2 pt-2">
-            <a
-              href="#/vision"
-              className="px-3.5 py-2 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 text-xs font-semibold hover:bg-indigo-100 transition-colors"
-            >
-              Thử Nhìn giúp tôi
-            </a>
-            <a
-              href="#/easy-read"
-              className="px-3.5 py-2 rounded-xl bg-rose-50 dark:bg-rose-950/50 text-coral dark:text-rose-300 text-xs font-semibold hover:bg-rose-100 transition-colors"
-            >
-              Thử Easy Read
-            </a>
-            <a
-              href="#/conversation"
-              className="px-3.5 py-2 rounded-xl bg-teal-50 dark:bg-teal-950/50 text-teal dark:text-teal-300 text-xs font-semibold hover:bg-teal-100 transition-colors"
-            >
-              Thử Nghe & ghi lại
-            </a>
-          </div>
+      {/* Activity List */}
+      {isLoading ? (
+        <div className="p-8 rounded-3xl bg-surface border border-border text-center space-y-2">
+          <RefreshCw className="w-6 h-6 text-primary mx-auto animate-spin" />
+          <div className="text-sm font-medium text-text-secondary">Đang tải lịch sử…</div>
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="p-12 rounded-3xl bg-surface border border-border text-center space-y-2 text-text-secondary">
+          <Clock className="w-12 h-12 mx-auto text-text-disabled mb-2" />
+          <div className="font-bold text-base text-text-primary">Chưa có bản ghi lịch sử nào</div>
+          <p className="text-sm max-w-sm mx-auto">
+            Các hoạt động quan trọng bạn thực hiện với Lovira sẽ được lưu tự động tại đây.
+          </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {filteredItems.map((item) => (
+        <div className="space-y-3">
+          {filtered.map((item) => (
             <div
               key={item.id}
               onClick={() => setSelectedItem(item)}
-              className="p-5 rounded-2xl bg-surface border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 transition-all cursor-pointer flex flex-col justify-between space-y-3"
+              className="p-5 rounded-2xl bg-surface border border-border hover:border-primary/50 cursor-pointer transition-all flex items-start gap-4"
             >
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="p-1 rounded bg-surface-subtle">
-                      {getTypeIcon(item.type)}
-                    </div>
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-text-secondary">
-                      {item.type}
-                    </span>
-                  </div>
-
-                  <button
-                    onClick={(e) => handleDeleteItem(item.id, e)}
-                    title="Xóa mục này"
-                    className="p-1 rounded text-text-secondary hover:text-rose-600 transition-colors"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
+              <div className="w-10 h-10 rounded-xl bg-surface-subtle border border-border flex items-center justify-center flex-shrink-0">
+                {getIcon(item.type)}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between gap-2 mb-1">
+                  <h3 className="font-bold text-sm text-text-primary truncate">{item.title}</h3>
+                  <span className="text-xs text-text-secondary whitespace-nowrap">
+                    {new Date(item.createdAt).toLocaleDateString('vi-VN')}
+                  </span>
                 </div>
-
-                <h3 className="text-sm font-bold text-text-primary line-clamp-1">
-                  {item.title}
-                </h3>
                 <p className="text-xs text-text-secondary line-clamp-2 leading-relaxed">
                   {item.preview}
                 </p>
-              </div>
-
-              <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800 text-[10px] text-text-secondary uppercase">
-                <span className="flex items-center gap-1">
-                  <Clock className="w-3 h-3" />
-                  {new Date(item.createdAt).toLocaleString('vi-VN')}
-                </span>
-                <span className="font-bold text-primary">Xem chi tiết &rarr;</span>
               </div>
             </div>
           ))}
         </div>
       )}
 
-      {/* Item Detail Modal */}
+      {/* Detail Modal */}
       {selectedItem && (
         <div
           role="dialog"
           aria-modal="true"
-          className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4"
         >
-          <div className="bg-surface border border-slate-200 dark:border-slate-800 w-full max-w-xl rounded-2xl p-6 space-y-6 max-h-[85vh] overflow-y-auto relative">
-            <button
-              onClick={() => setSelectedItem(null)}
-              className="absolute top-4 right-4 p-1 rounded-lg text-text-secondary hover:text-text-primary"
-            >
-              <X className="w-5 h-5" />
-            </button>
-
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-xl bg-surface-subtle">
-                {getTypeIcon(selectedItem.type)}
+          <div className="w-full max-w-lg bg-surface rounded-3xl border border-border p-6 shadow-2xl space-y-4 max-h-[85vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-3 border-b border-border">
+              <div className="flex items-center gap-2">
+                {getIcon(selectedItem.type)}
+                <h2 className="font-bold text-base text-text-primary">{selectedItem.title}</h2>
               </div>
-              <div>
-                <h3 className="text-lg font-bold text-text-primary">
-                  {selectedItem.title}
-                </h3>
-                <p className="text-xs text-text-secondary">
-                  Lưu lúc {new Date(selectedItem.createdAt).toLocaleString('vi-VN')}
-                </p>
-              </div>
-            </div>
-
-            <div className="p-4 rounded-xl bg-surface-subtle border border-slate-100 dark:border-slate-800 space-y-1">
-              <span className="text-xs font-bold uppercase text-text-secondary">Nội dung chi tiết</span>
-              <p className="text-sm text-text-primary leading-relaxed">
-                {selectedItem.preview}
-              </p>
-            </div>
-
-            <div className="flex justify-between items-center pt-2">
-              <ReadAloudButton text={selectedItem.preview} size="md" />
-
               <button
                 onClick={() => setSelectedItem(null)}
-                className="px-4 py-2 rounded-xl bg-surface-subtle text-text-primary font-semibold text-xs border border-slate-200 dark:border-slate-800"
+                className="p-1 rounded-lg text-text-secondary hover:text-text-primary"
               >
-                Đóng
+                ✕
+              </button>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-surface-subtle border border-border text-sm leading-relaxed text-text-primary whitespace-pre-line">
+              {selectedItem.preview}
+            </div>
+
+            <div className="flex items-center justify-between pt-2">
+              <button
+                onClick={() => speakText(selectedItem.preview)}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary text-white text-xs font-semibold hover:bg-primary-hover"
+              >
+                <Volume2 className="w-4 h-4" />
+                <span>Đọc to</span>
+              </button>
+
+              <button
+                onClick={() => handleCopy(selectedItem.preview)}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-surface-subtle border border-border text-text-primary text-xs font-medium hover:bg-surface"
+              >
+                {copied ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
+                <span>{copied ? 'Đã sao chép' : 'Sao chép'}</span>
               </button>
             </div>
           </div>

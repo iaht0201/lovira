@@ -1,98 +1,69 @@
-import React, { useState } from 'react';
-import { Terminal, ChevronDown, ChevronUp, RefreshCw, Layers } from 'lucide-react';
+import React from 'react';
+import { X, Terminal, CheckCircle2, AlertTriangle, Play, Sparkles } from 'lucide-react';
 import { useAgent } from '../../agent/AgentController';
-import { ContextBuilder } from '../../agent/ContextBuilder';
-import { ActionRegistry } from '../../agent/ActionRegistry';
 
 export const AgentDebugPanel: React.FC = () => {
-  const [isOpen, setIsOpen] = useState(false);
-  const { agentState, statusMessage, activeSession, activePlan, currentStepIndex, totalSteps } =
-    useAgent();
+  const { isDebugOpen, setIsDebugOpen, currentPlan, isExecuting, executeAgentGoal } = useAgent();
 
-  if (process.env.NODE_ENV === 'production' && !isOpen) {
-    // Hide by default in pure production unless toggled
-  }
-
-  const currentContext = ContextBuilder.buildContext();
-  const allActions = ActionRegistry.getAllActions();
+  if (!isDebugOpen) return null;
 
   return (
-    <div className="fixed bottom-2 right-2 z-50">
-      {!isOpen ? (
-        <button
-          onClick={() => setIsOpen(true)}
-          className="px-2.5 py-1 rounded-lg bg-slate-900/80 text-white text-[11px] font-mono hover:bg-slate-900 flex items-center gap-1.5 backdrop-blur-xs border border-slate-700 shadow-md"
-        >
-          <Terminal className="w-3 h-3 text-emerald-400" />
-          <span>Lovira Agent Debug</span>
-        </button>
-      ) : (
-        <div className="w-80 sm:w-96 max-h-[80vh] overflow-y-auto bg-slate-950 text-slate-200 border border-slate-800 rounded-2xl shadow-2xl p-4 font-mono text-xs space-y-3">
-          <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-            <div className="flex items-center gap-1.5 text-emerald-400 font-bold">
-              <Terminal className="w-4 h-4" />
-              <span>Lovira Agent Monitor</span>
-            </div>
-            <button
-              onClick={() => setIsOpen(false)}
-              className="p-1 text-slate-400 hover:text-white rounded"
-            >
-              <ChevronDown className="w-4 h-4" />
-            </button>
+    <div
+      role="dialog"
+      aria-modal="true"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4"
+    >
+      <div className="w-full max-w-2xl bg-surface rounded-3xl border border-border p-6 shadow-2xl space-y-4 max-h-[85vh] flex flex-col">
+        <div className="flex items-center justify-between pb-3 border-b border-border">
+          <div className="flex items-center gap-2">
+            <Terminal className="w-5 h-5 text-primary" />
+            <h2 className="font-bold text-lg text-text-primary">Nhật ký xử lý Agent Lovira</h2>
+          </div>
+          <button
+            onClick={() => setIsDebugOpen(false)}
+            className="p-1.5 rounded-lg text-text-secondary hover:text-text-primary"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto space-y-3 font-mono text-xs">
+          <div className="p-3 rounded-xl bg-slate-900 text-slate-200 space-y-1">
+            <div className="text-emerald-400 font-bold">Trạng thái Agent:</div>
+            <div>{isExecuting ? 'Đang thực thi kế hoạch đa bước...' : 'Đang chờ lệnh từ người dùng.'}</div>
           </div>
 
-          <div className="space-y-1">
-            <div className="text-[11px] text-slate-400">Trạng thái Agent:</div>
-            <div className="px-2 py-1 bg-slate-900 rounded border border-slate-800 flex items-center justify-between">
-              <span className="text-emerald-300 font-bold">{agentState.toUpperCase()}</span>
-              <span className="text-[10px] text-slate-400">
-                Step: {currentStepIndex}/{totalSteps}
-              </span>
-            </div>
-            <p className="text-[11px] text-slate-300 italic truncate">{statusMessage}</p>
-          </div>
-
-          <div className="space-y-1">
-            <div className="text-[11px] text-slate-400">Ngữ cảnh màn hình (Context):</div>
-            <div className="p-2 bg-slate-900 rounded border border-slate-800 text-[10px] space-y-0.5">
-              <div>Screen: <span className="text-blue-400">{currentContext.currentScreen}</span></div>
-              <div>Route: <span className="text-blue-400">{currentContext.currentRoute}</span></div>
-              <div>Active Session: <span className="text-yellow-400">{activeSession?.title || 'None'}</span></div>
-              <div>Has Image: <span className="text-purple-400">{currentContext.activeImage ? 'Yes' : 'No'}</span></div>
-              <div>Has Doc: <span className="text-purple-400">{currentContext.activeDocument ? 'Yes' : 'No'}</span></div>
-            </div>
-          </div>
-
-          {activePlan && activePlan.length > 0 && (
-            <div className="space-y-1">
-              <div className="text-[11px] text-slate-400">Kế hoạch thực thi (Active Plan):</div>
-              <div className="space-y-1 max-h-32 overflow-y-auto">
-                {activePlan.map((p, i) => (
-                  <div
-                    key={p.id || i}
-                    className={`p-1.5 rounded text-[10px] border ${
-                      p.status === 'success'
-                        ? 'bg-emerald-950/40 border-emerald-800/60 text-emerald-300'
-                        : p.status === 'running'
-                        ? 'bg-blue-950/40 border-blue-800/60 text-blue-300 animate-pulse'
-                        : p.status === 'failed'
-                        ? 'bg-red-950/40 border-red-800/60 text-red-300'
-                        : 'bg-slate-900 border-slate-800 text-slate-400'
-                    }`}
-                  >
-                    <div className="font-bold">{p.action}</div>
-                    {p.reason && <div className="text-[9px] opacity-80">{p.reason}</div>}
+          {currentPlan ? (
+            <div className="p-4 rounded-xl bg-surface-subtle border border-border space-y-3">
+              <div className="font-bold text-sm text-text-primary font-sans">
+                Kế hoạch gần nhất: {currentPlan.intent} (Độ tin cậy: {Math.round((currentPlan.confidence || 0) * 100)}%)
+              </div>
+              <div className="space-y-1.5">
+                {currentPlan.plan.map((step, i) => (
+                  <div key={i} className="p-2 rounded bg-surface border border-border flex items-start gap-2">
+                    <span className="font-bold text-primary">{i + 1}.</span>
+                    <div>
+                      <div className="font-bold text-text-primary">{step.action}</div>
+                      <div className="text-text-secondary text-[11px] font-sans">{step.reason}</div>
+                    </div>
                   </div>
                 ))}
               </div>
             </div>
+          ) : (
+            <div className="p-6 text-center text-text-secondary">Chưa có kế hoạch nào được tạo.</div>
           )}
-
-          <div className="pt-1 text-[10px] text-slate-500 text-right">
-            Registry: {allActions.length} registered actions
-          </div>
         </div>
-      )}
+
+        <div className="flex justify-end pt-2 border-t border-border">
+          <button
+            onClick={() => setIsDebugOpen(false)}
+            className="px-4 py-2 rounded-xl bg-surface-subtle border border-border text-xs font-semibold hover:bg-surface text-text-primary"
+          >
+            Đóng bảng nhật ký
+          </button>
+        </div>
+      </div>
     </div>
   );
 };

@@ -13,7 +13,7 @@ import { IntentResolver } from './IntentResolver';
 import { ActionExecutor } from './ActionExecutor';
 import { useScreenActionContext } from '../components/voice-access/ScreenActionRegistry';
 import { speakText, stopSpeaking } from '../lib/speech';
-import { AccessibilitySettings } from '../types';
+import { AccessibilitySettings, UserProfile } from '../types';
 import { LoviraMicCoordinator } from '../components/voice-access/MicrophoneCoordinator';
 
 import { auth } from '../lib/firebase';
@@ -52,6 +52,7 @@ export interface AgentProviderProps {
   onUpdateSettings: (settings: Partial<AccessibilitySettings>) => void;
   currentRoute: string;
   onNavigate: (route: string) => void;
+  userProfile?: UserProfile | null;
 }
 
 export const AgentProvider: React.FC<AgentProviderProps> = ({
@@ -60,6 +61,7 @@ export const AgentProvider: React.FC<AgentProviderProps> = ({
   onUpdateSettings,
   currentRoute,
   onNavigate,
+  userProfile,
 }) => {
   const [agentState, setAgentState] = useState<AgentState>('idle');
   const [statusMessage, setStatusMessage] = useState<string>('Sẵn sàng hỗ trợ bạn.');

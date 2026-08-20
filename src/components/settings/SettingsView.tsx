@@ -1,777 +1,503 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
+  Settings,
   Type,
+  Sun,
+  Moon,
   Contrast,
-  Volume2,
-  Shield,
-  Key,
-  RotateCcw,
-  Eye,
-  Play,
-  Square,
+  Zap,
   Mic,
-  UserCheck,
-  Globe,
-  CheckCircle2,
+  Volume2,
+  HandMetal,
+  User,
+  Check,
+  AlertCircle,
+  ExternalLink,
+  Touchpad,
+  MousePointerClick,
+  Sparkles,
+  Sliders,
 } from 'lucide-react';
-import { AccessibilitySettings, UserProfile } from '../../types';
-import { DEFAULT_ACCESSIBILITY_SETTINGS } from '../../constants';
-import { speakText, stopSpeaking, getAvailableVietnameseVoices } from '../../lib/speech';
+import { AccessibilitySettings, UserProfile, FontScale } from '../../types';
 import { linkGoogleAccount } from '../../lib/firebase';
-import { useRegisterScreenActions } from '../voice-access/ScreenActionRegistry';
+import { speakText } from '../../lib/speech';
 
 interface SettingsViewProps {
   settings: AccessibilitySettings;
   onUpdateSettings: (newSettings: Partial<AccessibilitySettings>) => void;
-  userProfile?: UserProfile | null;
+  userProfile: UserProfile | null;
+  setUserProfile: (profile: UserProfile | null) => void;
 }
 
 export const SettingsView: React.FC<SettingsViewProps> = ({
   settings,
   onUpdateSettings,
   userProfile,
+  setUserProfile,
 }) => {
-  const [apiKeyInput, setApiKeyInput] = useState(() => {
-    try {
-      return localStorage.getItem('lovira_custom_gemini_api_key') || localStorage.getItem('lovira_custom_gemini_key') || '';
-    } catch {
-      return '';
-    }
-  });
+  const [isLinkingGoogle, setIsLinkingGoogle] = useState(false);
+  const [linkMsg, setLinkMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  const [verifyState, setVerifyState] = useState<'idle' | 'checking' | 'success' | 'error'>('idle');
-  const [verifyMessage, setVerifyMessage] = useState('');
-  const [rememberKey, setRememberKey] = useState(true);
+  const fontScales: Array<{ value: FontScale; label: string }> = [
+    { value: '100', label: '100% (Chuẩn)' },
+    { value: '125', label: '125% (Lớn)' },
+    { value: '150', label: '150% (Rất lớn)' },
+    { value: '175', label: '175% (Tối đa)' },
+  ];
 
-  const [keySaved, setKeySaved] = useState(false);
-  const [isPlayingTest, setIsPlayingTest] = useState(false);
-  const [systemVoices, setSystemVoices] = useState<SpeechSynthesisVoice[]>([]);
-
-  const [linkingGoogle, setLinkingGoogle] = useState(false);
-  const [linkingMsg, setLinkingMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const speechRates = [
+    { value: 0.8, label: '0.8x (Chậm)' },
+    { value: 1.0, label: '1.0x (Chuẩn)' },
+    { value: 1.2, label: '1.2x (Nhanh)' },
+  ];
 
   const handleLinkGoogle = async () => {
-    setLinkingGoogle(true);
-    setLinkingMsg(null);
+    setIsLinkingGoogle(true);
+    setLinkMsg(null);
     try {
-      const res = await linkGoogleAccount();
-      if (res.success) {
-        setLinkingMsg({
-          type: 'success',
-          text: res.message || 'Đã liên kết thành công tài khoản Google! Lịch sử và cài đặt của bạn sẽ tự động lưu lại.',
-        });
-      } else {
-        setLinkingMsg({
-          type: 'error',
-          text: res.message || 'Chưa thể liên kết tài khoản Google.',
-        });
+      const updated = await linkGoogleAccount();
+      if (updated) {
+        setUserProfile(updated);
+        setLinkMsg({ type: 'success', text: 'Đã liên kết tài khoản Google thành công!' });
       }
     } catch (err: any) {
-      setLinkingMsg({
-        type: 'error',
-        text: err.message || 'Xảy ra lỗi khi liên kết Google.',
-      });
+      setLinkMsg({ type: 'error', text: err.message || 'Không thể liên kết tài khoản Google.' });
     } finally {
-      setLinkingGoogle(false);
+      setIsLinkingGoogle(false);
     }
   };
 
-  useEffect(() => {
-    const updateVoices = () => {
-      const voices = getAvailableVietnameseVoices();
-      setSystemVoices(voices);
-    };
-    updateVoices();
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-      window.speechSynthesis.onvoiceschanged = updateVoices;
-    }
-  }, []);
-
-  const handleTestVoice = (variant?: string, voiceURI?: string) => {
-    if (isPlayingTest) {
-      stopSpeaking();
-      setIsPlayingTest(false);
-      return;
-    }
-
-    setIsPlayingTest(true);
-    const testText = 'Xin chào! Tôi là trợ lý ảo Lovira, sẵn sàng đồng hành và hỗ trợ bạn tiếp cận thông tin mỗi ngày.';
-    speakText(testText, {
-      rate: settings.speechRate,
-      voiceVariant: variant || settings.voiceVariant || 'female1',
-      voiceURI: voiceURI !== undefined ? voiceURI : settings.voiceURI,
-      onEnd: () => setIsPlayingTest(false),
-      onError: () => setIsPlayingTest(false),
-    });
+  const handleTestSpeech = () => {
+    speakText('Xin chào! Lovira là trợ lý AI nhân văn hỗ trợ nhìn, nghe, đọc và hiểu cho bạn.');
   };
-
-  const handleVerifyAndSaveKey = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!apiKeyInput.trim()) {
-      setVerifyState('error');
-      setVerifyMessage('Vui lòng nhập khóa API Gemini.');
-      return;
-    }
-
-    setVerifyState('checking');
-    setVerifyMessage('Đang kiểm tra khóa...');
-
-    try {
-      const response = await fetch('/api/ai/verify-key', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-lovira-client': 'pwa-settings-client',
-        },
-        body: JSON.stringify({ customApiKey: apiKeyInput.trim() }),
-      });
-
-      const result = await response.json();
-      if (response.ok && result.success) {
-        setVerifyState('success');
-        setVerifyMessage('Kết nối Gemini thành công.');
-        onUpdateSettings({ preferredAIProvider: 'gemini' });
-
-        if (rememberKey) {
-          localStorage.setItem('lovira_custom_gemini_api_key', apiKeyInput.trim());
-          // Sync with old key name just in case
-          localStorage.setItem('lovira_custom_gemini_key', apiKeyInput.trim());
-        } else {
-          localStorage.removeItem('lovira_custom_gemini_api_key');
-          localStorage.removeItem('lovira_custom_gemini_key');
-        }
-      } else {
-        setVerifyState('error');
-        setVerifyMessage(result.error || 'Lovira chưa thể sử dụng khóa Gemini này.');
-      }
-    } catch (err) {
-      setVerifyState('error');
-      setVerifyMessage('Lỗi mạng hoặc máy chủ không thể xác thực khóa.');
-    }
-  };
-
-  const handleDisconnectGemini = () => {
-    localStorage.removeItem('lovira_custom_gemini_api_key');
-    localStorage.removeItem('lovira_custom_gemini_key');
-    setApiKeyInput('');
-    setVerifyState('idle');
-    setVerifyMessage('');
-    onUpdateSettings({ preferredAIProvider: 'groq' });
-  };
-
-  const handleResetSettings = () => {
-    if (window.confirm('Đặt lại tất cả cài đặt trợ năng về mặc định?')) {
-      onUpdateSettings(DEFAULT_ACCESSIBILITY_SETTINGS);
-    }
-  };
-
-  useRegisterScreenActions({
-    screenId: 'settings',
-    screenTitle: 'Cài đặt & Trợ năng',
-    screenState: {
-      fontScale: settings.fontScale,
-      highContrast: settings.highContrast,
-      reducedMotion: settings.reducedMotion,
-      largeControls: settings.largeControls,
-      voiceAccessEnabled: settings.voiceAccessEnabled,
-      spokenFeedbackEnabled: settings.spokenFeedbackEnabled,
-      speechRate: settings.speechRate,
-    },
-    actions: [
-      {
-        id: 'increaseFont',
-        label: 'Tăng cỡ chữ',
-        aliases: ['tăng cỡ chữ', 'chữ to hơn', 'phóng to chữ'],
-        description: 'Tăng kích thước hiển thị chữ trên toàn bộ giao diện',
-        handler: () => {
-          const nextScales: Record<string, string> = { '100': '125', '125': '150', '150': '175', '175': '175' };
-          onUpdateSettings({ fontScale: nextScales[settings.fontScale] as any });
-        },
-      },
-      {
-        id: 'decreaseFont',
-        label: 'Giảm cỡ chữ',
-        aliases: ['giảm cỡ chữ', 'chữ nhỏ hơn', 'thu nhỏ chữ'],
-        description: 'Giảm kích thước hiển thị chữ trên toàn bộ giao diện',
-        handler: () => {
-          const prevScales: Record<string, string> = { '175': '150', '150': '125', '125': '100', '100': '100' };
-          onUpdateSettings({ fontScale: prevScales[settings.fontScale] as any });
-        },
-      },
-      {
-        id: 'toggleHighContrast',
-        label: 'Bật/Tắt tương phản cao',
-        aliases: ['tương phản cao', 'đổi tương phản'],
-        description: 'Bật hoặc tắt chế độ màu tương phản cao',
-        handler: () => onUpdateSettings({ highContrast: !settings.highContrast }),
-      },
-      {
-        id: 'toggleReducedMotion',
-        label: 'Bật/Tắt giảm chuyển động',
-        aliases: ['giảm chuyển động', 'tắt hiệu ứng chuyển động'],
-        description: 'Bật hoặc tắt hiệu ứng chuyển động',
-        handler: () => onUpdateSettings({ reducedMotion: !settings.reducedMotion }),
-      },
-      {
-        id: 'toggleLargeControls',
-        label: 'Bật/Tắt nút lớn trợ năng',
-        aliases: ['nút lớn', 'nút bấm to', 'chế độ nút lớn'],
-        description: 'Phóng to các nút bấm và vùng chạm trợ năng',
-        handler: () => onUpdateSettings({ largeControls: !settings.largeControls }),
-      },
-      {
-        id: 'testVoice',
-        label: 'Nghe thử giọng đọc',
-        aliases: ['nghe thử giọng đọc', 'thử giọng', 'đọc thử'],
-        description: 'Phát một đoạn văn bản mẫu để kiểm tra giọng đọc',
-        handler: () => handleTestVoice(),
-      },
-      {
-        id: 'resetSettings',
-        label: 'Khôi phục mặc định',
-        aliases: ['khôi phục mặc định', 'cài đặt gốc', 'đặt lại cài đặt'],
-        description: 'Đặt lại toàn bộ cài đặt trợ năng về mặc định ban đầu',
-        handler: () => handleResetSettings(),
-      },
-    ],
-  });
 
   return (
-    <div className="space-y-6 max-w-4xl mx-auto">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-2xl font-bold text-text-primary">Cài đặt & Trợ năng</h2>
-          <p className="text-sm text-text-secondary mt-1">Tùy chỉnh giao diện, cỡ chữ, giọng đọc và quyền riêng tư để Lovira phục vụ bạn tốt nhất.</p>
-        </div>
-
-        <button
-          onClick={handleResetSettings}
-          className="px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-800 text-xs font-semibold text-text-primary hover:bg-surface-subtle flex items-center gap-1.5 shrink-0"
-        >
-          <RotateCcw className="w-3.5 h-3.5" /> Khôi phục mặc định
-        </button>
+    <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in duration-300 pb-16">
+      {/* Header */}
+      <div>
+        <h1 className="text-2xl sm:text-3xl font-bold text-text-primary">Cài đặt & Trợ năng</h1>
+        <p className="text-sm text-text-secondary mt-1">
+          Tùy chỉnh giao diện, cử chỉ chạm đúp, giọng đọc, điều khiển giọng nói và các chế độ hỗ trợ theo nhu cầu cá nhân.
+        </p>
       </div>
 
-      {/* 1. Visual & Font Display Settings */}
-      <section className="bg-surface border border-slate-200 dark:border-slate-800 p-6 rounded-2xl space-y-6">
-        <h3 className="text-base font-bold text-text-primary flex items-center gap-2 pb-3 border-b border-slate-100 dark:border-slate-800">
-          <Type className="w-5 h-5 text-primary shrink-0" /> Hiển thị & Cỡ chữ
-        </h3>
-
-        {/* Theme Mode Selection */}
-        <div className="space-y-2">
-          <label className="block text-xs font-semibold text-text-secondary">Chủ đề giao diện:</label>
-          <div className="grid grid-cols-2 gap-3">
-            <button
-              type="button"
-              onClick={() => onUpdateSettings({ theme: 'light' })}
-              className={`p-3.5 rounded-xl border font-semibold text-xs flex items-center justify-center gap-2 transition-all ${
-                settings.theme !== 'dark'
-                  ? 'bg-primary-soft border-primary text-primary font-bold'
-                  : 'bg-surface border-slate-200 dark:border-slate-800 text-text-secondary hover:text-text-primary'
-              }`}
-            >
-              <span className="w-2.5 h-2.5 rounded-full bg-amber-500 shrink-0"></span>
-              <span>Giao diện Sáng (Light)</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => onUpdateSettings({ theme: 'dark' })}
-              className={`p-3.5 rounded-xl border font-semibold text-xs flex items-center justify-center gap-2 transition-all ${
-                settings.theme === 'dark'
-                  ? 'bg-primary-soft border-primary text-primary font-bold'
-                  : 'bg-surface border-slate-200 dark:border-slate-800 text-text-secondary hover:text-text-primary'
-              }`}
-            >
-              <span className="w-2.5 h-2.5 rounded-full bg-indigo-400 shrink-0"></span>
-              <span>Giao diện Tối (Dark)</span>
-            </button>
+      {/* Account Profile Card */}
+      <div className="bg-surface rounded-3xl border border-border p-6 shadow-xs space-y-4">
+        <div className="flex items-center gap-3">
+          <div className="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center font-bold text-lg">
+            {userProfile?.displayName?.charAt(0).toUpperCase() || 'K'}
           </div>
-        </div>
-
-        {/* Font Scale Selection */}
-        <div className="space-y-2">
-          <label className="block text-xs font-semibold text-text-secondary">Cỡ chữ hiển thị:</label>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-            {[
-              { scale: '100', label: '100% (Chuẩn)' },
-              { scale: '125', label: '125% (Lớn)' },
-              { scale: '150', label: '150% (Rất lớn)' },
-              { scale: '175', label: '175% (Tối đa)' },
-            ].map((item) => (
-              <button
-                key={item.scale}
-                type="button"
-                onClick={() => onUpdateSettings({ fontScale: item.scale as any })}
-                className={`p-3 rounded-xl border font-semibold text-xs text-center transition-all ${
-                  settings.fontScale === item.scale
-                    ? 'bg-primary text-white border-primary shadow-xs'
-                    : 'bg-surface border-slate-200 dark:border-slate-800 text-text-secondary hover:text-text-primary'
-                }`}
-              >
-                {item.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Large Controls Mode */}
-        <div className="flex items-center justify-between p-3.5 rounded-xl bg-surface-subtle border border-slate-100 dark:border-slate-800">
-          <div className="space-y-0.5">
-            <span className="text-sm font-bold text-text-primary flex items-center gap-2">
-              <Type className="w-4 h-4 text-indigo-500" /> Nút lớn & Vùng bấm rộng (Large Controls)
-            </span>
-            <p className="text-xs text-text-secondary">Tăng kích thước nút bấm, ô nhập và vùng chạm lên tối thiểu 48px cho trợ năng.</p>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => onUpdateSettings({ largeControls: !settings.largeControls })}
-            className={`w-11 h-6 rounded-full p-0.5 transition-colors ${
-              settings.largeControls ? 'bg-primary' : 'bg-slate-300 dark:bg-slate-700'
-            }`}
-          >
-            <div
-              className={`w-5 h-5 rounded-full bg-white transition-transform ${
-                settings.largeControls ? 'translate-x-5' : 'translate-x-0'
-              }`}
-            ></div>
-          </button>
-        </div>
-
-        {/* High Contrast Mode */}
-        <div className="flex items-center justify-between p-3.5 rounded-xl bg-surface-subtle border border-slate-100 dark:border-slate-800">
-          <div className="space-y-0.5">
-            <span className="text-sm font-bold text-text-primary flex items-center gap-2">
-              <Contrast className="w-4 h-4 text-amber-500" /> Chế độ tương phản cao (High Contrast)
-            </span>
-            <p className="text-xs text-text-secondary">Tăng đường viền và màu nền đậm giúp đọc dễ dàng hơn.</p>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => onUpdateSettings({ highContrast: !settings.highContrast })}
-            className={`w-11 h-6 rounded-full p-0.5 transition-colors ${
-              settings.highContrast ? 'bg-primary' : 'bg-slate-300 dark:bg-slate-700'
-            }`}
-          >
-            <div
-              className={`w-5 h-5 rounded-full bg-white transition-transform ${
-                settings.highContrast ? 'translate-x-5' : 'translate-x-0'
-              }`}
-            ></div>
-          </button>
-        </div>
-
-        {/* Reduced Motion */}
-        <div className="flex items-center justify-between p-3.5 rounded-xl bg-surface-subtle border border-slate-100 dark:border-slate-800">
-          <div className="space-y-0.5">
-            <span className="text-sm font-bold text-text-primary flex items-center gap-2">
-              <Eye className="w-4 h-4 text-emerald-500" /> Giảm chuyển động (Reduced Motion)
-            </span>
-            <p className="text-xs text-text-secondary">Tắt hiệu ứng chuyển động phức tạp.</p>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => onUpdateSettings({ reducedMotion: !settings.reducedMotion })}
-            className={`w-11 h-6 rounded-full p-0.5 transition-colors ${
-              settings.reducedMotion ? 'bg-primary' : 'bg-slate-300 dark:bg-slate-700'
-            }`}
-          >
-            <div
-              className={`w-5 h-5 rounded-full bg-white transition-transform ${
-                settings.reducedMotion ? 'translate-x-5' : 'translate-x-0'
-              }`}
-            ></div>
-          </button>
-        </div>
-      </section>
-
-      {/* 2. Audio & Speech Settings */}
-      <section className="bg-surface border border-slate-200 dark:border-slate-800 p-6 rounded-2xl space-y-6">
-        <h3 className="text-base font-bold text-text-primary flex items-center gap-2 pb-3 border-b border-slate-100 dark:border-slate-800">
-          <Volume2 className="w-5 h-5 text-primary shrink-0" /> Giọng đọc & Âm thanh (TTS)
-        </h3>
-
-        {/* Vietnamese Voice Options */}
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <label className="block text-xs font-semibold text-text-secondary">
-              Chọn giọng đọc tiếng Việt:
-            </label>
-            <button
-              type="button"
-              onClick={() => handleTestVoice()}
-              className="px-3 py-1.5 rounded-lg bg-primary-soft text-primary font-bold text-xs hover:bg-primary/20 flex items-center gap-1.5 transition-all"
-            >
-              {isPlayingTest ? (
-                <>
-                  <Square className="w-3.5 h-3.5 fill-current" /> Dừng nghe
-                </>
-              ) : (
-                <>
-                  <Play className="w-3.5 h-3.5 fill-current" /> Nghe thử giọng
-                </>
-              )}
-            </button>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            {[
-              {
-                id: 'female1',
-                name: 'Giọng Nữ 1 (Chuẩn)',
-                desc: 'Giọng nữ nhẹ nhàng, truyền cảm',
-                badge: 'Tự nhiên',
-              },
-              {
-                id: 'male1',
-                name: 'Giọng Nam (Trầm)',
-                desc: 'Giọng nam ấm áp, rõ ràng',
-                badge: 'Trầm ấm',
-              },
-              {
-                id: 'female2',
-                name: 'Giọng Nữ 2 (Trong)',
-                desc: 'Giọng nữ tươi sáng, độ cao lớn',
-                badge: 'Trong trẻo',
-              },
-            ].map((v) => {
-              const isSelected = (settings.voiceVariant || 'female1') === v.id;
-              return (
-                <button
-                  key={v.id}
-                  type="button"
-                  onClick={() => {
-                    onUpdateSettings({ voiceVariant: v.id, voiceURI: '' });
-                    if (isPlayingTest) stopSpeaking();
-                    handleTestVoice(v.id, '');
-                  }}
-                  className={`p-3.5 rounded-xl border text-left transition-all relative flex flex-col justify-between ${
-                    isSelected
-                      ? 'bg-primary-soft border-primary text-primary shadow-xs'
-                      : 'bg-surface border-slate-200 dark:border-slate-800 text-text-secondary hover:text-text-primary'
-                  }`}
-                >
-                  <div>
-                    <div className="flex items-center justify-between gap-1 mb-1">
-                      <span className="font-bold text-xs text-text-primary flex items-center gap-1.5">
-                        <Mic className="w-3.5 h-3.5 text-primary" /> {v.name}
-                      </span>
-                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 font-semibold text-text-secondary">
-                        {v.badge}
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-text-secondary leading-snug">{v.desc}</p>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Device Hardware Voices Dropdown if system has specific Vietnamese voices */}
-          {systemVoices.length > 0 && (
-            <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800 space-y-1.5">
-              <label htmlFor="system-voice-select" className="block text-[11px] font-semibold text-text-secondary">
-                Hoặc chọn giọng từ hệ thống thiết bị của bạn ({systemVoices.length} giọng có sẵn):
-              </label>
-              <select
-                id="system-voice-select"
-                value={settings.voiceURI || ''}
-                onChange={(e) => {
-                  const uri = e.target.value;
-                  onUpdateSettings({ voiceURI: uri });
-                  if (isPlayingTest) stopSpeaking();
-                  handleTestVoice(undefined, uri);
-                }}
-                className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-surface text-xs text-text-primary focus:border-primary"
-              >
-                <option value="">-- Dùng cài đặt giọng Lovira (Khuyên dùng) --</option>
-                {systemVoices.map((sv) => (
-                  <option key={sv.voiceURI} value={sv.voiceURI}>
-                    {sv.name} ({sv.lang})
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-        </div>
-
-        {/* Speech Rate Slider */}
-        <div className="space-y-3 pt-2">
-          <div className="flex items-center justify-between">
-            <label htmlFor="speech-rate" className="text-xs font-semibold text-text-secondary">
-              Tốc độ giọng đọc thành tiếng:
-            </label>
-            <span className="text-xs font-mono font-bold px-2 py-0.5 rounded bg-surface-subtle text-text-primary">
-              {settings.speechRate}x
-            </span>
-          </div>
-
-          <input
-            id="speech-rate"
-            type="range"
-            min="0.75"
-            max="1.5"
-            step="0.1"
-            value={settings.speechRate}
-            onChange={(e) => onUpdateSettings({ speechRate: parseFloat(e.target.value) })}
-            className="w-full h-2 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer accent-primary"
-          />
-          <div className="flex justify-between text-[10px] text-text-secondary">
-            <span>Chậm (0.75x)</span>
-            <span>Chuẩn (1.0x)</span>
-            <span>Nhanh (1.5x)</span>
-          </div>
-        </div>
-      </section>
-
-      {/* 3. Voice Access Settings */}
-      <section className="bg-surface border border-slate-200 dark:border-slate-800 p-6 rounded-2xl space-y-6">
-        <h3 className="text-base font-bold text-text-primary flex items-center gap-2 pb-3 border-b border-slate-100 dark:border-slate-800">
-          <Mic className="w-5 h-5 text-primary shrink-0" /> Điều khiển bằng giọng nói (Voice Access)
-        </h3>
-        <p className="text-xs text-text-secondary leading-relaxed">
-          Hỗ trợ sử dụng toàn bộ ứng dụng thông qua khẩu lệnh nói trực tiếp không chạm. Chỉ cần nói <strong>“Chào Lovira”</strong> để khởi động trợ lý ảo bất kỳ lúc nào.
-        </p>
-
-        {/* Voice Access Enabled */}
-        <div className="flex items-center justify-between p-3.5 rounded-xl bg-surface-subtle border border-slate-100 dark:border-slate-800">
-          <div className="space-y-0.5 pr-4">
-            <span className="text-sm font-bold text-text-primary flex items-center gap-2">
-              Sử dụng Voice Access
-            </span>
-            <p className="text-xs text-text-secondary">Bật micro lắng nghe khẩu lệnh của bạn khi mở ứng dụng Lovira.</p>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => onUpdateSettings({ voiceAccessEnabled: !settings.voiceAccessEnabled })}
-            className={`w-11 h-6 rounded-full p-0.5 transition-colors shrink-0 ${
-              settings.voiceAccessEnabled ? 'bg-primary' : 'bg-slate-300 dark:bg-slate-700'
-            }`}
-          >
-            <div
-              className={`w-5 h-5 rounded-full bg-white transition-transform ${
-                settings.voiceAccessEnabled ? 'translate-x-5' : 'translate-x-0'
-              }`}
-            ></div>
-          </button>
-        </div>
-
-        {/* Spoken Feedback Enabled */}
-        <div className="flex items-center justify-between p-3.5 rounded-xl bg-surface-subtle border border-slate-100 dark:border-slate-800">
-          <div className="space-y-0.5 pr-4">
-            <span className="text-sm font-bold text-text-primary">
-              Phản hồi bằng giọng nói
-            </span>
-            <p className="text-xs text-text-secondary">Lovira sẽ tự động phát âm thanh để hướng dẫn và đọc to kết quả tương tác.</p>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => onUpdateSettings({ spokenFeedbackEnabled: !settings.spokenFeedbackEnabled })}
-            className={`w-11 h-6 rounded-full p-0.5 transition-colors shrink-0 ${
-              settings.spokenFeedbackEnabled ? 'bg-primary' : 'bg-slate-300 dark:bg-slate-700'
-            }`}
-          >
-            <div
-              className={`w-5 h-5 rounded-full bg-white transition-transform ${
-                settings.spokenFeedbackEnabled ? 'translate-x-5' : 'translate-x-0'
-              }`}
-            ></div>
-          </button>
-        </div>
-
-        {/* Double Tap Shortcut */}
-        <div className="flex items-center justify-between p-3.5 rounded-xl bg-surface-subtle border border-slate-100 dark:border-slate-800">
-          <div className="space-y-0.5 pr-4">
-            <span className="text-sm font-bold text-text-primary">
-              Chạm hai lần để kích hoạt nhanh (Double Tap)
-            </span>
-            <p className="text-xs text-text-secondary">Chạm đúp vào vùng trống trên màn hình bất kỳ lúc nào để bắt đầu cuộc thoại với Lovira.</p>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => onUpdateSettings({ doubleTapShortcutEnabled: !settings.doubleTapShortcutEnabled })}
-            className={`w-11 h-6 rounded-full p-0.5 transition-colors shrink-0 ${
-              settings.doubleTapShortcutEnabled ? 'bg-primary' : 'bg-slate-300 dark:bg-slate-700'
-            }`}
-          >
-            <div
-              className={`w-5 h-5 rounded-full bg-white transition-transform ${
-                settings.doubleTapShortcutEnabled ? 'translate-x-5' : 'translate-x-0'
-              }`}
-            ></div>
-          </button>
-        </div>
-      </section>
-
-      {/* 4. AI Provider Selection */}
-      <section className="bg-surface border border-slate-200 dark:border-slate-800 p-6 rounded-2xl space-y-6">
-        <h3 className="text-base font-bold text-text-primary flex items-center gap-2 pb-3 border-b border-slate-100 dark:border-slate-800">
-          <Shield className="w-5 h-5 text-primary shrink-0" /> Nhà cung cấp AI
-        </h3>
-        <p className="text-xs text-text-secondary leading-relaxed">
-          Chọn nguồn xử lý AI cung cấp năng lực cho Lovira. Chế độ Lovira miễn phí tối ưu hiệu năng và tốc độ phản hồi tối đa. Bạn có thể tự điền khóa Gemini cá nhân để bảo vệ quyền riêng tư tuyệt đối hoặc gia tăng hạn ngạch.
-        </p>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div
-            onClick={() => onUpdateSettings({ preferredAIProvider: 'groq' })}
-            className={`p-4 rounded-xl border cursor-pointer transition-all ${
-              settings.preferredAIProvider !== 'gemini'
-                ? 'bg-primary-soft border-primary text-primary'
-                : 'bg-surface border-slate-200 dark:border-slate-800'
-            }`}
-          >
-            <h4 className="text-sm font-bold text-text-primary">Lovira miễn phí (Groq Demo)</h4>
-            <p className="text-xs text-text-secondary mt-1">Sử dụng dịch vụ AI mặc định siêu tốc độ của Lovira qua hệ thống LPU Groq. Khuyên dùng cho trải nghiệm thử nghiệm thông thường.</p>
-            <span className="inline-block mt-3 px-2 py-0.5 text-[10px] font-bold rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
-              {settings.preferredAIProvider !== 'gemini' ? 'Đang sử dụng' : 'Khuyên dùng'}
-            </span>
-          </div>
-
-          <div
-            onClick={() => {
-              if (localStorage.getItem('lovira_custom_gemini_api_key')) {
-                onUpdateSettings({ preferredAIProvider: 'gemini' });
-              } else {
-                document.getElementById('custom-api-key')?.focus();
-              }
-            }}
-            className={`p-4 rounded-xl border cursor-pointer transition-all ${
-              settings.preferredAIProvider === 'gemini'
-                ? 'bg-primary-soft border-primary text-primary'
-                : 'bg-surface border-slate-200 dark:border-slate-800'
-            }`}
-          >
-            <h4 className="text-sm font-bold text-text-primary">Gemini của bạn (BYOK)</h4>
-            <p className="text-xs text-text-secondary mt-1">Sử dụng mã API riêng của bạn. Toàn bộ hội thoại và văn bản phân tích được bảo mật, không lưu giữ lịch sử đám mây.</p>
-            <span className="inline-block mt-3 px-2 py-0.5 text-[10px] font-bold rounded-md bg-indigo-500/10 text-indigo-600 dark:text-indigo-400">
-              {settings.preferredAIProvider === 'gemini' ? 'Đang sử dụng' : 'Yêu cầu kết nối'}
-            </span>
-          </div>
-        </div>
-
-        {/* Gemini API Input Form */}
-        <div className="pt-4 border-t border-slate-100 dark:border-slate-800 space-y-3">
-          <form onSubmit={handleVerifyAndSaveKey} className="space-y-3">
-            <label htmlFor="custom-api-key" className="block text-xs font-semibold text-text-secondary">
-              Khóa API Gemini của bạn:
-            </label>
-            <div className="flex gap-2">
-              <input
-                id="custom-api-key"
-                type="password"
-                value={apiKeyInput}
-                onChange={(e) => setApiKeyInput(e.target.value)}
-                placeholder="Nhập khóa API cá nhân của bạn (AIzaSy...)"
-                className="flex-1 px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-surface text-xs text-text-primary focus:border-primary"
-              />
-              <button
-                type="submit"
-                disabled={verifyState === 'checking'}
-                className="px-4 py-2 rounded-xl bg-primary hover:bg-primary-hover text-white font-semibold text-xs transition-colors shrink-0"
-              >
-                {verifyState === 'checking' ? 'Đang kiểm tra...' : 'Kiểm tra & Kết nối'}
-              </button>
-            </div>
-
-            {verifyMessage && (
-              <p
-                className={`text-xs font-bold ${
-                  verifyState === 'success' ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'
-                }`}
-              >
-                {verifyMessage}
-              </p>
-            )}
-
-            <div className="flex items-center gap-2 pt-1">
-              <input
-                type="checkbox"
-                id="remember-key"
-                checked={rememberKey}
-                onChange={(e) => setRememberKey(e.target.checked)}
-                className="rounded text-primary focus:ring-primary w-4 h-4"
-              />
-              <label htmlFor="remember-key" className="text-xs text-text-secondary select-none">
-                Ghi nhớ khóa trên thiết bị này (khóa được lưu an toàn tại bộ nhớ trình duyệt của bạn)
-              </label>
-            </div>
-
-            {localStorage.getItem('lovira_custom_gemini_api_key') && (
-              <div className="pt-2">
-                <button
-                  type="button"
-                  onClick={handleDisconnectGemini}
-                  className="px-3 py-1.5 rounded-lg border border-rose-200 dark:border-rose-900 text-rose-600 dark:text-rose-400 text-xs font-semibold hover:bg-rose-50 dark:hover:bg-rose-950/20 transition-colors"
-                >
-                  Ngừng sử dụng Gemini API cá nhân
-                </button>
-              </div>
-            )}
-          </form>
-        </div>
-      </section>
-
-      {/* 5. Google Account & Cloud Sync */}
-      <section className="bg-surface border border-slate-200 dark:border-slate-800 p-6 rounded-2xl space-y-4">
-        <h3 className="text-base font-bold text-text-primary flex items-center gap-2 pb-3 border-b border-slate-100 dark:border-slate-800">
-          <UserCheck className="w-5 h-5 text-primary shrink-0" /> Tài khoản & Đồng bộ
-        </h3>
-
-        <div className="p-4 rounded-xl bg-surface-subtle border border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2">
-              <span className="font-bold text-sm text-text-primary">
-                {userProfile?.email ? userProfile.email : 'Tài khoản Khách (Ẩn danh)'}
-              </span>
-              {userProfile?.email ? (
-                <span className="px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold flex items-center gap-1">
-                  <CheckCircle2 className="w-3 h-3" /> Đã liên kết Google
-                </span>
-              ) : (
-                <span className="px-2 py-0.5 rounded-full bg-slate-200 dark:bg-slate-800 text-text-secondary text-[10px] font-semibold">
-                  Tạm thời
-                </span>
-              )}
-            </div>
+          <div className="flex-1">
+            <h2 className="font-bold text-base text-text-primary">
+              {userProfile?.displayName || 'Khách Lovira'}
+            </h2>
             <p className="text-xs text-text-secondary">
-              {userProfile?.email
-                ? 'Lịch sử xử lý và các cài đặt trợ năng của bạn được bảo vệ an toàn trên đám mây.'
-                : 'Liên kết với Google để lưu giữ lịch sử và truy cập từ bất kỳ thiết bị nào.'}
+              {userProfile?.isAnonymous ? 'Phiên ẩn danh bảo mật' : userProfile?.email || 'Tài khoản đã đồng bộ'}
             </p>
           </div>
-
-          {!userProfile?.email && (
-            <button
-              type="button"
-              onClick={handleLinkGoogle}
-              disabled={linkingGoogle}
-              className="px-4 py-2.5 rounded-xl bg-surface border border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-text-primary text-xs font-bold flex items-center justify-center gap-2 shrink-0 transition-colors"
-            >
-              <Globe className="w-4 h-4 text-primary" />
-              <span>{linkingGoogle ? 'Đang liên kết...' : 'Liên kết tài khoản Google'}</span>
-            </button>
-          )}
         </div>
 
-        {linkingMsg && (
-          <div
-            className={`p-3.5 rounded-xl text-xs font-semibold ${
-              linkingMsg.type === 'success'
-                ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-200 border border-emerald-200 dark:border-emerald-900'
-                : 'bg-rose-50 dark:bg-rose-950/40 text-rose-800 dark:text-rose-200 border border-rose-200 dark:border-rose-900'
-            }`}
-          >
-            {linkingMsg.text}
+        {userProfile?.isAnonymous && (
+          <div className="pt-2 border-t border-border flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <p className="text-xs text-text-secondary">
+              Liên kết tài khoản Google để lưu lịch sử vĩnh viễn trên nhiều thiết bị.
+            </p>
+            <button
+              onClick={handleLinkGoogle}
+              disabled={isLinkingGoogle}
+              className="px-4 py-2 rounded-xl bg-surface-subtle border border-border hover:bg-surface text-xs font-semibold text-text-primary flex items-center justify-center gap-2"
+            >
+              <User className="w-4 h-4 text-primary" />
+              <span>{isLinkingGoogle ? 'Đang liên kết…' : 'Đăng nhập Google'}</span>
+            </button>
           </div>
         )}
+
+        {linkMsg && (
+          <div
+            className={`p-3 rounded-xl text-xs flex items-center gap-2 ${
+              linkMsg.type === 'success'
+                ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
+                : 'bg-red-500/10 text-red-700 dark:text-red-300'
+            }`}
+          >
+            {linkMsg.type === 'success' ? <Check className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
+            <span>{linkMsg.text}</span>
+          </div>
+        )}
+      </div>
+
+      {/* 1. Phím tắt cử chỉ & Điều khiển giọng nói (Voice Access & Touch Shortcuts) */}
+      <section className="space-y-4" id="voice-action-settings">
+        <h2 className="text-lg font-bold text-text-primary flex items-center gap-2">
+          <Mic className="w-5 h-5 text-red-500" />
+          <span>Điều khiển giọng nói & Phím tắt chạm đúp</span>
+        </h2>
+
+        <div className="bg-surface rounded-3xl border border-border p-6 shadow-xs space-y-4">
+          {/* Chạm đúp 2 lần (Double-Tap Shortcut) */}
+          <div className="flex items-center justify-between p-4 rounded-2xl bg-surface-subtle border border-border">
+            <div className="space-y-1 pr-4">
+              <div className="font-bold text-sm text-text-primary flex items-center gap-2">
+                <MousePointerClick className="w-4 h-4 text-red-500" />
+                <span>Chạm đúp 2 lần mở Mic (Voice Shortcut)</span>
+              </div>
+              <div className="text-xs text-text-secondary">
+                Chạm nhanh 2 lần vào bất kỳ khoảng trống nào trên màn hình để bật hoặc tắt chế độ nghe lệnh giọng nói tức thì (rất thuận tiện cho người khiếm thị).
+              </div>
+            </div>
+            <button
+              onClick={() =>
+                onUpdateSettings({ doubleTapShortcutEnabled: !settings.doubleTapShortcutEnabled })
+              }
+              className={`w-12 h-7 rounded-full transition-colors relative p-1 shrink-0 ${
+                settings.doubleTapShortcutEnabled ? 'bg-red-500' : 'bg-border'
+              }`}
+              aria-label="Bật tắt phím tắt chạm đúp 2 lần vào màn hình"
+            >
+              <div
+                className={`w-5 h-5 rounded-full bg-white transition-transform ${
+                  settings.doubleTapShortcutEnabled ? 'translate-x-5' : 'translate-x-0'
+                }`}
+              />
+            </button>
+          </div>
+
+          {/* Điều khiển bằng giọng nói (Voice Access) */}
+          <div className="flex items-center justify-between p-4 rounded-2xl bg-surface-subtle border border-border">
+            <div className="space-y-1 pr-4">
+              <div className="font-bold text-sm text-text-primary flex items-center gap-2">
+                <Mic className="w-4 h-4 text-red-500" />
+                <span>Kích hoạt điều khiển giọng nói (Voice Access)</span>
+              </div>
+              <div className="text-xs text-text-secondary">
+                Điều hướng toàn bộ ứng dụng bằng khẩu lệnh tiếng Việt như: &quot;Mở camera&quot;, &quot;Đọc to&quot;, &quot;Giải thích đơn giản&quot;, &quot;Quay lại&quot;.
+              </div>
+            </div>
+            <button
+              onClick={() =>
+                onUpdateSettings({ voiceAccessEnabled: !settings.voiceAccessEnabled })
+              }
+              className={`w-12 h-7 rounded-full transition-colors relative p-1 shrink-0 ${
+                settings.voiceAccessEnabled ? 'bg-red-500' : 'bg-border'
+              }`}
+              aria-label="Bật tắt điều khiển bằng giọng nói"
+            >
+              <div
+                className={`w-5 h-5 rounded-full bg-white transition-transform ${
+                  settings.voiceAccessEnabled ? 'translate-x-5' : 'translate-x-0'
+                }`}
+              />
+            </button>
+          </div>
+
+          {/* Phản hồi âm thanh chỉ dẫn (Spoken Feedback) */}
+          <div className="flex items-center justify-between p-4 rounded-2xl bg-surface-subtle border border-border">
+            <div className="space-y-1 pr-4">
+              <div className="font-bold text-sm text-text-primary">Phản hồi giọng nói khi thực thi lệnh</div>
+              <div className="text-xs text-text-secondary">
+                Trợ lý sẽ phát âm thanh xác nhận bằng tiếng Việt khi nhận lệnh hoặc chuyển trang.
+              </div>
+            </div>
+            <button
+              onClick={() =>
+                onUpdateSettings({ spokenFeedbackEnabled: !settings.spokenFeedbackEnabled })
+              }
+              className={`w-12 h-7 rounded-full transition-colors relative p-1 shrink-0 ${
+                settings.spokenFeedbackEnabled ? 'bg-red-500' : 'bg-border'
+              }`}
+              aria-label="Bật tắt phản hồi giọng nói"
+            >
+              <div
+                className={`w-5 h-5 rounded-full bg-white transition-transform ${
+                  settings.spokenFeedbackEnabled ? 'translate-x-5' : 'translate-x-0'
+                }`}
+              />
+            </button>
+          </div>
+        </div>
+      </section>
+
+      {/* 2. Thị giác & Hiển thị */}
+      <section className="space-y-4">
+        <h2 className="text-lg font-bold text-text-primary flex items-center gap-2">
+          <Type className="w-5 h-5 text-primary" />
+          <span>Thị giác & Hiển thị</span>
+        </h2>
+
+        <div className="bg-surface rounded-3xl border border-border p-6 shadow-xs space-y-6">
+          {/* Cỡ chữ */}
+          <div className="space-y-3">
+            <label className="font-bold text-sm text-text-primary block">
+              Tỷ lệ phóng to cỡ chữ (Font Scaling)
+            </label>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {fontScales.map((fs) => (
+                <button
+                  key={fs.value}
+                  onClick={() => onUpdateSettings({ fontScale: fs.value })}
+                  className={`py-3 px-3 rounded-2xl text-xs sm:text-sm font-semibold border transition-all text-center ${
+                    settings.fontScale === fs.value
+                      ? 'bg-primary text-white border-primary shadow-xs'
+                      : 'bg-surface-subtle text-text-primary border-border hover:bg-surface'
+                  }`}
+                >
+                  {fs.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="border-t border-border pt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* Dark Mode */}
+            <div className="flex items-center justify-between p-4 rounded-2xl bg-surface-subtle border border-border">
+              <div className="space-y-0.5 pr-2">
+                <div className="font-bold text-sm text-text-primary">Giao diện tối (Dark Mode)</div>
+                <div className="text-xs text-text-secondary">Giảm chói mắt trong môi trường tối</div>
+              </div>
+              <button
+                onClick={() => onUpdateSettings({ theme: settings.theme === 'dark' ? 'light' : 'dark' })}
+                className={`w-12 h-7 rounded-full transition-colors relative p-1 shrink-0 ${
+                  settings.theme === 'dark' ? 'bg-primary' : 'bg-border'
+                }`}
+                aria-label="Bật tắt chế độ tối"
+              >
+                <div
+                  className={`w-5 h-5 rounded-full bg-white transition-transform ${
+                    settings.theme === 'dark' ? 'translate-x-5' : 'translate-x-0'
+                  }`}
+                />
+              </button>
+            </div>
+
+            {/* High Contrast */}
+            <div className="flex items-center justify-between p-4 rounded-2xl bg-surface-subtle border border-border">
+              <div className="space-y-0.5 pr-2">
+                <div className="font-bold text-sm text-text-primary">Độ tương phản cao</div>
+                <div className="text-xs text-text-secondary">Tăng độ nét đường viền và chữ viết</div>
+              </div>
+              <button
+                onClick={() => onUpdateSettings({ highContrast: !settings.highContrast })}
+                className={`w-12 h-7 rounded-full transition-colors relative p-1 shrink-0 ${
+                  settings.highContrast ? 'bg-primary' : 'bg-border'
+                }`}
+                aria-label="Bật tắt độ tương phản cao"
+              >
+                <div
+                  className={`w-5 h-5 rounded-full bg-white transition-transform ${
+                    settings.highContrast ? 'translate-x-5' : 'translate-x-0'
+                  }`}
+                />
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* 3. Thao tác & Vận động (Motor Accessibility) */}
+      <section className="space-y-4">
+        <h2 className="text-lg font-bold text-text-primary flex items-center gap-2">
+          <Zap className="w-5 h-5 text-amber-500" />
+          <span>Thao tác & Vận động</span>
+        </h2>
+
+        <div className="bg-surface rounded-3xl border border-border p-6 shadow-xs space-y-4">
+          {/* Nút bấm lớn */}
+          <div className="flex items-center justify-between p-4 rounded-2xl bg-surface-subtle border border-border">
+            <div className="space-y-1 pr-4">
+              <div className="font-bold text-sm text-text-primary">Nút bấm & Điều khiển kích thước lớn</div>
+              <div className="text-xs text-text-secondary">
+                Tăng kích thước các nút bấm và khu vực cảm ứng tối thiểu 48px - 56px giúp bấm dễ dàng hơn.
+              </div>
+            </div>
+            <button
+              onClick={() => onUpdateSettings({ largeControls: !settings.largeControls })}
+              className={`w-12 h-7 rounded-full transition-colors relative p-1 shrink-0 ${
+                settings.largeControls ? 'bg-amber-500' : 'bg-border'
+              }`}
+              aria-label="Bật tắt nút bấm lớn"
+            >
+              <div
+                className={`w-5 h-5 rounded-full bg-white transition-transform ${
+                  settings.largeControls ? 'translate-x-5' : 'translate-x-0'
+                }`}
+              />
+            </button>
+          </div>
+
+          {/* Giảm chuyển động */}
+          <div className="flex items-center justify-between p-4 rounded-2xl bg-surface-subtle border border-border">
+            <div className="space-y-1 pr-4">
+              <div className="font-bold text-sm text-text-primary">Giảm chuyển động (Reduced Motion)</div>
+              <div className="text-xs text-text-secondary">
+                Tắt các hoạt ảnh lướt trang và hiệu ứng động để giảm mỏi mắt và chóng mặt.
+              </div>
+            </div>
+            <button
+              onClick={() => onUpdateSettings({ reducedMotion: !settings.reducedMotion })}
+              className={`w-12 h-7 rounded-full transition-colors relative p-1 shrink-0 ${
+                settings.reducedMotion ? 'bg-amber-500' : 'bg-border'
+              }`}
+              aria-label="Bật tắt giảm chuyển động"
+            >
+              <div
+                className={`w-5 h-5 rounded-full bg-white transition-transform ${
+                  settings.reducedMotion ? 'translate-x-5' : 'translate-x-0'
+                }`}
+              />
+            </button>
+          </div>
+        </div>
+      </section>
+
+      {/* 4. Thính giác & Giọng đọc */}
+      <section className="space-y-4">
+        <h2 className="text-lg font-bold text-text-primary flex items-center gap-2">
+          <Volume2 className="w-5 h-5 text-teal-600" />
+          <span>Thính giác & Giọng đọc</span>
+        </h2>
+
+        <div className="bg-surface rounded-3xl border border-border p-6 shadow-xs space-y-4">
+          <div className="flex items-center justify-between p-4 rounded-2xl bg-surface-subtle border border-border">
+            <div className="space-y-0.5 pr-4">
+              <div className="font-bold text-sm text-text-primary">Tự động đọc to phản hồi</div>
+              <div className="text-xs text-text-secondary">Đọc tóm tắt ngay khi AI hoàn thành phân tích</div>
+            </div>
+            <button
+              onClick={() => onUpdateSettings({ autoReadResponses: !settings.autoReadResponses })}
+              className={`w-12 h-7 rounded-full transition-colors relative p-1 shrink-0 ${
+                settings.autoReadResponses ? 'bg-teal-600' : 'bg-border'
+              }`}
+              aria-label="Bật tắt tự động đọc to phản hồi"
+            >
+              <div
+                className={`w-5 h-5 rounded-full bg-white transition-transform ${
+                  settings.autoReadResponses ? 'translate-x-5' : 'translate-x-0'
+                }`}
+              />
+            </button>
+          </div>
+
+          {/* Tốc độ đọc */}
+          <div className="p-4 rounded-2xl bg-surface-subtle border border-border space-y-2">
+            <div className="font-bold text-sm text-text-primary">Tốc độ đọc giọng nói (Speech Rate)</div>
+            <div className="grid grid-cols-3 gap-2">
+              {speechRates.map((sr) => (
+                <button
+                  key={sr.value}
+                  onClick={() => onUpdateSettings({ speechRate: sr.value })}
+                  className={`py-2 px-3 rounded-xl text-xs font-semibold border transition-all text-center ${
+                    settings.speechRate === sr.value
+                      ? 'bg-teal-600 text-white border-teal-600 shadow-xs'
+                      : 'bg-surface text-text-primary border-border hover:bg-surface-subtle'
+                  }`}
+                >
+                  {sr.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between p-4 rounded-2xl bg-surface-subtle border border-border">
+            <div className="space-y-0.5">
+              <div className="font-bold text-sm text-text-primary">Kiểm tra âm thanh phát thử</div>
+              <div className="text-xs text-text-secondary">Thử giọng đọc tiếng Việt của thiết bị</div>
+            </div>
+            <button
+              onClick={handleTestSpeech}
+              className="px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-semibold text-xs flex items-center gap-1.5 shrink-0"
+            >
+              <Volume2 className="w-3.5 h-3.5" />
+              <span>Phát thử âm</span>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      {/* 5. Ngôn ngữ ký hiệu VSL */}
+      <section className="space-y-4">
+        <h2 className="text-lg font-bold text-text-primary flex items-center gap-2">
+          <HandMetal className="w-5 h-5 text-emerald-600" />
+          <span>Ngôn ngữ ký hiệu VSL</span>
+        </h2>
+
+        <div className="bg-surface rounded-3xl border border-border p-6 shadow-xs space-y-4">
+          <div className="flex items-center justify-between p-4 rounded-2xl bg-surface-subtle border border-border">
+            <div className="space-y-0.5 pr-4">
+              <div className="font-bold text-sm text-text-primary">Bật Avatar ký hiệu VSL</div>
+              <div className="text-xs text-text-secondary">Hiển thị nhân vật minh họa ngôn ngữ ký hiệu Việt Nam trực quan</div>
+            </div>
+            <button
+              onClick={() =>
+                onUpdateSettings({ vslAccessibilityEnabled: !settings.vslAccessibilityEnabled })
+              }
+              className={`w-12 h-7 rounded-full transition-colors relative p-1 shrink-0 ${
+                settings.vslAccessibilityEnabled ? 'bg-emerald-600' : 'bg-border'
+              }`}
+              aria-label="Bật tắt avatar ngôn ngữ ký hiệu"
+            >
+              <div
+                className={`w-5 h-5 rounded-full bg-white transition-transform ${
+                  settings.vslAccessibilityEnabled ? 'translate-x-5' : 'translate-x-0'
+                }`}
+              />
+            </button>
+          </div>
+        </div>
+      </section>
+
+      {/* 6. Công nghệ AI & Nhà cung cấp */}
+      <section className="space-y-4">
+        <h2 className="text-lg font-bold text-text-primary flex items-center gap-2">
+          <Sparkles className="w-5 h-5 text-purple-600" />
+          <span>Mô hình AI ưu tiên</span>
+        </h2>
+
+        <div className="bg-surface rounded-3xl border border-border p-6 shadow-xs space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <button
+              onClick={() => onUpdateSettings({ preferredAIProvider: 'groq' })}
+              className={`p-4 rounded-2xl border text-left transition-all space-y-1 ${
+                settings.preferredAIProvider === 'groq'
+                  ? 'border-purple-600 bg-purple-50 dark:bg-purple-950/20 shadow-xs'
+                  : 'border-border bg-surface-subtle hover:bg-surface'
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-sm text-text-primary">Groq LLaMA 3.3</span>
+                {settings.preferredAIProvider === 'groq' && (
+                  <span className="px-2 py-0.5 rounded-full bg-purple-600 text-white text-[10px] font-bold">
+                    Đang chọn
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-text-secondary">
+                Tốc độ siêu nhanh (~0.4s), phản hồi tức thì cho giọng nói và hỗ trợ đọc hiểu nhanh.
+              </p>
+            </button>
+
+            <button
+              onClick={() => onUpdateSettings({ preferredAIProvider: 'gemini' })}
+              className={`p-4 rounded-2xl border text-left transition-all space-y-1 ${
+                settings.preferredAIProvider === 'gemini'
+                  ? 'border-purple-600 bg-purple-50 dark:bg-purple-950/20 shadow-xs'
+                  : 'border-border bg-surface-subtle hover:bg-surface'
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-sm text-text-primary">Google Gemini 2.5 Flash</span>
+                {settings.preferredAIProvider === 'gemini' && (
+                  <span className="px-2 py-0.5 rounded-full bg-purple-600 text-white text-[10px] font-bold">
+                    Đang chọn
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-text-secondary">
+                Hiểu thị giác đa phương thức sâu sắc, phân tích tài liệu phức tạp và ngôn cảnh phong phú.
+              </p>
+            </button>
+          </div>
+        </div>
       </section>
     </div>
   );

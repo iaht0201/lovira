@@ -2,603 +2,436 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   Mic,
   MicOff,
-  Play,
-  Pause,
-  Square,
-  Trash2,
   Sparkles,
+  Volume2,
+  VolumeX,
   Copy,
   Check,
-  AlertCircle,
+  RotateCcw,
   FileText,
-  Bookmark,
+  Clock,
+  ListTodo,
+  AlertCircle,
 } from 'lucide-react';
-import { VSLAvatarStick } from '../vsl-avatar/VSLAvatarStick';
-import {
-  isSpeechRecognitionSupported,
-  createSpeechRecognitionInstance,
-} from '../../lib/speech';
-import { ReadAloudButton } from '../common/ReadAloudButton';
-import { LoadingSpinner } from '../common/LoadingSpinner';
-import { ConversationSummary, UserProfile, AccessibilitySettings } from '../../types';
-import { summarizeConversation } from '../../services/api';
-import { saveActivityHistory } from '../../lib/firebase';
-import { useRegisterScreenActions } from '../voice-access/ScreenActionRegistry';
-import { LoviraSpeechManager } from '../voice-access/SpeechManager';
+import { AccessibilitySettings, UserProfile, ConversationResult } from '../../types';
+import { speakText, stopSpeaking } from '../../lib/speech';
 import { LoviraMicCoordinator } from '../voice-access/MicrophoneCoordinator';
+import { saveActivityToFirestore, auth } from '../../lib/firebase';
+import { useScreenActionContext } from '../voice-access/ScreenActionRegistry';
 
 interface ConversationViewProps {
-  userProfile?: UserProfile | null;
+  userProfile: UserProfile | null;
   settings: AccessibilitySettings;
-  onNavigate: (route: string) => void;
 }
 
-function mergeTranscripts(prev: string, newText: string): string {
-  const current = prev.trim();
-  const incoming = newText.trim();
-  if (!incoming) return current;
-  if (!current) return incoming;
-
-  const currentLower = current.toLowerCase();
-  const incomingLower = incoming.toLowerCase();
-
-  // 1. Exact match or prev ends with incoming
-  if (currentLower.endsWith(incomingLower)) {
-    return current;
-  }
-
-  // 2. Incoming is a progressive expansion containing current at start ("Xin" -> "Xin chào" -> "Xin chào 123")
-  if (incomingLower.startsWith(currentLower)) {
-    return incoming;
-  }
-
-  // 3. Check word-level overlap
-  const currentWords = current.split(/\s+/);
-  const incomingWords = incoming.split(/\s+/);
-  const maxCheck = Math.min(currentWords.length, incomingWords.length);
-
-  let overlapCount = 0;
-  for (let k = maxCheck; k > 0; k--) {
-    const currentSuffix = currentWords.slice(currentWords.length - k).join(' ').toLowerCase();
-    const incomingPrefix = incomingWords.slice(0, k).join(' ').toLowerCase();
-    if (currentSuffix === incomingPrefix) {
-      overlapCount = k;
-      break;
-    }
-  }
-
-  if (overlapCount > 0) {
-    const nonOverlapping = incomingWords.slice(overlapCount).join(' ');
-    return nonOverlapping ? `${current} ${nonOverlapping}` : current;
-  }
-
-  return `${current} ${incoming}`;
+interface Utterance {
+  id: string;
+  speaker: 'user' | 'other';
+  text: string;
+  timestamp: string;
 }
 
 export const ConversationView: React.FC<ConversationViewProps> = ({
   userProfile,
   settings,
-  onNavigate,
 }) => {
-  const [isSupported, setIsSupported] = useState(true);
   const [isListening, setIsListening] = useState(false);
-  const [isPaused, setIsPaused] = useState(false);
-
-  const [transcript, setTranscript] = useState('');
+  const [transcript, setTranscript] = useState<Utterance[]>([]);
   const [interimText, setInterimText] = useState('');
-  const [manualInput, setManualInput] = useState('');
-
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [summary, setSummary] = useState<ConversationSummary | null>(null);
+  const [activeSpeaker, setActiveSpeaker] = useState<'other' | 'user'>('other');
+  const [isLoadingSummary, setIsLoadingSummary] = useState(false);
+  const [result, setResult] = useState<ConversationResult | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
   const recognitionRef = useRef<any>(null);
-  const transcriptContainerRef = useRef<HTMLDivElement | null>(null);
+  const { registerAction, setCurrentScreenInfo } = useScreenActionContext();
 
   useEffect(() => {
-    setIsSupported(isSpeechRecognitionSupported());
-  }, []);
+    setCurrentScreenInfo({
+      screenId: 'conversation',
+      title: 'Nghe & ghi lại',
+      description: 'Lắng nghe trực tiếp, tạo phụ đề lớn và tóm lược ý chính',
+    });
+  }, [setCurrentScreenInfo]);
 
   useEffect(() => {
-    return () => {
-      LoviraMicCoordinator.releaseMic('CONVERSATION');
-    };
-  }, []);
+    // Check SpeechRecognition support
+    const SpeechRecognition =
+      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
 
-  useEffect(() => {
-    if (transcriptContainerRef.current) {
-      transcriptContainerRef.current.scrollTop = transcriptContainerRef.current.scrollHeight;
-    }
-  }, [transcript, interimText]);
+    if (SpeechRecognition) {
+      const recognition = new SpeechRecognition();
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = 'vi-VN';
 
-  const startListening = () => {
-    if (!isSupported) return;
-
-    const micGranted = LoviraMicCoordinator.requestMic('CONVERSATION');
-    if (!micGranted) {
-      setError('Micro đang được tính năng trợ lý giọng nói sử dụng. Vui lòng chờ trợ lý dừng lệnh.');
-      return;
-    }
-
-    setError(null);
-    setIsListening(true);
-    setIsPaused(false);
-
-    const instance = createSpeechRecognitionInstance(
-      (newText, isFinal) => {
-        if (isFinal) {
-          setTranscript((prev) => mergeTranscripts(prev, newText));
-          setInterimText('');
-        } else {
-          setInterimText(newText);
-        }
-      },
-      (err) => {
-        console.warn('Speech error:', err);
-        LoviraMicCoordinator.releaseMic('CONVERSATION');
-        if (err === 'not-allowed') {
-          setError('Lovira chưa được phép sử dụng micro. Bạn vẫn có thể nhập nội dung bằng bàn phím.');
-          setIsListening(false);
-        }
-      },
-      () => {
-        if (isListening && !isPaused && recognitionRef.current) {
-          try {
-            recognitionRef.current.start();
-          } catch (e) {
-            // ignore
+      recognition.onresult = (event: any) => {
+        let interim = '';
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          if (event.results[i].isFinal) {
+            const final = event.results[i][0].transcript.trim();
+            if (final) {
+              setTranscript((prev) => [
+                ...prev,
+                {
+                  id: `utt_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+                  speaker: activeSpeaker,
+                  text: final,
+                  timestamp: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
+                },
+              ]);
+            }
+          } else {
+            interim += event.results[i][0].transcript;
           }
         }
-      }
-    );
+        setInterimText(interim);
+      };
 
-    if (instance) {
-      recognitionRef.current = instance;
-      try {
-        (instance as any).start();
-      } catch (e) {
-        console.error('Failed to start speech recognition:', e);
-        LoviraMicCoordinator.releaseMic('CONVERSATION');
-      }
+      recognition.onerror = (e: any) => {
+        console.warn('SpeechRecognition error:', e);
+        if (e.error === 'not-allowed') {
+          setErrorMsg('Không có quyền sử dụng micro. Vui lòng cho phép quyền micro trong trình duyệt.');
+          stopListening();
+        }
+      };
+
+      recognition.onend = () => {
+        if (isListening) {
+          try {
+            recognition.start();
+          } catch {}
+        }
+      };
+
+      recognitionRef.current = recognition;
+    } else {
+      setErrorMsg('Trình duyệt của bạn chưa hỗ trợ nhận diện giọng nói trực tiếp.');
+    }
+
+    return () => {
+      stopListening();
+    };
+  }, [activeSpeaker, isListening]);
+
+  const startListening = () => {
+    setErrorMsg(null);
+    LoviraMicCoordinator.requestAccess('conversation');
+    try {
+      recognitionRef.current?.start();
+      setIsListening(true);
+    } catch (err) {
+      console.warn('Recognition start error:', err);
     }
   };
 
-  const pauseListening = () => {
-    setIsPaused(true);
-    LoviraMicCoordinator.releaseMic('CONVERSATION');
-    if (recognitionRef.current) {
-      try {
-        recognitionRef.current.stop();
-      } catch (e) {
-        // ignore
-      }
-    }
+  const stopListening = () => {
+    LoviraMicCoordinator.releaseAccess('conversation');
+    try {
+      recognitionRef.current?.stop();
+    } catch {}
+    setIsListening(false);
+    setInterimText('');
   };
 
-  const resumeListening = () => {
-    const micGranted = LoviraMicCoordinator.requestMic('CONVERSATION');
-    if (!micGranted) {
-      setError('Micro đang được tính năng trợ lý giọng nói sử dụng.');
-      return;
-    }
-    setIsPaused(false);
-    if (recognitionRef.current) {
-      try {
-        recognitionRef.current.start();
-      } catch (e) {
-        startListening();
-      }
+  const toggleListening = () => {
+    if (isListening) {
+      stopListening();
     } else {
       startListening();
     }
   };
 
-  const stopListening = () => {
-    LoviraMicCoordinator.releaseMic('CONVERSATION');
-    setIsListening(false);
-    setIsPaused(false);
-    setInterimText('');
-    if (recognitionRef.current) {
-      try {
-        recognitionRef.current.stop();
-      } catch (e) {
-        // ignore
-      }
-      recognitionRef.current = null;
-    }
-  };
+  const handleGenerateSummary = async () => {
+    if (transcript.length === 0) return;
+    setIsLoadingSummary(true);
+    setErrorMsg(null);
 
-  const handleClear = () => {
-    stopListening();
-    setTranscript('');
-    setManualInput('');
-    setInterimText('');
-    setSummary(null);
-    setError(null);
-  };
-
-  const getFullContent = () => {
-    const combined = [transcript, manualInput].filter(Boolean).join('\n\n');
-    return combined.trim();
-  };
-
-  const handleSummarize = async () => {
-    const text = getFullContent();
-    if (!text) {
-      setError('Vui lòng ghi âm hoặc nhập nội dung cuộc trò chuyện trước khi tóm tắt.');
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
+    const fullTranscript = transcript
+      .map((u) => `${u.speaker === 'user' ? 'Tôi' : 'Đối phương'}: ${u.text}`)
+      .join('\n');
 
     try {
-      const data = await summarizeConversation(
-        text,
-        localStorage.getItem('lovira_custom_gemini_key') || undefined
-      );
-      setSummary(data);
-
-      if (userProfile?.uid) {
-        saveActivityHistory(
-          userProfile.uid,
-          'conversation',
-          `Cuộc trò chuyện - ${text.slice(0, 30)}…`,
-          data.summary,
-          { transcript: text, summary: data }
-        );
+      const token = await auth.currentUser?.getIdToken();
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'x-lovira-client': 'web-app',
+      };
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
       }
-    } catch (err: unknown) {
-      console.error('Summarize error:', err);
-      const msg = err instanceof Error ? err.message : 'Chưa thể tóm tắt cuộc trò chuyện này.';
-      setError(msg);
+
+      const res = await fetch('/api/gemini/conversation', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          transcript: fullTranscript,
+          goal: 'Tóm lược nội dung trao đổi, phát hiện lời dặn và việc cần làm.',
+        }),
+      });
+
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        throw new Error(json.error || 'Lỗi khi tóm tắt cuộc trò chuyện.');
+      }
+
+      const resData = json.data as ConversationResult;
+      setResult(resData);
+
+      // Save to Firebase history
+      if (userProfile?.uid) {
+        saveActivityToFirestore(userProfile.uid, {
+          type: 'conversation',
+          title: 'Cuộc trò chuyện: ' + (resData.summary ? resData.summary.slice(0, 35) + '...' : 'Ghi chép lời nói'),
+          preview: resData.summary,
+          data: { transcript, result: resData },
+        });
+      }
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Không thể tạo tóm tắt lúc này. Vui lòng thử lại.');
     } finally {
-      setLoading(false);
+      setIsLoadingSummary(false);
     }
   };
 
-  const handleCopySummary = () => {
-    if (!summary) return;
-    const text = `[Tóm tắt cuộc trò chuyện]\n${summary.summary}\n\n[Ý chính]\n${summary.keyPoints.join('\n')}\n\n[Quyết định]\n${summary.decisions.join('\n')}\n\n[Việc cần làm]\n${summary.actionItems.join('\n')}`;
+  const handleClearTranscript = () => {
+    setTranscript([]);
+    setInterimText('');
+    setResult(null);
+  };
+
+  const handleCopy = (text: string) => {
     navigator.clipboard.writeText(text);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
-  useRegisterScreenActions({
-    screenId: 'conversation',
-    screenTitle: 'Nghe & ghi lại',
-    screenState: {
-      isListening,
-      isPaused,
-      hasContent: !!getFullContent(),
-      hasSummary: !!summary,
-      isLoading: loading,
-    },
-    actions: [
-      {
-        id: 'startListening',
-        label: 'Bắt đầu nghe',
-        aliases: ['bắt đầu nghe', 'bắt đầu ghi âm', 'ghi âm', 'thu âm', 'nghe thoại'],
-        description: 'Kích hoạt micro để nhận diện giọng nói và hiển thị phụ đề trực tiếp',
-        handler: () => {
-          if (!isListening) startListening();
-          else if (isPaused) resumeListening();
-        },
-      },
-      {
-        id: 'pauseListening',
-        label: 'Tạm dừng nghe',
-        aliases: ['tạm dừng nghe', 'tạm dừng', 'tạm dừng ghi âm'],
-        description: 'Tạm dừng nhận diện giọng nói',
-        prerequisites: {
-          isSatisfied: isListening && !isPaused,
-          missingReason: 'Micro chưa được bật hoặc đang tạm dừng.',
-        },
-        handler: () => pauseListening(),
-      },
-      {
-        id: 'resumeListening',
-        label: 'Tiếp tục nghe',
-        aliases: ['tiếp tục nghe', 'tiếp tục ghi âm', 'tiếp tục'],
-        description: 'Tiếp tục nhận diện giọng nói sau khi tạm dừng',
-        prerequisites: {
-          isSatisfied: isPaused,
-          missingReason: 'Cuộc trò chuyện không ở trạng thái tạm dừng.',
-        },
-        handler: () => resumeListening(),
-      },
-      {
-        id: 'stopListening',
-        label: 'Dừng nghe',
-        aliases: ['dừng nghe', 'dừng ghi âm', 'kết thúc nghe', 'tắt mic'],
-        description: 'Dừng hẳn việc nhận diện giọng nói',
-        prerequisites: {
-          isSatisfied: isListening,
-          missingReason: 'Micro hiện không đang ghi âm.',
-        },
-        handler: () => stopListening(),
-      },
-      {
-        id: 'summarize',
-        label: 'Tóm tắt cuộc trò chuyện',
-        aliases: ['tóm tắt cuộc trò chuyện', 'tóm tắt', 'phân tích', 'tổng hợp'],
-        description: 'Sử dụng AI để tóm tắt các ý chính, quyết định và việc cần làm',
-        prerequisites: {
-          isSatisfied: !!getFullContent(),
-          missingReason: 'Chưa có nội dung cuộc trò chuyện nào để tóm tắt. Bạn hãy bắt đầu ghi âm hoặc nhập văn bản trước nhé.',
-          promptForMissing: 'startListening',
-        },
-        handler: () => handleSummarize(),
-      },
-      {
-        id: 'clear',
-        label: 'Xóa trắng',
-        aliases: ['xóa trắng', 'xóa nội dung', 'làm mới', 'xóa hết'],
-        description: 'Xóa toàn bộ văn bản ghi âm và kết quả tóm tắt hiện tại',
-        prerequisites: {
-          isSatisfied: !!getFullContent() || !!summary,
-          missingReason: 'Nội dung đang trống.',
-        },
-        handler: () => handleClear(),
-      },
-      {
-        id: 'readSummary',
-        label: 'Đọc bản tóm tắt',
-        aliases: ['đọc bản tóm tắt', 'đọc tóm tắt', 'đọc kết quả', 'đọc to'],
-        description: 'Đọc to nội dung tóm tắt cuộc trò chuyện',
-        prerequisites: {
-          isSatisfied: !!summary,
-          missingReason: 'Chưa có bản tóm tắt nào. Hãy bấm hoặc nói "Tóm tắt" trước nhé.',
-        },
-        handler: () => {
-          if (summary) {
-            const text = `${summary.summary}. Ý chính: ${summary.keyPoints.join('. ')}. Việc cần làm: ${summary.actionItems.join('. ')}`;
-            LoviraSpeechManager.speak(text, { rate: settings.speechRate || 1.0 });
-          }
-        },
-      },
-      {
-        id: 'copyTranscript',
-        label: 'Sao chép văn bản',
-        aliases: ['sao chép văn bản', 'copy văn bản', 'sao chép cuộc trò chuyện'],
-        description: 'Sao chép toàn bộ nội dung lời thoại đã ghi âm vào khay nhớ tạm',
-        prerequisites: {
-          isSatisfied: !!getFullContent(),
-          missingReason: 'Chưa có nội dung nào để sao chép.',
-        },
-        handler: () => {
-          const content = getFullContent();
-          if (content) {
-            navigator.clipboard.writeText(content);
-            setCopied(true);
-            setTimeout(() => setCopied(false), 2000);
-          }
-        },
-      },
-    ],
-  });
+  // Register screen actions
+  useEffect(() => {
+    const unregStart = registerAction({
+      id: 'conversation.start',
+      label: 'Bắt đầu nghe',
+      aliases: ['ghi âm', 'bật nghe'],
+      execute: () => startListening(),
+    });
+    const unregStop = registerAction({
+      id: 'conversation.stop',
+      label: 'Dừng nghe',
+      aliases: ['tắt nghe', 'ngừng ghi'],
+      execute: () => stopListening(),
+    });
+    const unregSum = registerAction({
+      id: 'conversation.summarize',
+      label: 'Tóm tắt cuộc trò chuyện',
+      aliases: ['tóm tắt', 'tóm lược'],
+      execute: () => handleGenerateSummary(),
+    });
+
+    return () => {
+      unregStart();
+      unregStop();
+      unregSum();
+    };
+  }, [registerAction, transcript]);
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold text-text-primary">Nghe & ghi lại</h2>
-        <p className="text-sm text-text-secondary mt-1">Theo dõi lời nói bằng văn bản trực tiếp và tạo bản tóm tắt có cấu trúc rõ ràng.</p>
+    <div className="max-w-4xl mx-auto space-y-6 animate-in fade-in duration-300">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold text-text-primary">Nghe & ghi lại</h1>
+          <p className="text-sm text-text-secondary">
+            Chuyển lời nói trực tiếp thành văn bản lớn, ghi chép ý chính và lời dặn.
+          </p>
+        </div>
+
+        {/* Action Controls */}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={toggleListening}
+            className={`flex items-center gap-2 px-5 py-3 rounded-2xl font-bold text-sm shadow-sm transition-all ${
+              isListening
+                ? 'bg-red-500 hover:bg-red-600 text-white animate-pulse'
+                : 'bg-primary hover:bg-primary-hover text-white'
+            }`}
+          >
+            {isListening ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+            <span>{isListening ? 'Đang nghe (Bấm để dừng)' : 'Bắt đầu nghe'}</span>
+          </button>
+        </div>
       </div>
 
-      {!isSupported && (
-        <div className="p-4 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 text-amber-900 dark:text-amber-200 flex items-start gap-3">
-          <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-          <div className="text-xs leading-relaxed">
-            <p className="font-bold">Trình duyệt chưa hỗ trợ nhận diện giọng nói trực tiếp.</p>
-            <p className="mt-0.5">Bạn vẫn có thể nhập hoặc dán nội dung cuộc trò chuyện bên dưới để Lovira tóm tắt bằng AI.</p>
-          </div>
+      {/* Speaker Selector & Clear */}
+      <div className="flex items-center justify-between gap-2 p-2 bg-surface rounded-2xl border border-border">
+        <div className="flex items-center gap-1.5">
+          <span className="text-xs font-semibold text-text-secondary pl-2 hidden sm:inline">
+            Người đang nói:
+          </span>
+          <button
+            onClick={() => setActiveSpeaker('other')}
+            className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+              activeSpeaker === 'other'
+                ? 'bg-teal-600 text-white shadow-xs'
+                : 'text-text-secondary hover:text-text-primary'
+            }`}
+          >
+            Đối phương (Bác sĩ, cán bộ, bạn bè)
+          </button>
+          <button
+            onClick={() => setActiveSpeaker('user')}
+            className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+              activeSpeaker === 'user'
+                ? 'bg-primary text-white shadow-xs'
+                : 'text-text-secondary hover:text-text-primary'
+            }`}
+          >
+            Tôi (Người dùng)
+          </button>
+        </div>
+
+        {transcript.length > 0 && (
+          <button
+            onClick={handleClearTranscript}
+            className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-medium text-text-secondary hover:text-red-500 hover:bg-surface-subtle transition-colors"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            <span>Xóa làm lại</span>
+          </button>
+        )}
+      </div>
+
+      {/* Error Message */}
+      {errorMsg && (
+        <div className="p-4 rounded-2xl bg-red-500/10 border border-red-500/30 text-red-700 dark:text-red-300 flex items-start gap-3 text-sm">
+          <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+          <div className="flex-1 leading-relaxed">{errorMsg}</div>
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        {/* Left: Live Transcription Panel (6 Cols) */}
-        <div className="lg:col-span-6 bg-surface border border-slate-200 dark:border-slate-800 rounded-2xl p-6 flex flex-col justify-between min-h-[500px]">
-          <div className="space-y-4">
-            {/* Header Status */}
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
-              <div className="flex items-center gap-2">
-                <span className={`w-2.5 h-2.5 rounded-full ${isListening && !isPaused ? 'bg-teal animate-pulse' : 'bg-slate-300 dark:bg-slate-700'}`}></span>
-                <span className="font-bold text-sm text-text-primary">
-                  {isListening ? (isPaused ? 'Đã tạm dừng' : 'Đang lắng nghe trực tiếp') : 'Sẵn sàng ghi âm'}
-                </span>
-              </div>
-              {isListening && !isPaused && (
-                <div className="flex items-center gap-1">
-                  <span className="w-1 h-3 bg-teal rounded-full animate-bounce"></span>
-                  <span className="w-1 h-4 bg-teal rounded-full animate-bounce [animation-delay:0.1s]"></span>
-                  <span className="w-1 h-2 bg-teal rounded-full animate-bounce [animation-delay:0.2s]"></span>
-                </div>
-              )}
-            </div>
-
-            {/* Live Transcript Box */}
-            <div
-              ref={transcriptContainerRef}
-              className="p-4 rounded-xl bg-surface-subtle min-h-[220px] max-h-[300px] overflow-y-auto space-y-2 text-sm text-text-primary leading-relaxed"
-            >
-              {transcript ? (
-                <p className="whitespace-pre-wrap">{transcript}</p>
-              ) : (
-                <p className="text-text-secondary italic text-xs">
-                  Văn bản ghi âm qua micro sẽ tự động xuất hiện tại đây...
-                </p>
-              )}
-              {interimText && (
-                <p className="text-teal font-semibold italic text-xs animate-pulse">
-                  {interimText}...
-                </p>
-              )}
-            </div>
-
-            {/* Manual Input Area */}
-            <div className="space-y-1.5 pt-2">
-              <label htmlFor="manual-transcript" className="block text-xs font-semibold text-text-secondary">
-                Hoặc dán bổ sung văn bản cuộc trò chuyện:
-              </label>
-              <textarea
-                id="manual-transcript"
-                rows={3}
-                value={manualInput}
-                onChange={(e) => setManualInput(e.target.value)}
-                placeholder="Nhập hoặc dán nội dung..."
-                className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-surface text-xs text-text-primary focus:border-primary"
-              ></textarea>
-            </div>
-          </div>
-
-          {/* Action Buttons */}
-          <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              {!isListening ? (
-                <button
-                  type="button"
-                  onClick={startListening}
-                  className="px-4 py-2.5 rounded-xl bg-teal text-white text-xs font-semibold hover:bg-teal-hover flex items-center gap-1.5"
-                >
-                  <Mic className="w-4 h-4 shrink-0" /> Bắt đầu nghe
-                </button>
-              ) : isPaused ? (
-                <button
-                  type="button"
-                  onClick={resumeListening}
-                  className="px-4 py-2.5 rounded-xl bg-teal text-white text-xs font-semibold hover:bg-teal-hover flex items-center gap-1.5"
-                >
-                  <Play className="w-4 h-4 shrink-0" /> Tiếp tục
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={pauseListening}
-                  className="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 text-xs font-semibold text-text-primary hover:bg-surface-subtle flex items-center gap-1.5"
-                >
-                  <Pause className="w-4 h-4 shrink-0" /> Tạm dừng
-                </button>
-              )}
-
-              {isListening && (
-                <button
-                  type="button"
-                  onClick={stopListening}
-                  className="px-4 py-2.5 rounded-xl bg-rose-600 text-white text-xs font-semibold hover:bg-rose-700 flex items-center gap-1.5"
-                >
-                  <Square className="w-4 h-4 shrink-0" /> Kết thúc
-                </button>
-              )}
-
-              <button
-                type="button"
-                onClick={handleClear}
-                className="px-3 py-2.5 rounded-xl text-xs font-semibold text-text-secondary hover:text-rose-600 flex items-center gap-1"
-              >
-                <Trash2 className="w-4 h-4 shrink-0" /> Xóa
-              </button>
-            </div>
-
-            <button
-              type="button"
-              onClick={handleSummarize}
-              disabled={loading || !getFullContent()}
-              className="px-4 py-2.5 rounded-xl bg-primary text-white text-xs font-semibold hover:bg-primary-hover disabled:opacity-50 flex items-center gap-1.5"
-            >
-              <Sparkles className="w-4 h-4 shrink-0" /> Tạo bản tóm tắt
-            </button>
-          </div>
-        </div>
-
-        {/* Right: Summary Panel (6 Cols) */}
-        <div className="lg:col-span-6 bg-surface border border-slate-200 dark:border-slate-800 rounded-2xl p-6 flex flex-col justify-between min-h-[500px]">
-          {loading ? (
-            <LoadingSpinner message="Lovira đang tổng hợp tóm tắt cuộc trò chuyện..." />
-          ) : error ? (
-            <div className="p-4 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 text-rose-800 dark:text-rose-200 text-xs space-y-2">
-              <p className="font-bold">{error}</p>
-            </div>
-          ) : summary ? (
-            <div className="space-y-6">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
-                <h3 className="font-bold text-base text-text-primary">Bản tóm tắt cuộc trò chuyện</h3>
-                <div className="flex items-center gap-2">
-                  <ReadAloudButton
-                    text={`${summary.summary}. ${summary.keyPoints.join('. ')}`}
-                    settings={settings}
-                    size="sm"
-                  />
-                  <button
-                    onClick={handleCopySummary}
-                    className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 text-xs font-semibold text-text-primary hover:bg-surface-subtle flex items-center gap-1"
-                  >
-                    {copied ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
-                    <span>{copied ? 'Đã sao chép' : 'Sao chép'}</span>
-                  </button>
-                </div>
-              </div>
-
-              <div className="space-y-4">
-                <div>
-                  <h4 className="text-xs font-bold text-text-secondary uppercase tracking-wider mb-2">Ý chính</h4>
-                  <p className="text-sm text-text-primary leading-relaxed bg-surface-subtle p-3.5 rounded-xl">
-                    {summary.summary}
-                  </p>
-                </div>
-
-                <div className="pt-2">
-                  <h4 className="text-xs font-bold text-primary uppercase tracking-wider mb-2">Thông dịch viên AI (Ngôn ngữ ký hiệu)</h4>
-                  <div className="w-full flex justify-center">
-                    <VSLAvatarStick text={summary.summary} width={280} height={280} />
-                  </div>
-                </div>
-
-                {summary.keyPoints && summary.keyPoints.length > 0 && (
-                  <div>
-                    <h4 className="text-xs font-bold text-text-secondary uppercase tracking-wider mb-2">Các điểm thảo luận</h4>
-                    <ul className="text-sm text-text-primary space-y-1.5 list-disc list-inside">
-                      {summary.keyPoints.map((kp, i) => (
-                        <li key={i}>{kp}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-
-                {summary.actionItems && summary.actionItems.length > 0 && (
-                  <div>
-                    <h4 className="text-xs font-bold text-coral uppercase tracking-wider mb-2">Việc cần làm</h4>
-                    <ul className="text-sm text-coral space-y-1.5 list-disc list-inside font-medium">
-                      {summary.actionItems.map((act, i) => (
-                        <li key={i}>{act}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </div>
+      {/* Live Transcript Stream */}
+      <div className="bg-surface rounded-3xl border border-border p-5 sm:p-6 shadow-xs space-y-4 min-h-[300px] flex flex-col justify-between">
+        <div className="space-y-3 flex-1 overflow-y-auto max-h-[420px] pr-1">
+          {transcript.length === 0 && !interimText ? (
+            <div className="h-full flex flex-col items-center justify-center text-center p-8 text-text-secondary space-y-2">
+              <Mic className="w-12 h-12 text-text-disabled mb-2" />
+              <div className="font-bold text-base text-text-primary">Chưa có nội dung ghi âm</div>
+              <p className="text-sm max-w-sm">
+                Bấm <strong>&quot;Bắt đầu nghe&quot;</strong> và đặt thiết bị gần người nói để bắt đầu ghi phụ đề trực tiếp.
+              </p>
             </div>
           ) : (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
-                <h3 className="font-bold text-base text-text-primary">Bản tóm tắt cuộc trò chuyện</h3>
-              </div>
-              <div className="p-8 text-center text-text-secondary text-sm">
-                Bật micro ghi âm hoặc dán văn bản bên trái, sau đó nhấn "Tạo bản tóm tắt" để xem kết quả tại đây.
-              </div>
+            <>
+              {transcript.map((u) => (
+                <div
+                  key={u.id}
+                  className={`p-4 rounded-2xl text-base leading-relaxed ${
+                    u.speaker === 'user'
+                      ? 'bg-primary-soft/60 border border-primary/20 text-text-primary ml-6'
+                      : 'bg-surface-subtle border border-border text-text-primary mr-6'
+                  }`}
+                >
+                  <div className="flex items-center justify-between text-xs font-semibold text-text-secondary mb-1">
+                    <span>{u.speaker === 'user' ? 'Tôi' : 'Đối phương'}</span>
+                    <span>{u.timestamp}</span>
+                  </div>
+                  <div className="text-base font-medium">{u.text}</div>
+                </div>
+              ))}
+
+              {interimText && (
+                <div className="p-4 rounded-2xl bg-teal-500/10 border border-teal-500/30 text-teal-900 dark:text-teal-200 animate-pulse text-base italic leading-relaxed">
+                  <span className="text-xs font-semibold block not-italic mb-1 text-teal-700 dark:text-teal-300">
+                    Đang nói…
+                  </span>
+                  {interimText}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        {/* Generate Summary CTA */}
+        {transcript.length > 0 && (
+          <div className="pt-3 border-t border-border flex flex-wrap items-center justify-between gap-3">
+            <span className="text-xs text-text-secondary">
+              Đã ghi được {transcript.length} lượt nói
+            </span>
+            <button
+              onClick={handleGenerateSummary}
+              disabled={isLoadingSummary}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs sm:text-sm shadow-xs transition-all disabled:opacity-50"
+            >
+              <Sparkles className="w-4 h-4" />
+              <span>{isLoadingSummary ? 'Đang tóm tắt…' : 'Tóm tắt & Lấy việc cần làm'}</span>
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Summary and Action Items Output */}
+      {result && (
+        <div className="bg-surface rounded-3xl border border-border p-6 sm:p-8 space-y-6 shadow-xs">
+          <div className="space-y-2 pb-4 border-b border-border">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold uppercase tracking-wider text-teal-600 dark:text-teal-400">
+                Tóm tắt cuộc trò chuyện
+              </span>
+              <button
+                onClick={() => handleCopy(result.summary)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-surface-subtle border border-border hover:bg-surface text-text-primary"
+              >
+                {copied ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+                <span>{copied ? 'Đã chép' : 'Chép'}</span>
+              </button>
+            </div>
+            <p className="text-lg font-medium text-text-primary leading-relaxed">
+              {result.summary}
+            </p>
+          </div>
+
+          {/* Key Facts */}
+          {result.keyFacts && result.keyFacts.length > 0 && (
+            <div className="space-y-3">
+              <h3 className="font-bold text-base text-text-primary flex items-center gap-2">
+                <FileText className="w-4 h-4 text-teal-600" />
+                <span>Ý chính & Lời dặn quan trọng</span>
+              </h3>
+              <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {result.keyFacts.map((fact, i) => (
+                  <li
+                    key={i}
+                    className="p-3.5 rounded-xl bg-surface-subtle border border-border text-sm text-text-primary leading-relaxed"
+                  >
+                    • {fact}
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
 
-          <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex justify-end">
-            <button
-              onClick={() => onNavigate('/easy-read')}
-              className="px-4 py-2 rounded-xl bg-coral-soft text-coral text-xs font-bold hover:bg-coral/20 flex items-center gap-1.5"
-            >
-              <FileText className="w-4 h-4 shrink-0" /> Chuyển sang nội dung dễ hiểu
-            </button>
-          </div>
+          {/* Action Items / Tasks */}
+          {result.actionItems && result.actionItems.length > 0 && (
+            <div className="space-y-3">
+              <h3 className="font-bold text-base text-text-primary flex items-center gap-2">
+                <ListTodo className="w-4 h-4 text-primary" />
+                <span>Việc cần thực hiện</span>
+              </h3>
+              <div className="space-y-2">
+                {result.actionItems.map((item, i) => (
+                  <div
+                    key={i}
+                    className="p-3.5 rounded-xl bg-surface-subtle border border-border flex items-start gap-3"
+                  >
+                    <div className="w-5 h-5 rounded-md border-2 border-primary/60 mt-0.5 flex-shrink-0" />
+                    <div className="flex-1 text-sm text-text-primary font-medium">{item}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
-      </div>
+      )}
     </div>
   );
 };

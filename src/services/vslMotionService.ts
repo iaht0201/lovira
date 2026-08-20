@@ -1,108 +1,121 @@
-import { fetchApi } from './api';
+export interface VSLPoint {
+  x: number;
+  y: number;
+  z?: number;
+}
 
 export interface VSLFrame {
   t: number;
-  leftHand: { x: number; y: number; z: number; rotation: number; shape: string; detected: boolean };
-  rightHand: { x: number; y: number; z: number; rotation: number; shape: string; detected: boolean };
-  leftElbow: { x: number; y: number; z: number };
-  rightElbow: { x: number; y: number; z: number };
-  leftShoulder: { x: number; y: number; z: number };
-  rightShoulder: { x: number; y: number; z: number };
-  head: { x: number; y: number; z: number };
+  head: VSLPoint;
+  leftShoulder: VSLPoint;
+  rightShoulder: VSLPoint;
+  leftElbow: VSLPoint;
+  rightElbow: VSLPoint;
+  leftHand: VSLPoint;
+  rightHand: VSLPoint;
+  timestamp?: number;
+  joints?: Record<string, VSLPoint>;
+  [key: string]: any;
 }
 
 export interface VSLMotionData {
-  schema: string;
-  label: string;
-  slug: string;
+  slug?: string;
+  label?: string;
+  schema?: string;
+  gloss?: string;
   duration: number;
-  framesCount: number;
+  fps?: number;
+  framesCount?: number;
   frames: VSLFrame[];
+  [key: string]: any;
 }
 
 class VSLMotionService {
-  private cache: Record<string, VSLMotionData> = {};
-  private dictionary: Array<{ slug: string; label: string }> | null = null;
+  private motionCache = new Map<string, VSLMotionData>();
+  private availableGlossesCache: string[] | null = null;
 
-  private async loadDictionary() {
-    if (this.dictionary) return this.dictionary;
-    try {
-      const res = await fetch('/assets/vsl-motions/vslDictionary.json');
-      this.dictionary = await res.json();
-    } catch (e) {
-      console.error('[VSLMotionService] Failed to load VSL dictionary', e);
-      this.dictionary = [];
-    }
-    return this.dictionary;
-  }
-
-  async getMotion(slug: string): Promise<VSLMotionData | null> {
-    if (this.cache[slug]) {
-      return this.cache[slug];
+  public async getAvailableGlosses(): Promise<string[]> {
+    if (this.availableGlossesCache) {
+      return this.availableGlossesCache;
     }
     try {
-      const response = await fetch(`/assets/vsl-motions/${slug}/motion.json`);
-      if (!response.ok) {
-        throw new Error(`Failed to fetch motion ${slug}`);
+      const res = await fetch('/assets/vsl-motions/vslIndex.json');
+      if (res.ok) {
+        const list = await res.json();
+        this.availableGlossesCache = Array.isArray(list) ? list : [];
+        return this.availableGlossesCache;
       }
-      const data: VSLMotionData = await response.json();
-      this.cache[slug] = data;
-      return data;
-    } catch (error) {
-      console.error(`[VSLMotionService] Error loading motion ${slug}:`, error);
-      return null;
+    } catch (e) {
+      console.warn('[VSLMotionService] Could not fetch vslIndex.json:', e);
     }
+    return [];
   }
 
-  async translateTextToGlosses(text: string): Promise<string[]> {
-    // REAL-TIME LOCAL MATCHING ENGINE (0.01s execution time)
-    const dict = await this.loadDictionary();
-    if (!dict || dict.length === 0) return [];
+  public async getMotion(gloss: string): Promise<VSLMotionData | null> {
+    const cleanGloss = gloss.trim().toLowerCase();
+    if (this.motionCache.has(cleanGloss)) {
+      return this.motionCache.get(cleanGloss)!;
+    }
 
-    // Normalize text (remove punctuation, keep spaces)
-    const cleanText = text.toLowerCase().replace(/[.,!?;:()"]/g, ' ').replace(/\s+/g, ' ').trim();
-    if (!cleanText) return [];
-    const words = cleanText.split(' ');
+    try {
+      let res = await fetch(`/assets/vsl-motions/${cleanGloss}/motion.json`);
+      if (!res.ok) {
+        res = await fetch(`/assets/vsl-motions/${cleanGloss}.json`);
+      }
+      if (res.ok) {
+        const data = (await res.json()) as VSLMotionData;
+        this.motionCache.set(cleanGloss, data);
+        return data;
+      }
+    } catch (e) {
+      console.warn(`[VSLMotionService] Could not fetch motion for ${cleanGloss}:`, e);
+    }
+    return null;
+  }
 
-    // Precompute normalized labels and sort by word count descending (Greedy Match longest phrases first)
-    const dictMap = dict.map(item => ({
-      slug: item.slug,
-      labelWords: item.label.toLowerCase().replace(/[.,!?;:()"]/g, ' ').replace(/\s+/g, ' ').trim().split(' ')
-    })).sort((a, b) => b.labelWords.length - a.labelWords.length);
+  public async translateToGlosses(text: string): Promise<string[]> {
+    if (!text || !text.trim()) return [];
 
-    const resultGlosses: string[] = [];
-    let i = 0;
-    
-    while (i < words.length) {
-      let matched = false;
-      
-      for (const entry of dictMap) {
-        const phraseLen = entry.labelWords.length;
-        if (i + phraseLen <= words.length) {
-          let isMatch = true;
-          for (let j = 0; j < phraseLen; j++) {
-            if (words[i + j] !== entry.labelWords[j]) {
-              isMatch = false;
-              break;
-            }
-          }
-          
-          if (isMatch) {
-            resultGlosses.push(entry.slug);
-            i += phraseLen; // Advance by the number of matched words
-            matched = true;
-            break; 
-          }
+    try {
+      const res = await fetch('/api/gemini/vsl-translate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-lovira-client': 'web-app',
+        },
+        body: JSON.stringify({ text }),
+      });
+
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && Array.isArray(json.data)) {
+          return json.data;
         }
       }
-      
-      if (!matched) {
-        i++; // Skip unknown word
+    } catch (e) {
+      console.warn('[VSLMotionService] Translation API error, falling back:', e);
+    }
+
+    // Fallback: simple keyword matching against available glosses
+    const available = await this.getAvailableGlosses();
+    const clean = text
+      .toLowerCase()
+      .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?"']/g, ' ')
+      .trim();
+    const words = clean.split(/\s+/);
+    const matched: string[] = [];
+
+    for (const w of words) {
+      if (available.includes(w)) {
+        matched.push(w);
       }
     }
-    
-    console.log(`[VSL Realtime Mapper] "${text}" ->`, resultGlosses);
-    return resultGlosses;
+
+    return matched;
+  }
+
+  public async translateTextToGlosses(text: string): Promise<string[]> {
+    return this.translateToGlosses(text);
   }
 }
 
