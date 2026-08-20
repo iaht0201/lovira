@@ -1,4 +1,6 @@
 import express, { Request, Response, NextFunction } from 'express';
+import fs from 'fs';
+import path from 'path';
 import dotenv from 'dotenv';
 import { GoogleGenAI, Type } from '@google/genai';
 import { z } from 'zod';
@@ -749,6 +751,55 @@ ${question}`;
     return res.json({ success: true, answer: text });
   } catch (err: unknown) {
     return handleApiError(res, 'document-qa', err);
+  }
+});
+
+// 7.5. POST /api/gemini/vsl-translate
+app.post('/api/gemini/vsl-translate', async (req: Request, res: Response) => {
+  console.log('[Lovira API] vsl-translate request received');
+  res.setHeader('Content-Type', 'application/json');
+  try {
+    const { text, customApiKey } = req.body || {};
+    if (!text || typeof text !== 'string' || !text.trim()) {
+      return res.status(400).json({ success: false, error: 'Văn bản không hợp lệ.', category: 'invalid_argument', code: 'MISSING_TEXT' });
+    }
+
+    // Read the dictionary of available VSL motions
+    const indexPath = path.join(process.cwd(), 'public', 'assets', 'vsl-motions', 'vslIndex.json');
+    let availableGlosses: string[] = [];
+    try {
+      const indexData = fs.readFileSync(indexPath, 'utf-8');
+      availableGlosses = JSON.parse(indexData);
+    } catch (e) {
+      console.error('Could not read vslIndex.json', e);
+      return res.status(500).json({ success: false, error: 'Không tìm thấy từ điển VSL.' });
+    }
+
+    const prompt = `Bạn là một chuyên gia dịch Tiếng Việt sang Ngôn ngữ Ký hiệu Việt Nam (VSL).
+Nhiệm vụ của bạn là chuyển đổi câu tiếng Việt sau đây thành một mảng các từ khóa (glosses) VSL.
+LƯU Ý QUAN TRỌNG: Bạn CHỈ ĐƯỢC PHÉP sử dụng các từ khóa (glosses) có trong danh sách từ điển dưới đây. Nếu một từ không có trong danh sách, hãy tìm từ đồng nghĩa hoặc bỏ qua nếu không quan trọng. Không bao giờ tạo ra từ khóa mới.
+
+Danh sách từ vựng hỗ trợ:
+${availableGlosses.join(', ')}
+
+Câu cần dịch: "${text}"
+
+Hãy trả về định dạng JSON là một mảng chuỗi các từ khóa, ví dụ: ["xin_chao", "toi_yeu_ban_ay", "an_u"].`;
+
+    const resultText = await generateTextWithDualEngine({
+      systemInstruction: 'Bạn là chuyên gia dịch thuật VSL, luôn luôn trả về JSON là một mảng chuỗi (Array of string) chính xác tuyệt đối từ danh sách được cung cấp.',
+      prompt,
+      responseMimeType: 'application/json',
+      customApiKey,
+    });
+
+    const parsedRaw = safeParseJson<string[]>(resultText);
+    const data = Array.isArray(parsedRaw) ? parsedRaw : [];
+
+    console.log(`[Lovira API] vsl-translate mapped: "${text}" ->`, data);
+    return res.json({ success: true, data });
+  } catch (err: unknown) {
+    return handleApiError(res, 'vsl-translate', err);
   }
 });
 

@@ -15,6 +15,7 @@ import { DocumentView } from './components/documents/DocumentView';
 import { HistoryView } from './components/history/HistoryView';
 import { SettingsView } from './components/settings/SettingsView';
 import { LifeSessionView } from './components/agent/LifeSessionView';
+import { VSLPlaygroundView } from './components/vsl-playground/VSLPlaygroundView';
 
 import { AccessibilitySettings, UserProfile } from './types';
 import { DEFAULT_ACCESSIBILITY_SETTINGS } from './constants';
@@ -122,6 +123,13 @@ function AppContent({
 
               {currentRoute.startsWith('/documents') && (
                 <DocumentView
+                  userProfile={userProfile}
+                  settings={settings}
+                />
+              )}
+
+              {currentRoute.startsWith('/vsl-playground') && (
+                <VSLPlaygroundView
                   userProfile={userProfile}
                   settings={settings}
                 />
