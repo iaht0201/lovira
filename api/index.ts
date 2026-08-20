@@ -535,8 +535,6 @@ app.post('/api/gemini/easy-read', async (req: Request, res: Response) => {
       return res.status(400).json({ success: false, error: 'Văn bản quá dài (tối đa 50,000 ký tự).', category: 'invalid_argument', code: 'TEXT_TOO_LONG' });
     }
 
-    const ai = getGenAIClient(customApiKey);
-
     let levelInstruction = 'Viết lại văn bản bằng ngôn ngữ cực kỳ đơn giản, câu ngắn, rõ nghĩa, loại bỏ từ ngữ hành chính rườm rà.';
     if (level === 'step') {
       levelInstruction = 'Chuyển đổi văn bản/quy trình thành các bước thực hiện đánh số thứ tự rõ ràng (1, 2, 3...).';
@@ -615,8 +613,6 @@ app.post('/api/gemini/conversation-summary', async (req: Request, res: Response)
     if (transcript.length > 50000) {
       return res.status(400).json({ success: false, error: 'Nội dung ghi chép quá dài (tối đa 50,000 ký tự).', category: 'invalid_argument', code: 'TRANSCRIPT_TOO_LONG' });
     }
-
-    const ai = getGenAIClient(customApiKey);
 
     const prompt = `Phân tích đoạn ghi chép cuộc trò chuyện sau đây để giúp người dùng khiếm thính hoặc khó nghe nắm bắt nhanh nội dung:
 
