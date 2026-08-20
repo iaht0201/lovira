@@ -1,5 +1,5 @@
 import React from 'react';
-import { Home, Eye, Mic, FileText, Menu } from 'lucide-react';
+import { Home, Eye, Mic, FileText, Menu, Gamepad2 } from 'lucide-react';
 
 interface MobileNavProps {
   currentRoute: string;
@@ -16,7 +16,7 @@ export const MobileNav: React.FC<MobileNavProps> = ({
     { id: 'dashboard', label: 'Trang chủ', icon: Home, route: '/' },
     { id: 'vision', label: 'Nhìn', icon: Eye, route: '/vision' },
     { id: 'conversation', label: 'Nghe', icon: Mic, route: '/conversation' },
-    { id: 'easy-read', label: 'Dễ hiểu', icon: FileText, route: '/easy-read' },
+    { id: 'vsl-playground', label: 'Ký hiệu', icon: Gamepad2, route: '/vsl-playground' },
   ];
 
   return (
@@ -52,7 +52,7 @@ export const MobileNav: React.FC<MobileNavProps> = ({
         <button
           onClick={onOpenMoreMenu}
           className={`flex flex-col items-center justify-center min-h-[44px] py-1 px-1 rounded-full transition-colors text-slate-500 hover:text-slate-900 dark:text-zinc-400 dark:hover:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
-            currentRoute.startsWith('/documents') || currentRoute.startsWith('/history') || currentRoute.startsWith('/settings')
+            currentRoute.startsWith('/documents') || currentRoute.startsWith('/history') || currentRoute.startsWith('/settings') || currentRoute.startsWith('/easy-read')
               ? 'text-indigo-600 dark:text-indigo-400 font-bold'
               : ''
           }`}

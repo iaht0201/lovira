@@ -13,6 +13,7 @@ import {
   FileText,
   Bookmark,
 } from 'lucide-react';
+import { VSLAvatarStick } from '../vsl-avatar/VSLAvatarStick';
 import {
   isSpeechRecognitionSupported,
   createSpeechRecognitionInstance,
@@ -545,6 +546,13 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
                   <p className="text-sm text-text-primary leading-relaxed bg-surface-subtle p-3.5 rounded-xl">
                     {summary.summary}
                   </p>
+                </div>
+
+                <div className="pt-2">
+                  <h4 className="text-xs font-bold text-primary uppercase tracking-wider mb-2">Thông dịch viên AI (Ngôn ngữ ký hiệu)</h4>
+                  <div className="w-full flex justify-center">
+                    <VSLAvatarStick text={summary.summary} width={280} height={280} />
+                  </div>
                 </div>
 
                 {summary.keyPoints && summary.keyPoints.length > 0 && (

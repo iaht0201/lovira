@@ -9,6 +9,7 @@ import {
   Settings2,
   HeartHandshake,
   User,
+  Gamepad2,
 } from 'lucide-react';
 import { AccessibilitySettings, UserProfile } from '../../types';
 
@@ -30,6 +31,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'conversation', label: 'Nghe & ghi lại', icon: Mic, route: '/conversation', colorClass: 'text-teal' },
     { id: 'easy-read', label: 'Làm nội dung dễ hiểu', icon: FileText, route: '/easy-read', colorClass: 'text-coral' },
     { id: 'documents', label: 'Hiểu tài liệu', icon: FolderOpen, route: '/documents', colorClass: 'text-blue-500' },
+    { id: 'vsl-playground', label: 'Thử nghiệm Ký hiệu', icon: Gamepad2, route: '/vsl-playground', colorClass: 'text-rose-500' },
   ];
 
   const personalItems = [
