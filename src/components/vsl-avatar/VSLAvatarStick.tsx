@@ -507,44 +507,64 @@ export const VSLAvatarStick: React.FC<VSLAvatarStickProps> = ({
       };
     };
 
+    let cancelled = false;
+
     const translateAndPlay = async () => {
       setIsTranslating(true);
-      const glosses = await vslMotionService.translateTextToGlosses(text);
+      try {
+        const glosses = await vslMotionService.translateTextToGlosses(text);
+        if (cancelled) return;
 
-      const motions: VSLMotionData[] = [];
-      for (const slug of glosses) {
-        const m = await vslMotionService.getMotion(slug);
-        if (m && m.frames && m.frames.length > 0) {
-          motions.push(trimMotion(m));
+        const motions: VSLMotionData[] = [];
+        for (const slug of glosses) {
+          if (cancelled) return;
+          const m = await vslMotionService.getMotion(slug);
+          if (m && m.frames && m.frames.length > 0) {
+            motions.push(trimMotion(m));
+          }
         }
-      }
 
-      setIsTranslating(false);
+        if (cancelled) return;
+        setIsTranslating(false);
 
-      if (motions.length > 0) {
-        motions.push({
-          schema: 'lovira.vsl.rive-motion.v1',
-          label: 'Nghỉ',
-          slug: 'rest',
-          duration: 0.5,
-          framesCount: 2,
-          frames: [
-            { t: 0, ...defaultPose } as unknown as VSLFrame,
-            { t: 0.5, ...defaultPose } as unknown as VSLFrame,
-          ],
-        });
+        if (motions.length > 0) {
+          motions.push({
+            schema: 'lovira.vsl.rive-motion.v1',
+            label: 'Nghỉ',
+            slug: 'rest',
+            duration: 0.5,
+            framesCount: 2,
+            frames: [
+              { t: 0, ...defaultPose } as unknown as VSLFrame,
+              { t: 0.5, ...defaultPose } as unknown as VSLFrame,
+            ],
+          });
 
-        motionQueueRef.current = motions;
-        if (!isPlayingRef.current) {
-          processQueue();
+          motionQueueRef.current = motions;
+          if (!isPlayingRef.current) {
+            processQueue();
+          }
+        } else {
+          isPlayingRef.current = false;
+          setIsPlaying(false);
+          setRestPose();
         }
-      } else {
-        isPlayingRef.current = false;
-        setIsPlaying(false);
-        setRestPose();
+      } catch (err) {
+        if (!cancelled) {
+          console.warn('[VSLAvatarStick] Error during translation playback:', err);
+          setIsTranslating(false);
+          isPlayingRef.current = false;
+          setIsPlaying(false);
+          setRestPose();
+        }
       }
     };
+
     translateAndPlay();
+
+    return () => {
+      cancelled = true;
+    };
   }, [text, playCount]);
 
   useEffect(() => {

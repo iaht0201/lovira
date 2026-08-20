@@ -22,36 +22,77 @@ export interface VSLMotionData {
 
 class VSLMotionService {
   private cache: Record<string, VSLMotionData> = {};
+  private pendingFetches: Record<string, Promise<VSLMotionData | null>> = {};
   private dictionary: Array<{ slug: string; label: string }> | null = null;
+  private pendingDictPromise: Promise<Array<{ slug: string; label: string }>> | null = null;
 
-  private async loadDictionary() {
+  private async loadDictionary(): Promise<Array<{ slug: string; label: string }>> {
     if (this.dictionary) return this.dictionary;
-    try {
-      const res = await fetch('/assets/vsl-motions/vslDictionary.json');
-      this.dictionary = await res.json();
-    } catch (e) {
-      console.error('[VSLMotionService] Failed to load VSL dictionary', e);
-      this.dictionary = [];
-    }
-    return this.dictionary;
+    if (this.pendingDictPromise) return this.pendingDictPromise;
+
+    this.pendingDictPromise = (async () => {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 6000);
+        const res = await fetch('/assets/vsl-motions/vslDictionary.json', { signal: controller.signal });
+        clearTimeout(timeoutId);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        this.dictionary = await res.json();
+        return this.dictionary || [];
+      } catch (e) {
+        console.warn('[VSLMotionService] Could not load VSL dictionary from server, fallback to empty', e);
+        this.dictionary = [];
+        return [];
+      } finally {
+        this.pendingDictPromise = null;
+      }
+    })();
+
+    return this.pendingDictPromise;
   }
 
   async getMotion(slug: string): Promise<VSLMotionData | null> {
-    if (this.cache[slug]) {
-      return this.cache[slug];
+    if (!slug) return null;
+    const cleanSlug = encodeURIComponent(slug.trim());
+    if (this.cache[cleanSlug]) {
+      return this.cache[cleanSlug];
     }
-    try {
-      const response = await fetch(`/assets/vsl-motions/${slug}/motion.json`);
-      if (!response.ok) {
-        throw new Error(`Failed to fetch motion ${slug}`);
+    if (this.pendingFetches[cleanSlug]) {
+      return this.pendingFetches[cleanSlug];
+    }
+
+    this.pendingFetches[cleanSlug] = (async (): Promise<VSLMotionData | null> => {
+      for (let attempt = 1; attempt <= 2; attempt++) {
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 5000);
+          const response = await fetch(`/assets/vsl-motions/${cleanSlug}/motion.json`, {
+            signal: controller.signal,
+          });
+          clearTimeout(timeoutId);
+
+          if (!response.ok) {
+            throw new Error(`HTTP error ${response.status}`);
+          }
+          const data: VSLMotionData = await response.json();
+          this.cache[cleanSlug] = data;
+          return data;
+        } catch (error) {
+          if (attempt === 1) {
+            // Short backoff before retry
+            await new Promise((resolve) => setTimeout(resolve, 150));
+            continue;
+          }
+          console.warn(`[VSLMotionService] Motion not available for "${slug}"`, error);
+          return null;
+        }
       }
-      const data: VSLMotionData = await response.json();
-      this.cache[slug] = data;
-      return data;
-    } catch (error) {
-      console.error(`[VSLMotionService] Error loading motion ${slug}:`, error);
       return null;
-    }
+    })().finally(() => {
+      delete this.pendingFetches[cleanSlug];
+    });
+
+    return this.pendingFetches[cleanSlug];
   }
 
   async translateTextToGlosses(text: string): Promise<string[]> {
