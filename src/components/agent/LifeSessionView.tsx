@@ -25,7 +25,7 @@ import { LIFE_MODE_CONFIGS } from '../../agent/SessionManager';
 import { speakText } from '../../lib/speech';
 import { useRegisterScreenActions } from '../voice-access/ScreenActionRegistry';
 import { AccessibilitySettings } from '../../types';
-import { VoiceInputButton } from '../common/VoiceInputButton';
+import { VoiceInputButton } from '../common';
 
 interface LifeSessionViewProps {
   settings: AccessibilitySettings;
